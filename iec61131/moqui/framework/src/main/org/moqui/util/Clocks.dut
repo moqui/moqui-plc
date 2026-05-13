@@ -1,0 +1,18 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Generated clocks for timing generation *)
+TYPE Clocks : STRUCT
+	(* 
+     * SystemClock is the main high-speed clock, e.g., from the task cycle. 
+     * All other clocks are derived from it.
+     *)
+    systemClock : BOOL; (* Main system clock 100 Hz, duty-cycle 50% *)
+    (* Derived clock pulses (one-cycle TRUE). Derived from systemClock rising edge *)
+    clock10ms : BOOL; (* 10ms pulse *)
+    clock100ms : BOOL; (* 100ms pulse *)
+    clock1s : BOOL; (* 1 second pulse *)
+    clock1minute : BOOL; (* 1 minute pulse *)
+	(* Extend based on your needs *)
+END_STRUCT END_TYPE

@@ -1,0 +1,63 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Timing generation *)
+FUNCTION_BLOCK ClockGeneration
+VAR_EXTERNAL
+	clks : Clocks;
+END_VAR
+VAR_INPUT
+	operationType : OperatingMode;
+END_VAR
+VAR
+	(* Internal variable to detect the rising edge of the systemClock *)
+	systemClockOld : BOOL;
+	(* Internal counters for derived clocks *)
+	timerClock100ms : UDINT;
+	timerClock1s : UDINT;
+	timerClock1minute : UDINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF (operationType = OperatingMode.Init) THEN
+	systemClockOld := TRUE;
+	timerClock100ms := 10;
+	timerClock1s := 10;
+	timerClock1minute := 60;
+END_IF;
+
+(* 
+ * Uncomment if you want to make loops shorter than 10 ms.
+ * It is not recommended to go below 5 ms with the PLC.
+ * The control loop (current) of the axes is in the servo drives.
+ *)
+(*
+clks.clock10ms := clks.systemClock AND NOT systemClockOld;
+systemClockOld := clks.systemClock;
+*)
+clks.clock10ms := TRUE;
+
+IF clks.clock10ms THEN
+	timerClock100ms := timerClock100ms - 1;
+END_IF;
+clks.clock100ms := (timerClock100ms = 0);
+
+IF clks.clock100ms THEN
+	timerClock100ms := 10;
+	timerClock1s := timerClock1s - 1;
+END_IF;
+clks.clock1s := (timerClock1s = 0);
+
+IF clks.clock1s THEN
+	timerClock1s := 10;
+	timerClock1minute := timerClock1minute - 1;
+END_IF;
+clks.clock1minute := (timerClock1minute = 0);
+
+IF clks.clock1minute THEN
+	timerClock1minute := 60;
+END_IF;

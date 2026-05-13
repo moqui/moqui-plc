@@ -1,0 +1,86 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(*
+ * The Moqui WorkEffort entity for tracking a production run.
+ * Sample code for updating times:
+ *
+ *     actualWorkDuration := actualWorkDuration + 1;
+ *
+ *     IF status = RUN THEN  
+ *         actualWorkTime := actualWorkTime + 1;
+ *         remainingWorkTime := estimatedWorkTime - actualWorkTime;
+ *     ELSIF status = STANDBY THEN
+ *         (* Technical stop *)
+ *         actualBreakDuration := actualBreakDuration + 1;
+ *     END_IF;
+ *)
+TYPE WorkEffort : STRUCT
+    (* Unique work effort ID *)
+    workEffortId : STRING;
+	(* For task/etc breakdown *)
+	parentWorkEffortId : STRING;
+	(* The root of the tree this is part of (if applicable), like a program *)
+	rootWorkEffortId : STRING;
+	workEffortTypeEnumId : WorkEffortType;
+	(* Process purpose (e.g., Production cycle, prototype cycle, safety cycle, etc...). *)
+    purposeEnumId : WorkEffortPurpose;
+	workTypeEnumId : STRING;
+	(* The party that owns the process or for whom the process is performed *)
+	ownerPartyId : STRING;
+    statusId : STRING;
+	statusFlowId : STRING;
+	(* Process priority, lower numbers run first among processes *)
+    priority : INT;
+	(* On completion store a log to this topic *)
+    topic : STRING;
+	percentComplete : INT;
+	revisionNumber : INT;
+    workEffortName : STRING;
+	description : STRING;
+    location : STRING;
+	(* Where the work effort takes place *)
+    facilityId : STRING;
+	(* For estimated and actual time ranges *)
+	estimatedStartDate : DATE_AND_TIME;
+	estimatedCompletionDate : DATE_AND_TIME;
+	actualStartDate : DATE_AND_TIME;
+	actualCompletionDate : DATE_AND_TIME;
+	(* 
+     * Scheduling data.
+	 * The field recurStartCron in the database is converted into: recurInterval, lastExecutionTime in the PLC.
+	 *)
+	recurInterval : TIME;
+	lastUpdatedStamp : DATE_AND_TIME := DATE_AND_TIME#1970-01-01-00:00:00;
+	recurLimit : INT;
+	recurEndDate : DATE_AND_TIME := DATE_AND_TIME#1970-01-01-00:00:00;
+	(* Minimum time between retries after a task error, in seconds *)
+	minRetryTime : TIME;
+	(* If specified only retry this many times. When this count is reached paused will be set to true. *)
+	maxRetryCount : INT;
+	(* For all day events, separate date fields to avoid issues with time zones, etc *)
+	allDayStart : DATE;
+	(* Can be null for single day events *)
+	allDayEnd : DATE;
+	(* Total estimated work time across all phases/recipes/devices/device configs *)
+	estimatedWorkTime : UDINT;
+	(* Total estimated setup time across all phases/recipes/devices/device configs *)
+	estimatedSetupTime : UDINT;
+	(* Total remaining work time across all phases/recipes/devices/device configs *)
+	remainingWorkTime : UDINT;
+	(* Actual work time across all phases/recipes/devices/device configs *)
+	actualWorkTime : UDINT;
+	(* Actual setup time across all phases/recipes/devices/device configs *)
+	actualSetupTime : UDINT;
+	(* Total work time allowed (budgeted) across all phases/recipes/devices/device configs *)
+	totalTimeAllowed : UDINT;
+	(* Estimated work duration in calendar time (see estimatedWorkTime for total worked time) *)
+	estimatedWorkDuration : UDINT;
+	(* Actual work duration in calendar time (see actualWorkTime for total worked time) *)
+	actualWorkDuration : UDINT;
+	(* Actual break duration in calendar time *)
+	actualBreakDuration : UDINT;
+	(* Time unit for all time and duration fields; defaults to seconds *)
+	timeUomId : STRING := 'Tf_s';
+END_STRUCT END_TYPE

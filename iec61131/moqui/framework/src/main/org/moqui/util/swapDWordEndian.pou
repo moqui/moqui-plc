@@ -1,0 +1,14 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Swap two words in a double word to change the endianness *)
+FUNCTION swapDWordEndian : DWORD
+VAR_INPUT
+    input : DWORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+swapDWordEndian := SHL(input AND 16#0000FFFF, 16) OR SHR(input AND 16#FFFF0000, 16);

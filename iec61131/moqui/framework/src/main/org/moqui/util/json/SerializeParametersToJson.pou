@@ -1,0 +1,79 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* JSON parameters generator *)
+FUNCTION_BLOCK SerializeParametersToJson
+VAR_EXTERNAL CONSTANT
+    JSON_PAYLOAD_MAX_SIZE : UINT;
+    JSON_LINE_BREAK : WSTRING(2);
+END_VAR
+VAR_INPUT
+	execute : BOOL;
+    asyncMode : BOOL := TRUE; (* If TRUE, JSON writer runs in asynchronous mode *)
+    lineBreak : WSTRING(2) := JSON_LINE_BREAK;
+END_VAR
+VAR_OUTPUT
+	done : BOOL; (* JSON successfully generated *)
+	busy : BOOL; (* Serialization in progress *)
+    error : BOOL;
+    errorId : INT; (* 100 : JSONDataErr *)
+    jsonPayload : WSTRING(JSON_PAYLOAD_MAX_SIZE);
+END_VAR
+VAR
+    (* 
+	 * JSON helpers.
+	 * JSONBuilder constructs a JSON structure in memory, inside a JSONData object.
+     * JSONByteArrayWriter serializes that JSONData structure into a target "string/byte array" (typically a WSTRING, hence a WORD buffer).
+     * JSONBuilder is a helper for populating JSONData with key/value pairs, objects, and arrays. The logic is index-based:
+     *  - Each created element (key, value, object, array, etc.) receives an internal index;
+	 *	- You always pass parentIndex to say "add this below that parent element";
+	 *  - The methods return a DINT representing the index of the newly created element (or internal "next index").
+	 *
+     * Root object and indexes:
+	 *  - The root object is the main object of the JSON;
+     *  - It is managed via a "special" index, the rootIndex.
+     *)
+    jsonFactory : JSON.JSONDataFactory;
+    jsonData : POINTER TO JSON.JSONData;
+    jsonBuilder : JSON.JSONBuilder;
+    jsonWriter : JSON.JSONByteArrayWriter;
+	jsonMapper : ParametersToJsonMapper;
+    rootIndex : DINT;
+	init : BOOL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Building the JSON data structure for the first time *)
+IF NOT init THEN
+	jsonData := jsonFactory.Create(eError => errorId);
+	IF (errorId <> 0) OR (jsonData = 0) THEN
+		error := TRUE;
+		errorId := 100;
+		RETURN;
+	END_IF;
+	
+	init := TRUE;
+END_IF;
+
+IF jsonWriter.xError THEN
+	(* Reset the output *)
+	jsonPayload := "";
+ELSIF NOT jsonWriter.xBusy AND execute THEN
+	(* Reset builder and clear the JSON data on each call *)
+	jsonData^.Clear();
+	jsonBuilder.Reset();
+	(* JSON building *)
+	jsonBuilder(pJsonData := jsonData, diRootObj => rootIndex);
+	jsonMapper(jsonBuilder := jsonBuilder, rootIndex := rootIndex);
+	jsonWriter.xAsyncMode := asyncMode;
+	jsonWriter.wsLineBreak := lineBreak;
+	jsonWriter.pwData := ADR(jsonPayload);
+	jsonWriter.udiSize := SIZEOF(jsonPayload);
+END_IF;
+
+(* JSON serialization *)
+jsonWriter(xExecute := execute, jsonData := jsonData^, xDone => done, xBusy => busy, xError => error, eError => errorId);

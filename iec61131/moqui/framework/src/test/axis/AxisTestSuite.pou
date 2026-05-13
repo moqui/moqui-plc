@@ -1,0 +1,463 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+PROGRAM AxisTestSuite
+VAR CONSTANT
+    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
+    TIMEOUT : UINT := 10000;
+    JOG_DURATION : UINT := 300; (* cycles to hold each jog direction *)
+END_VAR
+VAR
+    slave : Axis;
+    slaveEnable : BOOL;
+    step : UINT := 0;
+    testDone : BOOL;
+    testFailed : BOOL;
+    failStep : UINT;
+    cycles : UINT; (* Per-step cycle counter, reset on each step transition *)
+    (*
+     * Per-step pass flags.
+     * Inspect this array in the CODESYS online monitor to see which steps passed.
+     * pass[N] = TRUE means step N completed successfully.
+     * Steps 1-14 : single-axis tests
+     * Steps 15-19: synchronization tests (GearIn, GearInPos)
+     * Steps 20-23: cam tests (CamTableSelect, CamIn, master move, CamOut)
+     *)
+    pass : ARRAY[1..23] OF BOOL;
+    position : LREAL;
+    (* Diagnostic - inspect in online monitor to identify failures *)
+    velocity : LREAL; (* a.actualVelocity *)
+    slaveStatus : AxisStatus; (* PLCopen drive state *)
+    cmdErr : BOOL;
+    cmdErrId : DWORD;
+   (* Per-FB error flags: shows exactly which FB caused cmdErr=TRUE *)
+    powerErr : BOOL;
+    homeErr : BOOL;
+    mvErr : BOOL;
+    mvErrId : UDINT; (* MC_MoveVelocity.ErrorID *)
+    haltErr : BOOL;
+    stopErr : BOOL;
+    (*
+     * Synchronization test (steps 16-23) and cam test (steps 24-27)
+     * CODESYS IDE SETUP REQUIRED:
+     *   1. In the SoftMotion General Axis Pool device, add a second
+     *      VirtualServoDrive and name it "MasterDrive".
+     *   2. Configure it identically to SM_Drive_Virtual
+     *      (Quadratic ramp, MaxVel=30, Acc=1000, Dec=1000, Jerk=10000).
+     *   3. Add a CamTable object named "TestCam" to the project tree and
+     *      define its profile (master range = 0..360, slave range as needed).
+     * The slave follows master via GearIn / GearInPos / CamIn.
+     *)
+    master : Axis;
+    masterEnable : BOOL;
+    masterStatus : AxisStatus;
+    masterCmdErr : BOOL;
+    (*
+     * Sync-point snapshots captured while waiting for slave.ready in step 20.
+     * Used as GearInPos base: masterSyncPos = snapMasterPos + SYNC_AHEAD,
+     * so the sync target is always a future master position.
+     *)
+    snapMasterPos : LREAL;
+    snapSlavePos  : LREAL;
+    (* Cam test (steps 24-27) *)
+    camSelect : SM3_Basic.MC_CamTableSelect;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Slave axis default parameters - overridden per step as needed. *)
+slave.acceleration := 10.0;
+slave.deceleration := 10.0;
+(*
+ * Virtual servo drive uses Quadratic (S-curve) ramp profile.
+ * SM3_Basic rejects Jerk=0 for Quadratic drives (ErrorID=501, SMC_INVALID_JERK).
+ * Use the drive's configured jerk limit (10000 u/s³) as the default.
+ *)
+slave.jerk := 10000.0;
+
+(* Master axis uses the same drive profile - same ramp defaults required. *)
+master.acceleration := 10.0;
+master.deceleration := 10.0;
+master.jerk := 10000.0;
+
+(*
+ * Keep axes powered while the test is running.
+ * axisEnable / masterEnable are VAR_IN_OUT: each Axis FB clears them when homing completes (handshake).
+ * Re-asserting TRUE every cycle keeps the axis in Ready after homing.
+ * masterEnable is only raised for the synchronization steps (16 onward).
+ *)
+slaveEnable := NOT testDone AND NOT testFailed;
+masterEnable := (step >= 16) AND NOT testDone AND NOT testFailed;
+
+(*
+ * Test sequence
+ *)
+CASE step OF
+	(* 0 : Enable axis, wait for Ready (init + homing) *)
+	0 :
+		slave.cmd := AxisCmd.Idle;
+		IF slave.ready THEN
+			step := 1; cycles := 0;
+		END_IF;
+	
+	(* 1 : MoveVelocity forward, wait for InVelocity *)
+	1 :
+		slave.cmd := AxisCmd.MoveVelocity;
+		slave.velocity := 5.0;
+		slave.direction := SM3_Basic.MC_Direction.positive;
+		IF slave.commandExecuted THEN
+			pass[1] := TRUE; step := 2; cycles := 0;
+		END_IF;
+	
+	(* 2 : Halt from velocity *)
+	2 :
+		slave.cmd := AxisCmd.Halt;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[2] := TRUE; step := 3; cycles := 0;
+		END_IF;
+	
+	(* 3 : MoveAbsolute to 200 *)
+	3 :
+		slave.cmd := AxisCmd.MoveAbsolute;
+		slave.position := 200.0;
+		slave.velocity := 10.0;
+		IF slave.commandExecuted THEN
+			pass[3] := TRUE; step := 4; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 4 : MoveAbsolute back to 0
+	 * Tests CheckAbsoluteState re-trigger: same cmd, different position.
+	 * cycles > 1 guard prevents reading the leftover commandExecuted=TRUE
+	 * from step 3 before a() has re-triggered and cleared it.
+	 *)
+	4 :
+		slave.cmd := AxisCmd.MoveAbsolute;
+		slave.position := 0.0;
+		slave.velocity := 10.0;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[4] := TRUE; step := 5; cycles := 0;
+		END_IF;
+	
+	(* 5 : MoveRelative +100 *)
+	5 :
+		slave.cmd := AxisCmd.MoveRelative;
+		slave.distance := 100.0;
+		slave.velocity := 8.0;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[5] := TRUE; step := 6; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 6 : MoveRelative −100
+	 * Tests CheckRelativeState re-trigger: same cmd, different distance.
+	 *)
+	6 :
+		slave.cmd := AxisCmd.MoveRelative;
+		slave.distance := -100.0;
+		slave.velocity := 8.0;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[6] := TRUE; step := 7; cycles := 0;
+		END_IF;
+	
+	(* 7 : MoveAdditive +50 *)
+	7 :
+		slave.cmd := AxisCmd.MoveAdditive;
+		slave.distance := 50.0;
+		slave.velocity := 6.0;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[7] := TRUE; step := 8; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 8 : MoveAdditive −30
+	 * Tests CheckAdditiveState re-trigger: same cmd, different distance.
+	 *)
+	8 :
+		slave.cmd := AxisCmd.MoveAdditive;
+		slave.distance := -30.0;
+		slave.velocity := 6.0;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[8] := TRUE; step := 9; cycles := 0;
+		END_IF;
+	
+	(* 9 : Jog forward *)
+	9 :
+		slave.cmd := AxisCmd.Jog;
+		slave.jogForward := TRUE;
+		slave.jogBackward := FALSE;
+		slave.velocity := 10.0;
+		IF cycles >= JOG_DURATION THEN
+			slave.jogForward := FALSE;
+			pass[9] := TRUE; step := 10; cycles := 0;
+		END_IF;
+	
+	(* 10 : Jog backward *)
+	10 :
+		slave.cmd := AxisCmd.Jog;
+		slave.jogForward := FALSE;
+		slave.jogBackward := TRUE;
+		slave.velocity := 10.0;
+		IF cycles >= JOG_DURATION THEN
+			slave.jogBackward := FALSE;
+			pass[10] := TRUE; step := 11; cycles := 0;
+		END_IF;
+	
+	(* 11 : MoveVelocity negative direction, wait for InVelocity *)
+	11 :
+		slave.cmd := AxisCmd.MoveVelocity;
+		slave.velocity := 3.0;
+		slave.direction := SM3_Basic.MC_Direction.negative;
+		IF slave.commandExecuted THEN
+			pass[11] := TRUE; step := 12; cycles := 0;
+		END_IF;
+	
+	(* 12 : Emergency Stop from velocity *)
+	12 :
+		slave.cmd := AxisCmd.Stop;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[12] := TRUE; step := 13; cycles := 0;
+		END_IF;
+	
+	(* 13 : SetPosition - reset coordinate origin to 0 *)
+	13 :
+		slave.cmd := AxisCmd.SetPosition;
+		slave.position := 0.0;
+		IF slave.commandExecuted THEN
+			pass[13] := TRUE; step := 14; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 14/15 : MoveVelocity then Halt
+	 * Step 14 waits for InVelocity, step 15 issues Halt and waits for standstill.
+	 * Tests the full velocity → halt cycle as a final combined check.
+	 *)
+	14 :
+		slave.cmd := AxisCmd.MoveVelocity;
+		slave.velocity := 20.0;
+		slave.direction := SM3_Basic.MC_Direction.positive;
+		IF slave.commandExecuted THEN
+			step := 15; cycles := 0;
+		END_IF;
+	
+	15 :
+		slave.cmd := AxisCmd.Halt;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[14] := TRUE; step := 16; cycles := 0;
+		END_IF;
+
+	(*
+	 * Synchronization tests - master axis (MasterDrive) required
+	 *)
+	
+	(*
+	 * 16 : Enable master axis, wait for Ready (init + homing) 
+	 * masterEnable is raised automatically above when step >= 16.
+	 *)
+	16 :
+		slave.cmd := AxisCmd.Idle;
+		IF master.ready THEN
+			step := 17; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 17 : MoveVelocity on master, wait for InVelocity 
+	 * Slave stays Idle/Ready while master reaches constant speed.
+	 *)
+	17 :
+		master.cmd := AxisCmd.MoveVelocity;
+		master.velocity := 10.0;
+		master.direction := SM3_Basic.MC_Direction.positive;
+		IF master.commandExecuted THEN
+			pass[15] := TRUE; step := 18; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 18 : GearIn slave to master, ratio 1:1 
+	 * Coming from Ready - no cycles guard needed (commandExecuted is FALSE in Ready).
+	 *)
+	18 :
+		slave.cmd := AxisCmd.GearIn;
+		slave.ratioNumerator := 1;
+		slave.ratioDenominator := 1;
+		IF slave.commandExecuted THEN
+			pass[16] := TRUE; step := 19; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 19 : GearIn re-trigger - ratio 1:2 
+	 * Tests CheckGearState re-trigger: same GearIn cmd, different ratio.
+	 * cycles > 1 guard: on entry the slave is still in CheckGearState with
+	 * commandExecuted=TRUE; the Axis FB needs one cycle to detect the ratio
+	 * change and re-enter GearInState before commandExecuted is cleared.
+	 *)
+	19 :
+		slave.cmd := AxisCmd.GearIn;
+		slave.ratioNumerator := 1;
+		slave.ratioDenominator := 2;
+		IF cycles > 1 AND slave.commandExecuted THEN
+			pass[17] := TRUE; step := 20; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 20 : Exit GearIn - change cmd to Idle
+	 * CheckGearState detects cmd change → GearOutState → Ready.
+	 * While waiting, snapshot master and slave positions every cycle.
+	 * These snapshots become the GearInPos base in step 21.
+	 *)
+	20 :
+		slave.cmd := AxisCmd.Idle;
+		snapMasterPos := master.actualPosition;
+		snapSlavePos := slave.actualPosition;
+		IF slave.ready THEN
+			step := 21; cycles := 0;
+		END_IF;
+
+	(*
+	 * 21 : GearInPos slave to master, ratio 1:1
+	 * masterSyncPos / slaveSyncPos are set 200 units ahead of the positions
+	 * captured in step 20, so the sync target is always in the future.
+	 * With master at 10 u/s this gives ~20 s of planning time regardless of
+	 * the PLC cycle time, well within the 10000-cycle timeout.
+	 * slave.velocity sets the maximum speed the slave may use during the
+	 * synchronisation phase (must be ≥ master velocity × ratio = 10 u/s).
+	 *)
+	21 :
+		slave.cmd := AxisCmd.GearInPos;
+		slave.ratioNumerator := 1;
+		slave.ratioDenominator := 1;
+		slave.velocity := 20.0;
+		slave.masterSyncPos := snapMasterPos + 200.0;
+		slave.slaveSyncPos := snapSlavePos + 200.0;
+		IF slave.commandExecuted THEN
+			pass[18] := TRUE; step := 22; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 22 : Exit GearInPos - change cmd to Idle 
+	 * Same pattern as step 20.
+	 *)
+	22 :
+		slave.cmd := AxisCmd.Idle;
+		IF slave.ready THEN
+			step := 23; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 23 : Halt master 
+	 * cycles > 1 guard: master was in CheckVelocityState with commandExecuted=TRUE
+	 * from step 17; the Halt command needs one cycle to clear it.
+	 *)
+	23 :
+		master.cmd := AxisCmd.Halt;
+		IF cycles > 1 AND master.commandExecuted THEN
+			pass[19] := TRUE; step := 24; cycles := 0;
+		END_IF;
+	
+	(*
+	 * 24 : CamTableSelect - convert TestCam object into an MC_CAM_ID for the drive.
+	 * master/slave remain Idle while the table is being prepared.
+	 * Execute is held TRUE every cycle; MC_CamTableSelect detects the rising edge
+	 * on the first call (step transitions from 23) and fires Done when ready.
+	 *)
+	24 :
+		slave.cmd := AxisCmd.Idle;
+		master.cmd := AxisCmd.Idle;
+		camSelect(
+			Master := MasterDrive,
+			Slave  := SlaveDrive,
+			CamTable := TestCam,
+			Execute := TRUE
+		);
+		IF camSelect.Done THEN
+			pass[20] := TRUE; step := 25; cycles := 0;
+		END_IF;
+
+	(*
+	 * 25 : CamIn - engage cam coupling.
+	 * Master is at standstill; slave synchronises to master's current position
+	 * via the cam profile. InSync fires when coupling is established.
+	 * No cycles > 1 guard needed: entering from step 24, slave is in Ready with
+	 * commandExecuted = FALSE.
+	 *)
+	25 :
+		slave.cmd := AxisCmd.CamIn;
+		slave.camId := camSelect.CamTableID;
+		slave.startMode := SM3_Basic.MC_STARTMODE.absolute;
+		master.cmd := AxisCmd.Idle;
+		IF slave.commandExecuted THEN
+			pass[21] := TRUE; step := 26; cycles := 0;
+		END_IF;
+
+	(*
+	 * 26 : Move master through one full cam period (360 units) at velocity 20 u/s.
+	 * Slave follows via the cam profile while master executes MoveRelative.
+	 * Adjust master.distance to match your TestCam master-axis period if needed.
+	 * cycles > 1 guard: master transitions from Ready/Idle so no stale
+	 * commandExecuted, but the guard is kept for safety consistency.
+	 *)
+	26 :
+		slave.cmd := AxisCmd.CamIn;
+		master.cmd := AxisCmd.MoveRelative;
+		master.distance := 360.0;
+		master.velocity := 20.0;
+		IF cycles > 1 AND master.commandExecuted THEN
+			pass[22] := TRUE; step := 27; cycles := 0;
+		END_IF;
+
+	(*
+	 * 27 : Exit cam - cmd change to Idle triggers CamOut internally (CamOutState).
+	 * Wait for slave.ready, then the coupling is fully released.
+	 *)
+	27 :
+		slave.cmd := AxisCmd.Idle;
+		master.cmd := AxisCmd.Idle;
+		IF slave.ready THEN
+			pass[23] := TRUE; step := 28; cycles := 0;
+		END_IF;
+
+	(* 28 : Done *)
+	28 :
+		slave.cmd := AxisCmd.Idle;
+		master.cmd := AxisCmd.Idle;
+		testDone := TRUE;
+END_CASE;
+
+(*
+ * Watchdog: fail on axis error or step timeout
+ *)
+cycles := cycles + 1;
+IF NOT testDone AND NOT testFailed THEN
+    IF slave.axisError OR (step >= 16 AND master.axisError) THEN
+        testFailed := TRUE;
+        failStep := step;
+    ELSIF cycles > TIMEOUT THEN
+        testFailed := TRUE;
+        failStep := step;
+    END_IF;
+END_IF;
+
+(*
+ * Axis FB calls - must be the last statements.
+ * All inputs must be set before these lines.
+ * masterAxis must be called before the slave so its AXIS_REF_SM3
+ * state is up-to-date when the slave reads it via master := REF(...).
+ *)
+master(axisEnable := masterEnable, slave := MasterDrive);
+masterStatus := master.status;
+masterCmdErr := master.cmdError;
+
+slave(axisEnable := slaveEnable, slave := SlaveDrive, master := MasterDrive);
+position := slave.actualPosition;
+velocity := slave.actualVelocity;
+slaveStatus := slave.status;
+cmdErr := slave.cmdError;
+cmdErrId := slave.cmdErrorId;
+powerErr := slave.power.Error;
+homeErr := slave.home.Error;
+mvErr := slave.moveVelocity.Error;
+mvErrId := slave.moveVelocity.ErrorID;
+haltErr := slave.halt.Error;
+stopErr := slave.stop.Error;

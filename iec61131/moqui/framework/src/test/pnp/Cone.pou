@@ -1,0 +1,76 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Conveyor-belt cone tracking.
+ *
+ * FSM:
+ *   0   Invisible - waits until previous cone is on belt and far enough,
+ *       or 'start' input fires (bootstrap for the first cone)
+ *   10  Linking PCS_2 to cone position via MC_TrackConveyorBelt
+ *   20  Cone on belt - tracks position until exit point reached
+ *)
+FUNCTION_BLOCK Cone
+VAR_EXTERNAL
+	pnp : PickAndPlaceFixture;
+END_VAR
+VAR_IN_OUT
+	activeConePtr : POINTER TO Cone; (* Written to this when cone becomes active *)
+END_VAR
+VAR_INPUT
+	previousConePtr : POINTER TO Cone; (* Previous cone in the circular chain *)
+	start : BOOL;
+END_VAR
+VAR_OUTPUT
+	pos : SM3_Robotics.MC_COORD_REF;
+	state : DINT;
+	onBelt : BOOL;
+END_VAR
+VAR
+	conveyorBeltOrigin : SM3_Robotics.MC_COORD_REF :=
+		(X := beltTransX, Y := beltTransY, Z := beltTransZ);
+	initialConePosition : SM3_Robotics.MC_COORD_REF := (X := -925, Z := 125);
+	tcb : SM3_Robotics.MC_TrackConveyorBelt := (
+		ConveyorBeltOrigin := conveyorBeltOrigin,
+		InitialObjectPosition := initialConePosition,
+		CoordSystem := SM3_Robotics.SMC_COORD_SYSTEM.PCS_2);
+	frame : SM3_Robotics.SMC_Frame;
+	stateOld : DINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+REPEAT
+	stateOld := state;
+
+	CASE state OF
+		0 :	(* Invisible - wait until the previous cone has advanced sufficiently *)
+			IF start OR (NOT pnp.dontChangePCS_2
+					AND previousConePtr^.onBelt
+					AND previousConePtr^.pos.X >= -250) THEN
+				tcb(Execute := FALSE,
+					AxisGroup := Tripod,
+					ConveyorBelt := DriveConveyorBelt);
+				tcb.Execute := TRUE;
+				state := state + 10;
+			END_IF;
+	
+		10 : (* Linking PCS_2 to the position of this cone *)
+			IF tcb.Done THEN
+				onBelt := TRUE;
+				activeConePtr := THIS;
+				state := state + 10;
+			END_IF;
+	
+		20 : (* Cone on belt - track position until it reaches the exit *)
+			tcb.cs.GetPose(cs := frame, fTime := Tripod1.fTaskCycle);
+			SM3_Robotics.SMC_Frame_To_CoordRef(c := pos, f := frame);
+			IF pos.X >= beltTransX + 725 THEN
+				onBelt := FALSE;
+				state := 0;
+			END_IF;
+	END_CASE;
+
+	tcb(AxisGroup := Tripod, ConveyorBelt := DriveConveyorBelt);
+UNTIL state = stateOld END_REPEAT

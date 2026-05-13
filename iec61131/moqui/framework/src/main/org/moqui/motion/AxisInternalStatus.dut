@@ -1,0 +1,48 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(* Internal FSM. Not exposed to callers. *)
+TYPE AxisInternalStatus : (
+    NotPowered := 0,
+    WaitPower,
+    Powered, (* Homing in progress *)
+    Ready,
+    MoveVelocityState,
+    CheckVelocityState,
+    MoveAbsoluteState,
+    CheckAbsoluteState,
+    MoveRelativeState,
+    CheckRelativeState,
+    MoveAdditiveState,
+    CheckAdditiveState,
+    MoveSuperimposedState,
+    CheckSuperimposedState,
+	HaltSuperimposedState,
+    GearInState,
+    CheckGearState,
+	GearOutState,
+    CamInState,
+    CheckCamState,
+	CamOutState,
+	GearInPosState,
+	CheckGearInPosState,
+	PhasingState,
+	JogState,
+    PositionProfileState,
+    VelocityProfileState,
+    AccelerationProfileState,
+	SetPositionState,
+    HaltState,
+	StoppingState,
+	WaitResetState,
+    Error,
+	TouchProbeState,
+	AbortTriggerState,
+	ReadParameterState,
+	ReadBoolParameterState,
+	WriteParameterState,
+	WriteBoolParameterState
+); END_TYPE

@@ -1,0 +1,25 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK ParametersToJsonMapper
+VAR_EXTERNAL
+	dev : DeviceFacade;
+END_VAR
+VAR_IN_OUT
+    jsonBuilder : JSON.JSONBuilder;
+END_VAR
+VAR_INPUT
+    rootIndex : DINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Mapping parameters to JSON elements, ignoring errors *)
+jsonBuilder.SetKeyWithValue("processActualDuration", dev.processActualDuration, rootIndex);
+jsonBuilder.SetKeyWithValue("actualRuntime", dev.actualRuntime, rootIndex);
+jsonBuilder.SetKeyWithValue("actualBreakDuration", dev.actualBreakDuration, rootIndex);
+jsonBuilder.SetKeyWithValue("airFlowActuatorFault", dev.airFlow.actuatorFault, rootIndex);
+(* etc. *)

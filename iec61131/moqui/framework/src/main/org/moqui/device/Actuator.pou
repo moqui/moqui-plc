@@ -1,0 +1,288 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+ * Generic binary actuator control system/automata, including mechanisms diagnostics.
+ * In nominal conditions, a binary actuator has only two stable equilibrium states: Disabled, Enabled.
+ * It also has two unstable transient states: EnablePhase, DisablePhase.
+ * The remainder are inadmissible states that must be detected based on timing conditions.
+ * Nominal trajectory in the state space, i.e. the evolution of the state in nominal working conditions:
+ *     Disabled --> EnablePhase --> Enabled --> DisabledPhase --> back to Disabled
+ * Admissible states transitions:
+ *     EnablePhase --> DisablePhase, DisablePhase --> EnablePhase    
+ * 
+ * Handshake-based actuator control via VAR_IN_OUT.
+ * This function block utilizes a Request/Acknowledge (Handshake) mechanism 
+ * through VAR_IN_OUT variables to manage asynchronous device operations.
+ *
+ * Usage Logic:
+ *  - The caller sets the 'enableRequest' variable to TRUE to initiate the process.
+ *  - The FB monitors this variable and attempts to enable the physical device.
+ *  - Upon successful activation, the FB internally resets 'enableRequest' to FALSE.
+ *
+ * Sequencing and diagnostics:
+ *  - Sequencing: By monitoring the falling edge of the request variable (Request -> FALSE), 
+ *    the application logic can deterministically trigger the next step in a sequence 
+ *    without relying on timers or intermediate state flags.
+ *  - Real-Time diagnostics: If the request remains TRUE beyond a defined timeout period, 
+ *    it indicates a failure in the handshake (e.g., hardware interlock or communication error).
+ *    This allows for immediate error detection (machineError) and prevents the 
+ *    sequence from advancing in an unsafe state.
+ *
+ * Note:
+ * Since the variable is passed by reference (VAR_IN_OUT), both the caller and 
+ * the FB share the same memory location, ensuring atomic-like synchronization of the command status.
+ * This mechanism is used to allow sequencing of the start/stop phases in the presence of a group of devices.
+ *
+ *)
+FUNCTION_BLOCK Actuator
+(* Request/Ack commands *)
+VAR_IN_OUT
+    enableRequest : BOOL;
+    disableRequest : BOOL;
+END_VAR
+VAR_INPUT
+	(* Actuator metadata for logging purpose *)
+	actuatorId : STRING;
+	actuatorName : STRING;
+  	actuationType : ActuatorActuationType;
+	feedbackType : ActuatorFeedbackType;
+	model : ActuatorModel;
+    operationType : OperatingMode := OperatingMode.Run;
+	(* Clock for diagnosis and fault detection under static and dynamic conditions *)
+    clock : BOOL;
+	(* Time limit for the enable/disable phase *)
+    enableTime : UINT;
+    disableTime : UINT;
+	(* Preset/Reset *)
+    enablePreset : BOOL := FALSE;
+    (* Enable diagnostics *)
+    diagnosticsEnable : BOOL := TRUE;
+END_VAR
+VAR_INPUT
+	(* Actuator status sensors *)
+    enabledSensor : BOOL;
+    disabledSensor : BOOL;
+	(* External fault signal (e.g. motor branch-circuit protection, thermal relay) *)
+	externalFault : BOOL;
+	(* Optional parameters  *)
+  	ref : REAL;
+  	feedback : REAL;
+END_VAR
+VAR_OUTPUT
+	(* Diagnostics and fault signals *)
+    fault : BOOL;
+    actuatorFault : BOOL;
+    enabledSensorFault : BOOL;
+    disabledSensorFault : BOOL;
+    notInitialized : BOOL;
+	(* Logger name for centralized signal management *)
+	loggerName : STRING;
+END_VAR
+VAR_OUTPUT
+	(* Output signals *)
+	enable : BOOL;
+    disable : BOOL;
+END_VAR
+VAR
+    status : ActuatorStatus;
+    timer : UINT;
+    timeout : BOOL;
+	(* Internal logical feedback signals (derived from external sensors and/or state + timeout). *)
+	enabled : BOOL;
+	disabled : BOOL;
+	(* Logger facade *)
+	logger : LoggerFacade;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Initialization handler *)
+IF operationType = OperatingMode.Init THEN
+	(* Args validation *)
+	IF (actuatorId = '' AND actuatorName = '') THEN
+		notInitialized := TRUE;
+		RETURN;
+	END_IF;
+
+	(* Logger facade init *)
+	loggerName := concat(concat(concat(actuatorName, '['), actuatorId), ']');
+	logger.enable := TRUE; logger.loggerName := loggerName;
+
+	logger(message := 'Actuator initialization.', level := LogLevel.DEBUG);
+
+	(* Pre-elaborations for initialization (polymorphism on feedback typology). *)
+	CASE feedbackType OF
+		ActuatorFeedbackType.DoubleFeedback :
+			enabled := enabledSensor;
+			disabled := disabledSensor;
+
+		ActuatorFeedbackType.SingleEnableFeedback :
+			enabled := enabledSensor;
+			disabled := NOT enabled;
+
+		ActuatorFeedbackType.SingleDisableFeedback :
+			disabled := disabledSensor;
+			enabled := NOT disabled;
+
+		ActuatorFeedbackType.WithoutFeedback :
+			enabled := enablePreset;
+			disabled := NOT enabled;
+	END_CASE;
+
+	enableRequest := FALSE;
+	disableRequest := FALSE;
+
+    IF enablePreset THEN
+		logger(message := 'Actuator preset to enabled status.', level := LogLevel.DEBUG);
+		enable := TRUE;
+		timer := enableTime;
+		
+		IF enabled THEN
+			status := ActuatorStatus.Enabled;
+			notInitialized := FALSE;
+		ELSE
+			status := ActuatorStatus.EnablePhase;
+            notInitialized := TRUE;
+		END_IF;
+    ELSE
+		logger(message := 'Actuator preset to disabled status.', level := LogLevel.DEBUG);
+		enable := FALSE;
+		timer := disableTime;
+		
+		IF disabled THEN
+            status := ActuatorStatus.Disabled;
+            notInitialized := FALSE;
+        ELSE
+            status := ActuatorStatus.DisablePhase;
+            notInitialized := TRUE;
+        END_IF;		
+	END_IF;
+END_IF;
+
+IF notInitialized THEN logger(message := 'Actuator not initialized.', level := LogLevel.ERROR); END_IF;
+
+logger(message := 'Running actuator.', level := LogLevel.DEBUG);
+
+(* Clock handler for diagnosis oriented timing *)
+IF clock AND (timer > 0) THEN
+    timer := timer - 1;
+END_IF;
+
+(* Timeout computation *)
+timeout := (timer = 0);
+
+(* Pre-elaborations for feedback polymorphism. *)
+CASE feedbackType OF
+	ActuatorFeedbackType.DoubleFeedback :
+		enabled := enabledSensor;
+		disabled := disabledSensor;
+
+	ActuatorFeedbackType.SingleDisableFeedback :
+		disabled := disabledSensor;
+		enabled := (NOT disabled) AND ((status = ActuatorStatus.Enabled)
+			OR ((status = ActuatorStatus.EnablePhase) AND timeout));
+
+	ActuatorFeedbackType.SingleEnableFeedback :
+		enabled := enabledSensor;
+		disabled := (NOT enabled) AND ((status = ActuatorStatus.Disabled)
+			OR ((status = ActuatorStatus.DisablePhase) AND timeout));
+
+	ActuatorFeedbackType.WithoutFeedback :
+		enabled := (status = ActuatorStatus.Enabled) OR ((status = ActuatorStatus.EnablePhase) AND timeout);
+		disabled := (status = ActuatorStatus.Disabled) OR ((status = ActuatorStatus.DisablePhase) AND timeout);
+END_CASE;
+
+(* Generic actuator FSM implementation. *)
+CASE status OF
+	ActuatorStatus.Disabled :
+		logger(message := 'Actuator disabled.', level := LogLevel.DEBUG);
+		disableRequest := FALSE;
+		
+		IF enableRequest THEN		
+			logger(message := 'The actuator received an enable request.', level := LogLevel.DEBUG);
+			enable := TRUE;
+			timer := enableTime;
+			status := ActuatorStatus.EnablePhase;
+		END_IF;
+
+	ActuatorStatus.EnablePhase :
+		logger(message := 'Actuator in the enabling phase.', level := LogLevel.DEBUG);
+
+		(* Admissible transition: EnablePhase --> DisablePhase *)
+		IF disableRequest THEN
+			logger(message := 'The actuator received a disable request.', level := LogLevel.DEBUG);
+			enableRequest := FALSE;
+			enable := FALSE;
+			timer := disableTime;
+			status := ActuatorStatus.DisablePhase;
+		ELSIF enabled THEN
+			(* End of the enable phase, by feedback or by timeout in no-feedback typology. *)
+			enableRequest := FALSE;
+			timer := 0;
+			status := ActuatorStatus.Enabled;
+		END_IF;
+		
+	ActuatorStatus.Enabled :
+		logger(message := 'Actuator enabled.', level := LogLevel.DEBUG);
+		enableRequest := FALSE;
+
+		IF disableRequest THEN
+			logger(message := 'The actuator received a disable request.', level := LogLevel.DEBUG);
+			enable := FALSE;
+			timer := disableTime;
+			status := ActuatorStatus.DisablePhase;
+		END_IF;
+		
+	ActuatorStatus.DisablePhase :
+		logger(message := 'Actuator in the disabling phase.', level := LogLevel.DEBUG);
+
+		(* Admissible transition: DisablePhase --> EnablePhase *)
+		IF enableRequest THEN
+				logger(message := 'The actuator received an enable request.', level := LogLevel.DEBUG);
+				disableRequest := FALSE;
+				enable := TRUE;
+				timer := enableTime;
+				status := ActuatorStatus.EnablePhase;
+		ELSIF disabled THEN
+			(* End of the disable phase, by feedback or by timeout in no-feedback typology. *)
+			disableRequest := FALSE;
+			timer := 0;
+			status := ActuatorStatus.Disabled;
+		END_IF;
+END_CASE;
+
+(* 
+ * Diagnostics handler.
+ * Generation of diagnosis information and fault signals: Detectable faults in dynamic and static conditions.
+ *)
+disabledSensorFault := diagnosticsEnable AND (
+    (NOT enable AND NOT disabled AND NOT enabled
+	OR enable AND disabled AND enabled) AND timeout);
+enabledSensorFault := diagnosticsEnable AND (
+    (NOT enable AND disabled AND enabled
+	OR enable AND NOT disabled AND NOT enabled) AND timeout);
+actuatorFault := diagnosticsEnable AND (
+    (NOT enable AND NOT disabled AND enabled
+	OR enable AND disabled AND NOT enabled) AND timeout);
+fault := disabledSensorFault OR enabledSensorFault OR actuatorFault OR externalFault;
+(* Log faults *)
+IF fault THEN logger(message := 'Fault diagnostics:', level := LogLevel.ERROR); END_IF;
+IF disabledSensorFault THEN logger(message := 'Disabled sensor fault.', level := LogLevel.ERROR); END_IF;
+IF enabledSensorFault THEN logger(message := 'Enabled sensor fault.', level := LogLevel.ERROR); END_IF;
+IF actuatorFault THEN logger(message := 'Actuator fault.', level := LogLevel.ERROR); END_IF;
+IF externalFault THEN logger(message := 'External fault (e.g: Motor branch-circuit protection).', level := LogLevel.ERROR); END_IF;
+
+(* Post-elaborations for actuation polymorphism. *)
+CASE actuationType OF
+	ActuatorActuationType.SingleActuation :
+		(* Nothing to do, just use enable *);
+	ActuatorActuationType.DoubleActuation :
+		disable := NOT enable;
+	ActuatorActuationType.DoubleActuationNoRetain :
+		enable := enable AND (status = ActuatorStatus.EnablePhase);
+		disable := NOT enable AND (status = ActuatorStatus.DisablePhase);
+END_CASE;

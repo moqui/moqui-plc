@@ -1,0 +1,49 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+FUNCTION trim : STRING
+VAR_INPUT
+    inputString : STRING;
+END_VAR
+VAR
+    startPos, endPos : INT;
+    stringLength : INT;
+    currentCharCode : INT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+stringLength := LEN(inputString);
+startPos := 1;
+
+(* Skip leading whitespace (space, tab = 9, LF = 10, CR = 13) *)
+WHILE (startPos <= stringLength) DO
+    currentCharCode := TO_INT(MID(inputString, startPos, 1));
+    IF (currentCharCode <> 32) AND (currentCharCode <> 9)
+			AND (currentCharCode <> 10) AND (currentCharCode <> 13) THEN
+        EXIT;
+    END_IF;
+
+    startPos := startPos + 1;
+END_WHILE;
+
+(* Skip trailing whitespace *)
+endPos := stringLength;
+WHILE (endPos > 0) DO
+    currentCharCode := TO_INT(MID(inputString, endPos, 1));
+    IF (currentCharCode <> 32) AND (currentCharCode <> 9)
+			AND (currentCharCode <> 10) AND (currentCharCode <> 13) THEN
+        EXIT;
+    END_IF;
+
+    endPos := endPos - 1;
+END_WHILE;
+
+(* Extract the trimmed substring *)
+IF startPos <= endPos THEN
+    trim := MID(inputString, startPos, endPos - startPos + 1);
+ELSE
+    trim := ''; (* All characters were whitespace *)
+END_IF;

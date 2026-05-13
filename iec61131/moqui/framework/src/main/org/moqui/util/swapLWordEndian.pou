@@ -1,0 +1,25 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Swap four words in an long word *)
+FUNCTION swapLWordEndian : LWORD
+VAR_INPUT
+    input : LWORD;
+END_VAR
+VAR
+    w0, w1, w2, w3 : WORD;
+    result : LWORD;
+END_VAR
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+w0 := TO_WORD(SHR(input, 48));
+w1 := TO_WORD(SHR(input, 32) AND 16#FFFF);
+w2 := TO_WORD(SHR(input, 16) AND 16#FFFF);
+w3 := TO_WORD(input AND 16#FFFF);
+result := TO_LWORD(w3);
+result := SHL(result, 16) OR TO_LWORD(w2);
+result := SHL(result, 16) OR TO_LWORD(w1);
+result := SHL(result, 16) OR TO_LWORD(w0);
+swapLWordEndian := result;

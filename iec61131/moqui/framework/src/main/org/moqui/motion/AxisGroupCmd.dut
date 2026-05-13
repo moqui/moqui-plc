@@ -1,0 +1,17 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE AxisGroupCmd : (
+    Idle := 0,
+    MoveLinearAbsolute, (* MC_MoveLinearAbsolute  - Cartesian linear move to absolute target in MCS/ACS/PCS *)
+    MoveLinearRelative, (* MC_MoveLinearRelative  - Cartesian linear move by relative distance *)
+    MoveCircularAbsolute, (* MC_MoveCircularAbsolute - Circular arc; endPoint + auxPoint specified absolutely *)
+    MoveCircularRelative, (* MC_MoveCircularRelative - Circular arc; endPoint + auxPoint relative to start *)
+    MoveDirectAbsolute, (* MC_MoveDirectAbsolute  - PTP move; vel/acc taken from per-axis parameters *)
+    MoveDirectRelative, (* MC_MoveDirectRelative  - PTP move; vel/acc taken from per-axis parameters *)
+    GroupHalt, (* MC_GroupHalt - decelerate to standstill, stays on path, abortable by new motion cmd *)
+    GroupStop (* MC_GroupStop - emergency stop, stays on path, NOT abortable, level-driven *)
+); END_TYPE

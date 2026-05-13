@@ -1,0 +1,26 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+FUNCTION nowTimestamp : DATE_AND_TIME
+VAR
+    utcTimestamp: UDINT;
+    localTimestamp: UDINT;
+    result: SysTimeRtc.RTS_IEC_RESULT;
+	nowTimestampLocalString : STRING;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Get current UTC time *)
+utcTimestamp := SysTimeRtcGet(result);
+(* Handle error (log it, return a default timestamp, etc.) *)
+IF result <> 0 THEN RETURN; END_IF;
+(* Convert UTC seconds to local time *)
+result := SysTimeRtcConvertUtcToLocal(utcTimestamp, localTimestamp);
+IF result <> 0 THEN RETURN; END_IF;
+(* Convert local time to data and time format *)
+nowTimestamp := TO_DT(localTimestamp);
+(* Convert date and time format to a string *)
+nowTimestampLocalString := TO_STRING(nowTimestamp);

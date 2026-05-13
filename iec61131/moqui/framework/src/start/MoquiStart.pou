@@ -1,0 +1,131 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+PROGRAM MoquiStart
+VAR_EXTERNAL CONSTANT
+	retryOnError : BOOL;
+	minRetryTime, maxRetryCount : UINT;
+END_VAR
+VAR_EXTERNAL
+	clks : Clocks;
+	enable, init, error, reset : BOOL;
+	allConfigLoaded : BOOL;
+	retryCount, retryTime : UINT;	
+END_VAR
+VAR
+	operationType : OperatingMode := OperatingMode.Init;
+	status : MoquiStartStatus := MoquiStartStatus.Idle;
+	(* Main framework components *)
+	logger : LoggerFacade;
+	runNetworkDgs : NetworkDiagnostics;
+	clockGen : ClockGeneration;
+	inputProcessing : InputSignalUpdate;
+	outputProcessing : OutputSignalUpdate;
+	(* Device config (recipe) management *)
+	configMgmt : DeviceConfigMgmt;
+	(* Application component *)
+	main : Main;
+	mainDone : BOOL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Set the operating mode *)
+IF ec.init THEN
+	(* Logger facade init *)
+	logger.enable := TRUE; logger.loggerName := 'moqui';
+	operationType := OperatingMode.Init;
+ELSE
+	operationType := OperatingMode.Run;
+END_IF;
+
+(* Timing generation *)
+(* 
+ * Uncomment if you want to make loops shorter than 10 ms.
+ * It is not recommended to go below 5 ms with the PLC.
+ * The control loop (current) of the axes is in the servo drives.
+ *)
+(* clks.systemClock := NOT clks.systemClock; *)
+clockGen(operationType := operationType);
+
+(*
+ * Always run internal procedures, timing generation, process inputs/outputs to ensure safe state 
+ * even in software error state, but not in case of hardware/firmware fault.
+ *)
+(* Run hardware fault detection procedures (run network and remote IO diagnostics). *)
+runNetworkDgs(error => ec.error);
+IF ec.error THEN
+	(* Best if set by an external supervision system: init := FALSE; *)
+	status := MoquiStartStatus.Idle;
+	RETURN; (* Recycle until the fault condition disappears *)
+END_IF;
+
+(* Input virtualization *)
+inputProcessing(operationType := operationType);
+
+(* Start FMS *)
+CASE status OF
+    MoquiStartStatus.Idle :
+		(* Waiting for error reset from supervision *)
+        IF NOT ec.error AND ec.enable THEN
+			logger(message := 'Framework started.', level := LogLevel.Info);
+            mainDone := FALSE;
+            status := MoquiStartStatus.Run;
+        END_IF;
+
+    MoquiStartStatus.Run :
+        (* Device config (recipe) orchestration *)
+        configMgmt(enable := ec.enable, configCompleted := mainDone,
+            allConfigLoaded => allConfigLoaded, error => ec.error);
+
+        IF configMgmt.error THEN
+			status := MoquiStartStatus.Error;
+        ELSIF NOT configMgmt.busy THEN
+            IF allConfigLoaded THEN
+				logger(message := 'All device configs loaded. Framework idle.', level := LogLevel.Info);
+				(* Auto disable waiting for new device configs from Moqui or supervision *)
+                ec.enable := FALSE;
+                status := MoquiStartStatus.Idle;
+			ELSE
+                (*
+                 * Run the component FSMs sequentially.
+				 * The Main component can act as a dispatcher for invoking
+                 * the system's FSM and its subsystems.
+                 *)
+                main(operationType := operationType, done => mainDone, error => ec.error);
+				IF main.error THEN status := MoquiStartStatus.Error; END_IF;
+            END_IF;
+        END_IF;
+        
+    MoquiStartStatus.Error :
+        (* Retry logic *)
+		IF retryOnError AND (retryCount < maxRetryCount) THEN
+			(* Retry timer update *)
+			IF clks.clock1s THEN
+				retryTime := retryTime + 1;
+			END_IF;
+	
+			IF (retryTime >= minRetryTime) THEN
+				logger(message := 'Retrying after error ...', level := LogLevel.Warn);
+				retryCount := retryCount + 1;
+				retryTime := 0; (* Reset the timer *)
+				autoReset := TRUE; (* Auto reset *)
+			END_IF;
+		END_IF;
+		
+        IF reset OR autoReset THEN
+            logger(message := 'Resetting framework after error.', level := LogLevel.Warn);
+            ec.error := FALSE;
+            retryCount := 0;
+            retryTime := 0;
+            status := MoquiStartStatus.Idle;
+        END_IF;
+END_CASE;
+
+(* Output virtualization *)
+outputProcessing(operationType := operationType);
+(* Reset the init pulse *)
+ec.init := FALSE;

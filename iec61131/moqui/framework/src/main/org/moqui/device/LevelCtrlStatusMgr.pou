@@ -1,0 +1,205 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+Level controlled status manager.
+The PLCOpen standard presents “service/command” function block patterns
+that manage the execution of a request (edge-triggered)
+or the maintenance of a condition (level-controlled).
+The PLCopen patterns model the lifecycle of a command, not the state of the device.
+A command handler FB uses the PLCopen (Action) pattern.
+The device model maintains the bistable state (Reality/Feedback).
+The command requests a device transition, but does not define the device state.
+It makes sense to model triggers and levels for physical devices only as an interface contract
+between the caller and the device controller, not as the “physical truth” of the device.
+An example of a level triggered functionality is a PowerOn function,
+where the power is switched on as long as the relevant input enable is set.
+For the detection of a level in a function block, one PLC cycle is necessary.
+Thus, if the requirement is to be able to process a new value in each cycle,
+a level-controlled function block model is the preferred way to implement the required functionality.
+See the PLCOpen standard document "Creating PLCopen compliant Function Block libraries" for details.
+
+Variant, isContinuous, timeLimit, timeout, Behavior
+LCon,       FALSE,         0,       0,     Base: Switch to Done when readyCondition is TRUE.
+LConTo,     FALSE,         0,       > 0,   Monitors total time; errors if exceeded.
+LConTI,     FALSE,         > 0,     0,     Split logic across multiple loops using activeCycle.
+LConTITo,   FALSE,         > 0,     > 0,   Complete combination of cyclic time limit and total timeout.
+LConC,      TRUE,          0,       0,     Continuous behaviour: Never goes to Done, ignores readyCondition.
+LConTIC,    TRUE,          > 0,     0,     Continuous behaviour with cycle time management for heavy tasks.
+
+Example of use:
+	FUNCTION_BLOCK CilinderCmd
+	VAR_EXTERNAL
+		clks : Clocks;
+	END_VAR
+	VAR_INPUT
+		enable : BOOL;
+		timeout : UINT := 100;
+		clock : BOOL;
+		sensorOpened : BOOL; (* Limit switch sensor open *)
+		sensorClosed : BOOL; (* Limit switch sensor closed *)
+	END_VAR
+	VAR_OUTPUT
+		valveCmd : BOOL; (* Solenoid valve control *)
+		fault : BOOL;
+	END_VAR
+	VAR
+		(* Composition: PLCopen status manager instance *)
+		statusMgr : LevelCtrlStatusMgr;
+	END_VAR
+	
+	(* Sensor feedback mapping *)
+	(* The cylinder is ready when the opening sensor is active *)
+	statusMgr.readyCondition := sensorOpened AND NOT sensorClosed;
+	(* Suppose that reset and abort are instantaneous for a cylinder *)
+	statusMgr.abortComplete := TRUE;
+	statusMgr.resetComplete := sensorClosed;
+	
+	statusMgr(enable := enable, timeLimit := 1, (* Example: 10 ms or 1 clock10ms pulse per cycle *)
+		timeout := timeout, clock := clks.clock10ms);
+	
+	(* Physical action: based on manager's signals *)
+	(* The command to the valve is given only if the manager is running *)
+	IF statusMgr.activeCycle THEN
+		valveCmd := TRUE;
+	ELSE
+		valveCmd := FALSE;
+	END_IF;
+	
+	(* Diagnostics *)
+	fault := statusMgr.error;
+	
+	END_FUNCTION_BLOCK
+*)
+FUNCTION_BLOCK LevelCtrlStatusMgr
+VAR_INPUT
+	(* 
+	 * Active while high.
+     * Enable is a safety/permission condition (if it disappears, you must disable immediately),
+	 * for a “fail-safe” behavior: if the caller loses enable → go to disable.
+     *)
+    enable : BOOL;
+    readyCondition : BOOL; (* Operation completed feedback *)
+    abortComplete : BOOL; (* Aborting feedback *)
+    resetRequest : BOOL; (* Manual reset request *)
+    resetComplete : BOOL; (* Reset feedback *)
+    errorCondition : BOOL; (* Functional error from external logic *)
+	(*
+	 * TRUE for LConC / LConTIC variants (without Done state). 
+	 * PLCOpen: For continuous behaviour, meaning it does not stop
+     * so there is no Done state. See the 2 additional blocks LConC
+     * and LConTlC, including the time limit, for continuous behaviour.  
+     *)
+    isContinuous : BOOL;
+    (*
+	 * PLCOpen: timeLimit (Tl): here the time limit is set that
+	 * the operation stays within the cycle time.
+	 * In that way a longer operation can be divided over several cycles.
+	 *)
+    timeLimit : UINT; (* 0 = inactive *)
+	(* 
+     * PLCOpen: timeout (To): the overall operating time of the
+	 * defined operation should be lower than the time(in μs)
+     * as specified by the input value timeout.
+	 * The combination of them both (TlTo) is valid.
+     *)
+    timeout : UINT; (* 0 = inactive *)
+    clock : BOOL; (* Clock signal *)
+END_VAR
+VAR_OUTPUT
+    done : BOOL; (* Operation valid / Final state reached (only if NOT isContinuous) *)
+    busy : BOOL; (* Operation in progress *)
+    error : BOOL; (* Active error *)
+    errorId : INT; (* PLCopen: Error ID. Example 1 = Timeout *)
+    activeCycle : BOOL; (* TRUE when the caller needs to execute the logic *)
+END_VAR
+VAR
+    status : LevelCtrlStatus := LevelCtrlStatus.Dormant; (* FSM internal status. States: 0 - Dormant, 1 - Executing , 2 - Done, 3 - Aborting, 4 - Resetting, 5 - Error *)
+    timeLimitTimer : UINT;
+    timeoutTimer : UINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Time management *)
+IF clock THEN
+	(* TimeLimit (Tl): cyclic timeslice management *)
+	IF timeLimit > 0 AND status = LevelCtrlStatus.Executing THEN
+		IF timeLimitTimer > 0 THEN
+			timeLimitTimer := timeLimitTimer - 1;
+		ELSE
+			(* New invocation timeslice *)
+			timeLimitTimer := timeLimit;
+		END_IF;
+	END_IF;
+
+	(* TimeOut (To): The total timeout only runs during execution *)
+	IF timeoutTimer > 0 AND status = LevelCtrlStatus.Executing THEN
+		timeoutTimer := timeoutTimer - 1;
+	END_IF;
+END_IF;
+
+CASE status OF
+    LevelCtrlStatus.Dormant :
+        done := FALSE; busy := FALSE; error := FALSE; errorId := 0; activeCycle := FALSE;
+
+		(* Level detection *)
+        IF enable THEN
+            timeoutTimer := timeout;
+			timeLimitTimer := timeLimit;
+            status := LevelCtrlStatus.Executing;
+        END_IF;
+
+    LevelCtrlStatus.Executing :
+        busy := TRUE;
+        (* Enable caller logic: active if there is no cycle limit or if the cycle time has not expired. *)
+        activeCycle := (timeLimit = 0) OR (timeLimitTimer > 0);
+
+        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            status := LevelCtrlStatus.Error;
+        ELSIF NOT enable THEN
+            status := LevelCtrlStatus.Aborting;
+        ELSIF NOT isContinuous AND readyCondition THEN
+            status := LevelCtrlStatus.Done; (* Target achieved (Standard variants) *)
+        END_IF;
+
+    LevelCtrlStatus.Aborting :
+        activeCycle := FALSE;
+        
+        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            status := LevelCtrlStatus.Error;
+		ELSIF abortComplete THEN
+			status := LevelCtrlStatus.Resetting;
+		END_IF;
+
+    LevelCtrlStatus.Done : (* Only for non-continuous variants *)
+        busy := FALSE; done := TRUE; activeCycle := FALSE;
+		
+        IF NOT enable THEN
+			status := LevelCtrlStatus.Resetting;
+		END_IF;
+
+
+    LevelCtrlStatus.Error :
+        busy := FALSE; activeCycle := FALSE; error := TRUE;
+
+        IF errorCondition THEN
+            errorId := 1; (* ExternalError *)
+        ELSE
+            errorId := 2; (* Total timeout expired *)
+        END_IF;
+
+		IF resetRequest OR NOT enable THEN
+			status := LevelCtrlStatus.Resetting;
+		END_IF;
+
+    LevelCtrlStatus.Resetting :
+        done := FALSE; error := FALSE; errorId := 0; activeCycle := FALSE;
+
+        IF resetComplete THEN
+			status := LevelCtrlStatus.Dormant;
+		END_IF;
+END_CASE;

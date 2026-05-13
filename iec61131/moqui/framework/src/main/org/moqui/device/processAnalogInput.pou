@@ -1,0 +1,33 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Conversion and processing of a physical input signal into a logical parameter *)
+FUNCTION processAnalogInput : REAL
+VAR_INPUT
+	physicalValue : WORD;
+	minPhysicalValue, maxPhysicalValue : WORD;
+	minValue, maxValue : REAL;
+	offset : REAL := 0; 
+	scalingFactor : REAL := 1;
+	significantDigits : INT := 2;
+END_VAR
+VAR
+	inputValue : REAL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+inputValue := TO_REAL(physicalValue);
+inputValue := scale(inputValue, minPhysicalValue, maxPhysicalValue, minValue, maxValue);
+inputValue := inputValue * scalingFactor + offset;
+inputValue := LIMIT(minValue, inputValue, maxValue);
+
+IF significantDigits = 0 THEN
+	inputValue := truncReal(inputValue, significantDigits);
+ELSIF significantDigits > 0 THEN
+	inputValue := round(inputValue, significantDigits);
+END_IF;
+
+processAnalogInput := TO_REAL(inputValue);

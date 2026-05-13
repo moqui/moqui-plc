@@ -1,0 +1,12 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+TYPE FieldbusProtocol : (
+	ModbusTCP,
+	ModbusRTU,
+	EthernetIP,
+	Profinet,
+	CanOpen
+); END_TYPE

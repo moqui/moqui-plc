@@ -1,0 +1,162 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Basic test suite *)
+PROGRAM TestSuite
+VAR
+	(* ========== Test FMLAB ========== *)
+	operationType : OperatingMode;
+	clockGen : ClockGeneration;
+
+	dev : DeviceFacade;
+    configCmds : DeviceConfigCmds;
+	configMgmt : DeviceConfigMgmt;
+	configList : ARRAY[0..DEVICE_CONFIG_LIST_MAX_SIZE] OF STRING;
+	configListSize : UINT;
+	allConfigLoaded, error, complete : BOOL;
+	logger : LoggerFacade;
+	logger1 : loggerFacade;
+
+	(* Sensors *)
+	temp1Signal : WORD;
+	temp2Signal : WORD;
+	rh1Signal : WORD;
+	rh2Signal : WORD;
+	temp1 : REAL;
+	rh1 : REAL;
+	temp2 : REAL;
+	rh2 : REAL;
+
+	damper : Actuator;
+	damperEnableRequest, damperDisableRequest : BOOL;
+
+	coldValve : ProcessPid;
+	coldGroupEnableRequest, coldGroupDisableRequest : BOOL;
+	coldValveSetpointSignal : WORD;
+	coldValveFeedbackSignal : WORD;
+
+	hotValve : ProcessPid;
+	hotGroupEnableRequest, hotGroupDisableRequest : BOOL;
+	hotValveSetpointSignal : WORD;
+	hotValveFeedbackSignal : WORD;
+
+	motor : Actuator;
+	motorEnableRequest, motorDisableRequest : BOOL;
+	init : BOOL := TRUE;
+	i : DINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+logger.loggerName := 'Test';
+logger.enable := TRUE;
+logger.level := LogLevel.Error; 
+logger(message := 'invalid argument exception1.');
+logger(message := 'invalid argument exception2.');
+logger(message := 'invalid argument exception3.');
+logger(message := 'invalid argument exception4.');
+
+logger1.loggerName := 'ColdValve';
+logger1.enable := TRUE;
+logger1(source := 'setpoint', payloadType := LogPayloadType.Numeric, numericValue := 11.11, level := LogLevel.Info);
+logger1(source := 'feedback', payloadType := LogPayloadType.Numeric, numericValue := 33.30, level := LogLevel.Info);
+logger1(message := 'Cold valve fault.', level := LogLevel.Fatal);
+
+(*
+configMgmt(enable := TRUE, configCompleted := complete,
+allConfigLoaded => allConfigLoaded, error => error);
+
+configCmds(configType := defaultConfigType, configName := 'Test1', cmd := DeviceConfigCmdType.Init, configNameList => configList, configNameListSize => configListSize);
+configCmds(configType := defaultConfigType, configName := 'Test1', cmd := DeviceConfigCmdType.Load);
+configCmds(configType := defaultConfigType, configName := 'Test2', cmd := DeviceConfigCmdType.Load);
+*)
+
+(*
+(* Setup *)
+IF init THEN
+	operationType := OperatingMode.Init;
+	(*
+	motor.actuatorParams.actuatorId := '100000';
+	motor.actuatorParams.actuatorName := 'Motor1';
+	motor.actuatorParams.actuatorType := ActuatorType.Contactor;
+	motor.controlMethod.actuationType := ActuatorActuationType.SingleActuation;
+	motor.controlMethod.feedbackType := ActuatorFeedbackType.SingleEnableFeedback;
+	motor.clock := clks.clock1s;
+	motor.disableTime := 100;
+	motor.enableTime := 100;
+	motor.enablePreset := FALSE;
+*)
+	damper.actuatorId := '100001';
+	damper.actuatorName := 'Damper1';
+	damper.actuationType := ActuatorActuationType.SingleActuation;
+	damper.feedbackType := ActuatorFeedbackType.DoubleFeedback;
+	damper.clock := clks.clock1s;
+	damper.disableTime := 120;
+	damper.enableTime := 120;
+	damper.enablePreset := FALSE;
+
+	coldValve.controlSystemId := '100002';
+	coldValve.controlSystemName := 'Cold Valve 1';
+	coldValve.clock := clks.clock100ms;
+	coldValve.gain := 10;
+	coldValve.integrationTime := 10;
+	coldValve.setpoint := 0;
+	coldValve.setpointMin := 0;
+	coldValve.setpointMax := 100;
+	(*	
+	hotValve.controlSystemId := '100003';
+	hotValve.controlSystemName := 'Hot Valve 1';
+	hotValve.clock := clks.clock100ms;
+	hotValve.gain := 10;
+	hotValve.integrationTime := 10;
+	hotValve.setpoint := 0;
+	hotValve.setpointMin := 0;
+	hotValve.setpointMax := 100;
+	*)
+ELSE
+	operationType := OperatingMode.Run;
+END_IF;
+
+(* Clock generation *)
+clockGen(operationType := operationType);
+
+(* Input processing *)
+coldValve.feedback := processAnalogInput(coldValveFeedbackSignal, 0, 27648, -50, 50);
+(*
+hotValve.feedback := processAnalogInput(hotValveFeedbackSignal, 0, 27648, -50, 50);
+*)
+
+(* Cmds *)
+damperEnableRequest := TRUE;
+damperDisableRequest := FALSE;
+damper(enableRequest := damperEnableRequest, disableRequest := damperDisableRequest, operationType := operationType); 
+
+FOR i := 1 TO 1000000 DO 
+	damperEnableRequest := FALSE;
+	damperDisableRequest := TRUE;
+	damper(enableRequest := damperEnableRequest, disableRequest := damperDisableRequest, operationType := operationType); 
+END_FOR;
+
+
+coldGroupEnableRequest := TRUE;
+coldGroupDisableRequest := FALSE;
+coldValve(enable := coldGroupEnableRequest, setpoint := 30);
+
+(*
+hotValveEnableRequest := TRUE;
+hotValveDisableRequest := FALSE;
+hotValve(enable := hotValveEnableRequest, setpoint := 30); 
+
+motorEnableRequest := TRUE;
+motorDisableRequest := FALSE;
+motor(enableRequest := motorEnableRequest, disableRequest := motorDisableRequest, operationType := operationType); 
+*)
+
+(* Output processing *)
+processAnalogOutput(coldValve.setpoint, 0, 27648, -50, 50, wordAnalogOutput => coldValveSetpointSignal);
+(*processAnalogOutput(hotValve.setpoint, 0, 27648, -50, 50, wordAnalogOutput => hotValveSetpointSignal);*)
+
+init := FALSE;
+*)

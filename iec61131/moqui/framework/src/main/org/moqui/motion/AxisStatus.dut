@@ -1,0 +1,18 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE AxisStatus : (
+    Standstill,
+    Homing,
+    DiscreteMotion,
+    ContinuousMotion,
+	SynchronizedMotion,
+    Stopping,
+    Disabled,
+    ErrorStop
+); END_TYPE
+
+

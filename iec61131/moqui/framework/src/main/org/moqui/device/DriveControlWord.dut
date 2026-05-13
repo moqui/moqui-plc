@@ -1,0 +1,21 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+(* Drive control words *)
+(* Relevant control word for start, stop and reset commands *)
+TYPE DriveControlWord : (
+	(* ABB ACS580, ACH580 drive *) 
+	ABBACH580Reset := 1278,
+	ABBACH580Stop := 1150,
+	ABBACH580Start := 1151,
+	(* Control Techniques M600 drive *)
+	CTM600Reset := 111,
+	CTM600Stop := 112,
+	CTM600Start := 113,
+	(* Danfoss FC102 drive *)
+	DanfossFC102Reset := 121,
+	DanfossFC102Stop := 122,
+	DanfossFC102Start := 123
+); END_TYPE

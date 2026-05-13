@@ -1,0 +1,17 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(*
+ * Selects the mode used to trigger a priority-order rotation (autochange).
+ * Corresponds to ABB ACH580 parameter 76.70 Autochange.
+ *)
+TYPE ActuatorGroupAutochange : (
+    None := 0, (* Autochange disabled; priority order is fixed *)
+    EvenWear, (* Rotate when run-hour imbalance > maxWearImbalance (76.72) *)
+    FixedInterval, (* Rotate every autochangeInterval when demand ≤ autochangeLevel (76.71) *)
+    ExternalTrigger, (* Rotate on rising edge of autochangeTrigger when demand ≤ autochangeLevel *)
+    AllStopped (* Rotate whenever the group stops (all actuators off) *)
+); END_TYPE

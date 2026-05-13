@@ -1,0 +1,67 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+ * Output signals processing (e.g.: debouncing filter) and actuation unit.
+ * Map logical output parameters on their physical counterpart, performing processing if necessary.
+ *)
+FUNCTION_BLOCK OutputSignalUpdate
+VAR_EXTERNAL
+	dev : DeviceFacade;
+	io : IOFacade;
+END_VAR
+VAR_INPUT
+	operationType : OperatingMode;
+END_VAR
+VAR
+	(* Logger facade *)
+	logger : LoggerFacade;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Logger facade init *)
+logger.enable := TRUE; logger.loggerName := 'OutputSignalUpdate';
+
+logger(message := 'Output signals processing and actuation.', level := LogLevel.DEBUG);
+
+(* 
+	Logical to physical terminals mapping example:
+
+	IF operationType = OperatingMode.Init THEN
+		(* Special processing for the init phase, if needed, such as the restart phase after a blackout. *)
+		(* etc. *)
+	ELSIF operationType = OperatingMode.Run THEN
+		(* For continuous speed values mapping ... *)
+		(* Example mapping of a word analog signal *)
+		io.speedRefSignal := TO_WORD(dev.speedRef);
+		(* Example mapping of a 32-bit analog signal *)
+		io.speedRefSignal := realToWordArray(dev.speedRef);
+		(* Example mapping of a 64-bit analog signal *)
+		io.speedRefSignal := longRealToWordArray(dev.speedRef);
+		io.coldGlycolTempSignal := TO_WORD(dev.inletColdGlycolTemp);
+		(* Scaling and limiting example *)
+		processAnalogOutput(dev.tempSetpoint, 4, 20, dev..tempMin,
+			dev.tempMax, 0, 1, 0, wordAnalogOutput => io.tempSetpointSignal);
+		(* Drive control word and reference mapping *)
+		processDriveCyclicOutData(DriveModel.ABBACH580, dev.compressor.enable, reset := FALSE,
+			controlWord => io.compressorControlWord);
+		(* Reverse logic *)
+		io.condenserFanEnableContactor := NOT condenserFan.enable;
+		io.coldGlycolPumpContactor := dev.coldGlycolPump.enable;
+		io.coldGlycolPumpContactor := NOT dev.coldGlycolPump.disable;
+		io.faultLight := coldGlycolPump.fault;
+		...
+	END_IF;
+	
+	(* 
+	 * Configure and call the logger facade to log signals where needed.
+	 *     logger(payloadType := LogPayloadType.Numeric, numericValue := io.speedRefSignal, level := LogLevel.DEBUG);
+	 *     logger(payloadType := LogPayloadType.Numeric, numericValue := io.coldGlycolTempSignal, level := LogLevel.DEBUG);
+	 *     logger(payloadType := LogPayloadType.Enum, enumValue := io.controlWord, level := LogLevel.DEBUG);
+	 *     (* etc. *)
+	 *)
+*)

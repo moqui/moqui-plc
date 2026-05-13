@@ -1,0 +1,120 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK DeviceConfigCmds
+VAR_EXTERNAL CONSTANT
+	DEVICE_CONFIG_LIST_MAX_SIZE : UINT;
+	defaultConfigType : STRING;
+END_VAR
+VAR_INPUT
+    configType : STRING := defaultConfigType; (* If empty, set default device config type *)
+	(*
+     * The default file name of a recipe is: <configName>.<configType>.<extension>
+     * Device config ID or name used by the commands.
+     *)
+    configName : STRING := '';
+    cmd : DeviceConfigCmdType := DeviceConfigCmdType.Load;
+END_VAR
+VAR_OUTPUT
+	(* Device config list *)
+	configNameList : ARRAY[0..DEVICE_CONFIG_LIST_MAX_SIZE] OF STRING;
+	configNameListSize : UINT;
+	error : BOOL;
+	errorId : DWORD; (* 16#5000 : InvalidArgs *)
+END_VAR
+VAR
+	(* Recipe management component *)
+    configCmds : Recipe_Management.RecipeManCommands;
+	(* Logger facade *)
+	logger : LoggerFacade;
+    i : UINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF cmd = DeviceConfigCmdType.Init THEN
+	(* Logger facade init *)
+	logger.enable := TRUE; logger.loggerName := 'DeviceConfigCmds';
+END_IF;
+
+(* Args validation *)
+IF (configType = '') OR (cmd <> DeviceConfigCmdType.Init AND cmd <> DeviceConfigCmdType.Reset AND configName = '') THEN
+	logger(message := 'Invalid arguments.', level := LogLevel.Error);
+	error := TRUE;
+	errorId := 16#5000;
+	RETURN;
+END_IF;
+
+CASE cmd OF
+	DeviceConfigCmdType.Init :
+		logger(message := 'Loading device config list.');
+		(* Clear previous list on reload *)
+		FOR i := 0 TO DEVICE_CONFIG_LIST_MAX_SIZE DO configNameList[i] := ''; END_FOR;
+		configNameListSize := 0;
+
+		errorId := configCmds.ReloadRecipes(RecipeDefinitionName := configType);
+		error := (errorId <> 0);
+		IF error THEN logger(message := 'Error loading device config list from file system.', level := LogLevel.Error); RETURN; END_IF;
+
+		(* iSize is the array capacity: DEVICE_CONFIG_LIST_MAX_SIZE + 1 elements (indices 0..MAX) *)
+		errorId := configCmds.GetRecipeNames(RecipeDefinitionName := configType,
+			pStrings := ADR(configNameList), iSize := TO_INT(DEVICE_CONFIG_LIST_MAX_SIZE) + 1, iStartIndex := 0);
+		error := (errorId <> 0);
+		IF error THEN logger(message := 'Error loading device config names.', level := LogLevel.Error); RETURN; END_IF;
+		(* Set the actual number of recipes/device configs found *)
+		configNameListSize := TO_UINT(MIN(configCmds.GetRecipeCount(RecipeDefinitionName := configType),
+			TO_DINT(DEVICE_CONFIG_LIST_MAX_SIZE) + 1));
+
+    DeviceConfigCmdType.Create :
+		errorId := configCmds.CreateRecipe(RecipeDefinitionName := configType, RecipeName := configName);
+        error := (errorId <> 0);
+		IF error THEN
+			logger(message := concat(concat(concat('Error creating device config ', configName), ' of type '), configType), level := LogLevel.Error);
+		ELSE
+			logger(message := concat(concat(concat('Created device config ', configName), ' of type '), configType));
+        END_IF;
+
+    DeviceConfigCmdType.Save :
+        errorId := configCmds.ReadAndSaveRecipe(RecipeDefinitionName := configType, RecipeName := configName);
+        error := (errorId <> 0);
+        IF error THEN
+			logger(message := concat(concat(concat('Error saving device config ', configName), ' of type '), configType), level := LogLevel.Error);
+		ELSE
+           	logger(message := concat(concat(concat('Saved device config ', configName), ' of type '), configType));
+		END_IF;
+
+	DeviceConfigCmdType.Load:
+        errorId := configCmds.LoadAndWriteRecipe(RecipeDefinitionName := configType, RecipeName := configName);
+        error := (errorId <> 0);
+		IF error THEN
+			logger(message := concat(concat(concat('Error loading device config ', configName), ' of type '), configType), level := LogLevel.Error);
+		ELSE
+        	logger(message := concat(concat(concat('Loaded device config ', configName), ' of type '), configType));
+        END_IF;
+
+    DeviceConfigCmdType.Delete:
+        errorId := configCmds.DeleteRecipeFile(RecipeDefinitionName := configType, RecipeName := configName);
+		error := (errorId <> 0);
+		IF error THEN
+			logger(message := concat('Error deleting file for device config ', configName), level := LogLevel.Error);
+			RETURN;
+		END_IF;
+    
+		errorId := configCmds.DeleteRecipe(RecipeDefinitionName := configType, RecipeName := configName);
+        error := (errorId <> 0);
+        IF error THEN
+			logger(message := concat(concat(concat('Error deleting device config ', configName), ' of type '), configType), level := LogLevel.Error);
+		ELSE
+			logger(message := concat(concat(concat('Deleted device config ', configName), ' of type '), configType));
+        END_IF;
+		
+	DeviceConfigCmdType.Reset :
+		logger(message := 'Resetting device config list.');
+		configCmds.ResetLastError();
+		configCmds.ResetLastInfo();
+		error := FALSE;
+		errorId := 0;
+END_CASE;

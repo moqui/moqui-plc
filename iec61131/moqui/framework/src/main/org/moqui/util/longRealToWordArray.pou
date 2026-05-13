@@ -1,0 +1,28 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Convert a long real variable to a word array *)
+FUNCTION longRealToWordArray : ARRAY[0..3] OF WORD
+VAR_INPUT
+    value : LREAL;
+    bigEndian : BOOL := FALSE;
+END_VAR
+VAR
+    lwordValue : LWORD;
+    result : ARRAY[0..3] OF WORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+lwordValue := TO_LWORD(value);
+IF bigEndian THEN
+    lwordValue := swapLWordEndian(lwordValue);
+END_IF;
+
+result[0] := TO_WORD(SHR(lwordValue, 48));
+result[1] := TO_WORD(SHR(lwordValue, 32) AND 16#FFFF);
+result[2] := TO_WORD(SHR(lwordValue, 16) AND 16#FFFF);
+result[3] := TO_WORD(lwordValue AND 16#FFFF);
+longRealToWordArray := result;

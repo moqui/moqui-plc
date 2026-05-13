@@ -1,0 +1,194 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+VAR_GLOBAL CONSTANT
+	(* ========== Framework ========== *)
+
+	retryOnError : BOOL := TRUE;
+	(* Minimum time between retries after an error, in seconds *)
+	minRetryTime : UINT := 10;
+	(* If specified only retry this many times. When this count is reached paused will be set to true. *)
+	maxRetryCount : UINT := 5;
+
+	(* ========== Logger ========== *)
+	
+	(* Logger facade configurations *)
+	LOG_MAX_SIZE : UINT := 100;
+	defaultLogLevel : LogLevel := LogLevel.Debug;
+	(* Log appender configurations *)
+	LOG_SOURCE_LIST_MAX_SIZE : UINT := 50;
+	(* JSON payload size for log appender *)
+	LOG_JSON_PAYLOAD_MAX_SIZE : UINT := 32768;
+	(* MQTT topic used by the log appender *)
+	JSON_PAYLOAD_MAX_SIZE : UINT := 1024;
+	JSON_LINE_BREAK : WSTRING(2) := "$R$N";
+	JSON_ELEMENT_LIST_MAX_SIZE : UINT := 100;
+	LOG_APPENDER_BATCH_SIZE : UINT := 30;
+	logTopic : WSTRING(1024) := "moqui-plc";
+	logAppenderTimeout : UINT := 50000;
+	(* Topic for receiving commands from Moqui *)
+	moquiCmdsTopic : WSTRING(1024) := "moquiCmds";
+	(* Topics for live parameters pub/sub *)
+	liveParamsSubTopic : WSTRING(1024) := "liveParamsSub";
+	liveParamsSubTimeout : UINT := 0;
+	liveParamsPubTopic : WSTRING(1024) := "liveParamsPub";
+	liveParamsPubTimeout : UINT := 0;
+
+	(* ========== Communication Protocols ========== *)
+	fieldbus : FieldbusProtocol := FieldbusProtocol.ModbusTCP;
+
+	(* Modbus configurations *)
+	(*
+	 * Modbus limits (Overrange and Overflow).
+	 * By dividing the total capacity of the 16 bits (32767) and the nominal value (27648),
+     * the system can identify anomalies: 0-27648: Nominal range (e.g. 0-10V).
+     * 27649-32511: Overrange (the signal is above 100%, but still readable).
+     * 32512-32767: Overflow (upper limit exceeded, possible fault or short circuit).
+     * Negative values: Used for bipolar signals (e.g. -10V to +10V), where -27648$ is the lower limit.
+     *)
+	MODBUS_OVERRANGE : UINT := 27649;
+	MODBUS_OVERFLOW : UINT := 32512;
+
+	(* MQTT configurations *)
+
+	(* Connection properties *)
+	(* 
+     * MQTT broker URL and port.
+	 * The input is only relevant for communicationMode = COMMUNICATION_MODE.TCP.
+	 *)
+	brokerUrl : STRING(255) := '192.168.1.172';
+	brokerPort : UINT := 1883;
+	(* 
+     * The URL of the websocket server. 
+	 *  e.g ‘ws://localhost:8080’ ws-URI = “ws:” “//” host [ “:” port ] path [ “?” query ] wss-URI = “wss:” “//” host [ “:” port ] path [ “?” query ]
+	 * The input is only relevant for communicationMode = COMMUNICATION_MODE.WEB_SOCKET.
+	 *)
+	webSocketUrl : STRING(1024) := '';
+	(* Client ID, if empty then new ID is generated *)
+	clientId : STRING(255) := 'moqui-plc';
+	(* User name (optional) *)
+	username : WSTRING(255) := "artemis";
+	(* User password (optional) *)
+	password : WSTRING(1024) := "artemis";
+	(* Connect properties v5 *)
+	(* Session Expiry Interval: Time in seconds a session retains after a disconnect *)
+	sessionExpiryInterval : UDINT := 3600;
+	keepAlive : UINT := 60;
+	(* Set to TRUE to create a new session. Set to FALSE to use already existing session if available *)
+	cleanSession : BOOL := FALSE;
+	(* Defines the time (µs) after which the connection setup aborts with error. *)
+	timeout : UDINT := 0;
+	(* Interval time in seconds how often should be pinged, IF pingINterval <= 0 then no pings *)
+	pingInterval : TIME := TIME#5S;
+	maximumPacketSize : UDINT := MQTT.MQTTParam.g_udiMaxPacketSize;
+	(* 
+	 * Communication mode: TCP or WEB_SOCKET, default to TCP.
+	 * COMMUNICATION_MODE.TCP: Configure the connection via the inputs: brokerUrl, brokerPort and tlsContext.
+	 * COMMUNICATION_MODE.WEB_SOCKET: Configure the connection via the inputs: webSocketUrl and tlsContext.
+     *)
+	communicationMode : MQTT.COMMUNICATION_MODE := MQTT.COMMUNICATION_MODE.TCP;
+	(* MQTT protocol version: V3_1_1 or V5. Default to 3.1.1. *)
+	mqttVersion : MQTT.MQTT_VERSION := MQTT.MQTT_VERSION.V5;	
+	(* Connection properties for MQTT V5 *)
+	(* connectUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	(* Example:
+	     connectUserProperties := [
+	         (wsKey := "key1", wsValue := "value1"),
+	         (wsKey := "key2", wsValue := "value2"),	
+	         (wsKey := "key3", wsValue := "value3")
+	     ];
+	*)
+	
+	(* Will message propeties *)
+	willTopic : WSTRING(1024) := "MoquiPlcError";
+	(* The last will message *)
+	willMessage : STRING(1024) := 'Moqui PLC fault.';
+	(* Set to TRUE to save the Last Will message on server. If Client subscribes later, then it receives the last stack message from server *)	
+	willRetain : BOOL := TRUE;
+	(* QoS Level of Last Will message *)
+	willQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS2;
+	(* Payload Format: 0: Binary Data, 1: UTF-8 *)
+	willPayloadFormatIndicator : BYTE := 1;
+	(* Expiry interval of the message in seconds *)	
+	willMessageExpiryInterval : UDINT := 60;
+	(* MIME style content type of the payload *)
+	willContentType : WSTRING(32) := "text/plain";
+	(* The Server delays publishing the Client’s Will Message until the Will Delay Interval (in seconds) has passed or the Session ends, whichever happens first *)
+	willDelayInterval : UDINT := 60;
+	(* Will properties for MQTT V5 *)
+	(* willUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	(* Example:
+	       userProperties := [
+		       (wsKey := "key1", wsValue := "value1"),
+		       (wsKey := "key2", wsValue := "value2"),	
+		       (wsKey := "key3", wsValue := "value3")
+		   ];
+    *)
+	
+	(* General publish configurations *)
+	(* Publisher payload Format: 0: Binary Data, 1: UTF-8 *)
+	pubPayloadFormatIndicator : BYTE := 1;
+	(* Publisher expiry interval of the message in seconds*)
+	pubMessageExpiryInterval : UDINT := 60;
+	(* Publisher MIME style content type of the payload *)
+	pubContentType : WSTRING(32) := "text/plain";
+	(* Publisher user defined properties *)
+	(* pubUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	(* Example:
+		   pubUserProperties := [
+			   (wsKey := "key1", wsValue := "value1"),
+			   (wsKey := "key2", wsValue := "value2"),	
+			   (wsKey := "key3", wsValue := "value3")
+		   ];
+	*)
+
+	(* Live parameter publisher configurations *)
+	(* QoS-Level for publish *)
+	paramsPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
+	(* TRUE: Stores the message on broker *)
+	paramsPubRetain : BOOL := TRUE;
+	(* When packet got already send and now should got resend, FALSE: First time *)
+	paramsReDelivery : BOOL := TRUE;
+
+	(* Log publisher configurations *)
+	(* QoS-Level for publish *)
+	logPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
+	(* TRUE: Stores the message on broker *)
+	logPubRetain : BOOL := TRUE;
+	(* When packet got already send and now should got resend, FALSE: First time *)
+	logReDelivery : BOOL := TRUE;
+
+	(* Subscribe properties v5 *)
+	(* The subscription identifier will be returned on the message when it is delivered. This allows the Client to determine which subscription or subscriptions caused the message to be delivered. Setting the identifier accelerates the filtering of the telegrams in the subscriber function block *)	
+	subscriptionIdentifier : UDINT := 4343;
+	(* Subscribe user defined properties *)
+	(* subUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	(* No Local option if the value is TRUE, Application Messages MUST NOT be forwarded to a connection with a ClientID equal to the ClientID of the publishing connection *)
+	subNoLocalOption : BOOL := FALSE;
+	(* Retain As Published option If TRUE, Application Messages forwarded using this subscription keep the RETAIN flag they were published with *)
+	subRetainAsPublished : BOOL := FALSE;
+	(* This option specifies whether retained messages are sent when the subscription is established *)
+	subRetainHandling : MQTT.MQTT_RETAIN_HANDLING := MQTT.MQTT_RETAIN_HANDLING.Not_Exists;
+
+	(* QoS-Level for subscribe *)
+	paramsSubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
+	(* 
+     * FILTER_ON = Filters the telegrams by topics
+     * FILTER_OFF = Turns the filter off and receives ALL subscribed telegrams
+     * FILTER_NONE = Receives no telegrams. In this mode you can only subscribe or unsubscribe topics
+     *)
+	paramsSubFilterMode : MQTT.FILTER_MODE := MQTT.FILTER_MODE.FILTER_ON;
+
+	(* ========== Signal Management ========== *)
+	
+	(* Signal configurations *)
+	SIGNAL_LIST_MAX_SIZE : UINT := 200;
+	
+	(* ========== Device Config Management ========== *)
+	
+	DEVICE_CONFIG_LIST_MAX_SIZE : UINT := 100;
+	defaultConfigType : STRING := 'TestRecipes'; (* 'HvacDeviceConfig' *)
+	ACTUATOR_GROUP_MAX_SIZE : UINT := 8;
+    AXIS_IN_VELOCITY_TOLERANCE : LREAL := 0.02;
+END_VAR

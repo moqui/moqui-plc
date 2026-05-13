@@ -1,0 +1,85 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK DeserializeJsonToParameters
+VAR_EXTERNAL CONSTANT
+	JSON_PAYLOAD_MAX_SIZE : UINT;
+    JSON_ELEMENT_LIST_MAX_SIZE : UINT;
+END_VAR
+VAR_INPUT
+    execute : BOOL;
+    jsonPayload : WSTRING(JSON_PAYLOAD_MAX_SIZE) := "";
+	asyncMode : BOOL := TRUE; (* If TRUE, JSON reader runs in asynchronous mode *)
+END_VAR
+VAR_OUTPUT
+    done : BOOL; (* JSON parsing completed successfully *)
+    busy : BOOL; (* Deserialization in progress *)
+    error : BOOL;
+    errorId : INT; (* 100 : PayloadErr *)
+END_VAR
+VAR
+    jsonReader : JSON.JSONByteArrayReader;
+    jsonData : JSON.JSONData;
+    rootElement : JSON.JSONElement;
+    jsonKeyList : ARRAY[0..JSON_ELEMENT_LIST_MAX_SIZE] OF JSON.JSONElement;
+    jsonValueList : ARRAY[0..1] OF JSON.JSONElement; (* Only one element is allowed for each JSON key *)
+    jsonKeyListSize, jsonValueListSize : UDINT;
+    jsonError : JSON.ERROR;
+    paramsMapper : JsonToParametersMapper;
+    i : UDINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Args validation *)
+IF jsonPayload = "" THEN
+	done := FALSE;
+	busy := FALSE;
+	errorId := 100;
+    error := TRUE;
+	RETURN;
+END_IF;
+
+IF NOT jsonReader.xError AND NOT jsonReader.xBusy AND execute THEN
+	(* Reset builder and clear the JSON data on each call *)
+	jsonData.Clear();
+	jsonReader.xAsyncMode := asyncMode;
+	jsonReader.pwData := ADR(jsonPayload);
+	done := FALSE;
+END_IF;
+
+(* JSON deserialization *)
+jsonReader(xExecute := execute, jsonData := jsonData, xBusy => busy, xError => error, eError => errorId);
+
+(* JSON reading, ignoring error (non-blocking). *)
+IF jsonReader.xDone AND NOT done THEN
+	(* Get the root element *)
+	IF jsonData.GetElementByIndex(diIndex := 0, jsonElement => rootElement) = JSON.ERROR.NO_ERROR THEN
+		(* Parameter mapping *)
+		IF rootElement.eType = JSON.JSONType.JSON_OBJECT THEN
+			(* Get the children of the object: typically key *)
+			jsonError := jsonData.GetChildren(diIndex := rootElement.diIndex, pResult := ADR(jsonKeyList),
+				udiMaxSize := JSON_ELEMENT_LIST_MAX_SIZE, udiResultSize => jsonKeyListSize);
+
+			IF jsonError = JSON.ERROR.NO_ERROR AND (jsonKeyListSize > 0) THEN
+				(* For each key, take its value, child of the key, and assign it *)
+				FOR i := 0 TO jsonKeyListSize - 1 DO
+					IF jsonKeyList[i].eType = JSON.JSONType.KEY THEN
+						(* Children of key => value (typically only one). *)
+						jsonError := jsonData.GetChildren(diIndex := jsonKeyList[i].diIndex, pResult := ADR(jsonValueList),
+							udiMaxSize := 1, udiResultSize => jsonValueListSize);
+
+						IF (jsonError = JSON.ERROR.NO_ERROR) AND (jsonValueListSize > 0) THEN
+							paramsMapper(jsonKey := jsonKeyList[i].value.wsValue, jsonValue := jsonValueList[0]);
+						END_IF;
+					END_IF;
+				END_FOR;
+			END_IF;
+		END_IF;
+	END_IF;
+	
+	done := TRUE;
+END_IF;

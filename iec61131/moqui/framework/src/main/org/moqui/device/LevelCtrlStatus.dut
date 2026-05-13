@@ -1,0 +1,14 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE LevelCtrlStatus : (
+	Dormant := 0,
+	Executing,
+	Done,
+	Aborting,
+	Resetting,
+	Error
+); END_TYPE

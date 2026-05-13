@@ -1,0 +1,70 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK RemoteIoModuleDiagnostics
+VAR_EXTERNAL
+	fieldbus : FieldbusProtocol;
+END_VAR
+VAR_INPUT
+	moduleName : STRING;
+END_VAR
+VAR_OUTPUT
+	error : BOOL;
+	diagnosisInfo : STRING; 
+END_VAR
+VAR
+	byteArrayBuffer : ARRAY[0..1] OF BYTE;
+	(* ABB parameters *)
+	deviceState : BYTE;
+	parameterState : BYTE;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+error := TRUE;
+
+(*
+(* Example diagnostic code *)
+IF moduleName = 'io1' THEN
+	toByteArray(inputWord := io1DeviceInformationBlock, byteArray => byteArrayBuffer);
+	deviceState := byteArrayBuffer[0];
+	parameterState := byteArrayBuffer[1];
+(* 
+ELSIF moduleName = 'io2' THEN
+	toByteArray(inputWord := io2DeviceInformationBlock, byteArray => byteArrayBuffer);
+    deviceState := byteArrayBuffer[0];
+    parameterState := byteArrayBuffer[1];
+*)
+ELSE
+	RETURN;
+END_IF;
+
+(* The actual state of the remote IO module *)
+diagnosisInfo := concat(concat('IO module ', moduleName), ' diagnosis info: ');
+CASE deviceState OF 
+	0 : diagnosisInfo := concat('STATE_PREOP', diagnosisInfo);
+	1 : diagnosisInfo := concat('STATE_OPERATION', diagnosisInfo);
+	2 : diagnosisInfo := concat('STATE_ERROR', diagnosisInfo); RETURN;
+	3 : diagnosisInfo := concat('STATE_IP_ERROR', diagnosisInfo); RETURN;
+	4 : diagnosisInfo := concat('STATE_CYCLIC_OPERATION', diagnosisInfo);
+ELSE
+	RETURN;
+END_CASE;
+
+CASE parameterState OF
+	0 : diagnosisInfo := concat('PARA_STATE_NO_PARA', diagnosisInfo);
+	1 : diagnosisInfo := concat('PARA_STATE_PARA_ACTIVE', diagnosisInfo);
+	2 : diagnosisInfo := concat('PARA_STATE_PARA_DONE', diagnosisInfo);
+	3 : diagnosisInfo := concat('PARA_STATE_PARA_DONE', diagnosisInfo);
+	4 : diagnosisInfo := concat('PARA_STATE_ERROR', diagnosisInfo); RETURN;
+ELSE
+	RETURN;
+END_CASE;
+
+(* etc. *)
+*)
+
+error := FALSE;

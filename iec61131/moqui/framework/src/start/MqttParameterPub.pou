@@ -1,0 +1,91 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+PROGRAM MqttParameterPub
+VAR_EXTERNAL CONSTANT
+	JSON_PAYLOAD_MAX_SIZE : UINT;
+	pubPayloadFormatIndicator : BYTE;
+	pubMessageExpiryInterval : UDINT;
+	pubContentType : WSTRING(32);
+	(* pubUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	paramsPubQoS : MQTT.MQTT_QOS;
+	paramsPubRetain : BOOL;
+	paramsReDelivery : BOOL;
+    liveParamsPubTopic : WSTRING(1024);
+	liveParamsPubTimeout : UINT;
+END_VAR
+VAR_EXTERNAL
+	paramsPubEnable : BOOL;
+	connectionFactory : MqttConnectionFactory;
+END_VAR
+VAR
+	done, busy, error : BOOL;
+    errorId : INT;
+	jsonPayload : WSTRING(JSON_PAYLOAD_MAX_SIZE);
+	pubTopic : WSTRING(1024) := liveParamsPubTopic;
+	pubMessage : STRING(JSON_PAYLOAD_MAX_SIZE);
+	(* Publisher *)
+	publisher : MQTT.MQTTPublish;
+	(* Publish properties v5 *)
+	mqttPublishProperties : MQTT.MQTTPublishProperties := (
+		bPayloadFormatIndicator := pubPayloadFormatIndicator,
+		wsContentType := pubContentType,
+		udiMessageExpiryInterval := pubMessageExpiryInterval
+		(* userProperties := pubUserProperties *)
+	);
+    (* JSON serializer *)
+    parameterMapper : SerializeParametersToJson;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Publishing disabled *)
+IF NOT paramsPubEnable THEN
+	done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
+	RETURN;
+END_IF;
+
+(* Connect to the broker *)
+connectionFactory(connect := TRUE, error => error, errorId => errorId);
+(* Reset and retry on next cycle *)
+IF connectionFactory.connection.xError THEN
+	connectionFactory(connect := FALSE, error => error, errorId => errorId);
+	done := FALSE; busy := FALSE;
+	RETURN;
+END_IF;
+
+(* Waiting for connection to broker *)
+IF NOT connectionFactory.connected THEN RETURN; END_IF;
+
+IF NOT publisher.xBusy THEN
+	(* JSON mapping *)
+	parameterMapper(execute := TRUE, jsonPayload => jsonPayload,
+		busy => busy, error => error, errorId => errorId);
+	IF parameterMapper.error THEN
+		(* Reset JSON writer *)
+		parameterMapper(execute := FALSE, error => error, errorId => errorId);
+		done := FALSE; busy := FALSE;
+		RETURN;
+	END_IF;
+END_IF;
+
+IF parameterMapper.done THEN
+	(* Publish the payload *)
+	pubMessage := TO_STRING(jsonPayload);
+	publisher(xExecute := TRUE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
+		pbPayload := ADR(pubMessage), udiPayloadSize := INT_TO_UDINT(LEN(pubMessage)),
+		eQoS := paramsPubQoS, xReDelivery := paramsReDelivery, xRetain := paramsPubRetain,
+		udiTimeOut := liveParamsPubTimeout, mQTTPublishProperties := mqttPublishProperties,
+		xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+
+	IF publisher.xError OR publisher.xDone THEN
+		(* Auto reset: next cycle restarts from scratch *)
+		parameterMapper(execute := FALSE, busy => busy,
+			error => error, errorId => errorId);
+		publisher(xExecute := FALSE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
+			xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+	END_IF;
+END_IF;

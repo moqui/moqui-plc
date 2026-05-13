@@ -1,0 +1,22 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Utility function to convert a word array to a real variable *)
+FUNCTION doubleWordToReal : REAL
+VAR_INPUT
+	wordArray : ARRAY[0..1] OF WORD;
+	bigEndian : BOOL := FALSE;
+END_VAR
+VAR
+    dwordValue : DWORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+dwordValue := SHL(TO_DWORD(wordArray[0]), 16) OR TO_DWORD(wordArray[1]);
+IF bigEndian THEN
+    dwordValue := swapDWordEndian(dwordValue);
+END_IF;
+doubleWordToReal := TO_REAL(dwordValue);

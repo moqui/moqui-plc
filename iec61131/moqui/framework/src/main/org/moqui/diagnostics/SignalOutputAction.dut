@@ -1,0 +1,17 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(* Signal actions.
+ * The definition of each action role is a designer choice.
+ *)
+TYPE SignalOutputAction : (
+	None := 16#0000,
+	EmergencyStop := 16#0001,
+	ImmediateStop := 16#0002,
+	OnPhaseStop := 16#0003,
+    Inhibition := 16#0004
+	(* etc. *)
+) DWORD; END_TYPE

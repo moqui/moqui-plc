@@ -1,0 +1,136 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* JSON log generator *)
+FUNCTION_BLOCK SerializeLogToJson
+VAR_EXTERNAL CONSTANT
+    LOG_MAX_SIZE : UINT;
+    LOG_JSON_PAYLOAD_MAX_SIZE : UINT;
+    JSON_LINE_BREAK : WSTRING(2);
+END_VAR
+VAR_INPUT
+    execute : BOOL;
+    (* Source: snapshot array of log entries copied from the ring buffer *)
+    logBuffer : REFERENCE TO ARRAY[1..LOG_MAX_SIZE] OF LogEvent;
+    logBufferSize : UINT; (* Number of valid entries in logBuffer *)
+    asyncMode : BOOL := TRUE; (* Asynchronous serialization of the writer *)
+    lineBreak : WSTRING(2) := JSON_LINE_BREAK;
+END_VAR
+VAR_OUTPUT
+    done : BOOL; (* JSON successfully generated *)
+    busy : BOOL; (* Serialization in progress *)
+    error : BOOL;
+    errorId : INT; (* 100 : JSONDataErr, 110 : ArgsErr *)
+    jsonPayload : ARRAY[0..LOG_JSON_PAYLOAD_MAX_SIZE] OF BYTE;
+    payloadSize : UDINT; (* Actual bytes written, excluding null terminator; valid when done = TRUE *)
+END_VAR
+VAR
+    (* 
+	 * JSON helpers.
+	 * JSONBuilder constructs a JSON structure in memory, inside a JSONData object.
+     * JSONByteArrayWriter serializes that JSONData structure into a target "string/byte array" (typically a WSTRING, hence a WORD buffer).
+     * JSONBuilder is a helper for populating JSONData with key/value pairs, objects, and arrays. The logic is index-based:
+     *  - Each created element (key, value, object, array, etc.) receives an internal index;
+	 *	- You always pass parentIndex to say "add this below that parent element";
+	 *  - The methods return a DINT representing the index of the newly created element (or internal "next index").
+	 *
+     * Root object and indexes:
+	 *  - The root object is the main object of the JSON;
+     *  - It is managed via a "special" index, the rootIndex.
+     *)
+    jsonFactory : JSON.JSONDataFactory;
+	(* Building the JSON data structure for the first time *)
+    jsonData : POINTER TO JSON.JSONData;
+    jsonBuilder : JSON.JSONBuilder;
+    jsonWriter : JSON.JSONByteArrayWriter;
+    rootIndex, objIndex : DINT;
+    i : UINT := 1;
+    effectiveSize : UINT;
+    init : BOOL;
+    (* Vars for conversion UTF-16 -> UTF-8/ASCII *)
+    wordPtr : POINTER TO WORD;
+    byteIndex : UDINT;
+    wordIndex : UDINT;
+	(* Tmp vars *)
+	numericTmp : LREAL;
+	enumTmp : INT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* One-time JSON data allocation *)
+IF NOT init THEN
+    jsonData := jsonFactory.Create(eError => errorId);
+    IF (errorId <> 0) OR (jsonData = 0) THEN
+        error := TRUE;
+        errorId := 100;
+        RETURN;
+    END_IF;
+    init := TRUE;
+END_IF;
+
+IF jsonWriter.xError THEN
+    ; (* Caller must cycle execute FALSE → TRUE to clear error and retry *)
+ELSIF NOT jsonWriter.xBusy AND execute THEN
+    (* If logBufferSize not provided (= 0), fall back to full buffer *)
+    effectiveSize := SEL((logBufferSize = 0), logBufferSize, LOG_MAX_SIZE);
+
+    (* Reset builder and clear JSON data on each new execution *)
+    jsonData^.Clear();
+    jsonBuilder.Reset();
+    payloadSize := 0;
+
+    (* Build JSON: root object with one child object per log entry *)
+    jsonBuilder(pJsonData := jsonData, diRootObj => rootIndex);
+    i := 1;
+    WHILE i <= effectiveSize DO
+        objIndex := jsonBuilder.SetKeyWithObject(TO_WSTRING(i), diParentIndex := rootIndex);
+        (* Set log event fields *)
+        jsonBuilder.SetKeyWithValue("logEventDate", logBuffer[i].logEventDate, objIndex);
+        jsonBuilder.SetKeyWithValue("loggerName", logBuffer[i].loggerName, objIndex);
+		jsonBuilder.SetKeyWithValue("source", logBuffer[i].source, objIndex);
+		enumTmp := TO_INT(logBuffer[i].payloadType);
+		jsonBuilder.SetKeyWithValue("type", enumTmp, objIndex);
+        jsonBuilder.SetKeyWithValue("repeatCount", logBuffer[i].repeatCount, objIndex);
+
+        CASE logBuffer[i].payloadType OF
+            LogPayloadType.Text:
+                jsonBuilder.SetKeyWithValue("message", logBuffer[i].payload.message, objIndex);
+            LogPayloadType.Enum:
+                jsonBuilder.SetKeyWithValue("enumValue", logBuffer[i].payload.enumValue, objIndex);
+            LogPayloadType.Numeric:
+                jsonBuilder.SetKeyWithValue("numericValue", logBuffer[i].payload.numericValue, objIndex);
+        END_CASE;
+
+        i := i + 1;
+    END_WHILE;
+
+    jsonWriter.xAsyncMode := asyncMode;
+    jsonWriter.wsLineBreak := lineBreak;
+    jsonWriter.pwData := ADR(jsonPayload);
+    jsonWriter.udiSize := SIZEOF(jsonPayload);
+END_IF;
+
+(* JSON serialization *)
+jsonWriter(xExecute := execute, jsonData := jsonData^,
+    xDone => done, xBusy => busy, xError => error, eError => errorId);
+
+(* Compute payload and compression WSTRING (UTF-16) -> ASCII (UTF-8) *)
+IF done THEN
+    byteIndex := 0;
+    wordIndex := 0;
+    wordPtr := ADR(jsonPayload);
+
+    WHILE (wordPtr^ <> 0) AND ((wordIndex * 2) < UINT_TO_UDINT(LOG_JSON_PAYLOAD_MAX_SIZE)) DO
+        jsonPayload[byteIndex] := WORD_TO_BYTE(wordPtr^);
+        byteIndex := byteIndex + 1;
+        wordIndex := wordIndex + 1;
+        wordPtr := ADR(jsonPayload[wordIndex * 2]);
+    END_WHILE;
+
+    payloadSize := byteIndex;
+    jsonPayload[byteIndex] := 0;
+END_IF;

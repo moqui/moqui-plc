@@ -1,0 +1,50 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Conversion and processing of a logical parameter into a physical signal *) 
+FUNCTION processAnalogOutput : BOOL
+VAR_INPUT
+	parameterValue : REAL;
+	minPhysicalValue, maxPhysicalValue : WORD;
+	minValue, maxValue : REAL;
+	offset : REAL := 0;
+	scalingFactor : REAL := 1;
+	significantDigits : INT := 2;
+	littleEndian : BOOL := TRUE;
+END_VAR
+VAR_OUTPUT
+	byteAnalogOutput : BYTE;
+	wordAnalogOutput : WORD;
+	dWordAnalogOutput : DWORD;
+END_VAR
+VAR
+	outputValue : REAL;	
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+processAnalogOutput := FALSE;
+
+outputValue := (parameterValue - offset) / scalingFactor;
+outputValue := LIMIT(minValue, outputValue, maxValue);
+outputValue := scale(outputValue, minValue, maxValue, minPhysicalValue, maxPhysicalValue);
+
+IF significantDigits = 0 THEN
+	outputValue := truncReal(outputValue, significantDigits);
+ELSIF significantDigits > 0 THEN
+	outputValue := round(outputValue, significantDigits);
+END_IF;
+
+byteAnalogOutput := TO_BYTE(outputValue);
+
+IF littleEndian THEN
+	wordAnalogOutput := TO_WORD(outputValue);
+	dWordAnalogOutput := TO_DWORD(outputValue);
+ELSE
+	wordAnalogOutput := swapWordEndian(TO_WORD(outputValue));
+	dWordAnalogOutput := swapDWordEndian(TO_DWORD(outputValue));
+END_IF;
+
+processAnalogOutput := TRUE;

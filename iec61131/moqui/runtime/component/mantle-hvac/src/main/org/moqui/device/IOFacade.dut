@@ -1,0 +1,65 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* 
+ * IOFacade implementation for managing physical devices and input/output signals/terminals.
+ * Input/Output physical terminals naming rules.
+ * From each value of the Parameter entity 3 signals will be generated, according to the following naming convention:
+ *     deviceName + parameterName or parameterName + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ * 	   deviceName + parameterName or parameterName + Min/Max + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ * 
+ * The physicalAdddress suffix will have the following syntax:
+	   %<memory area prefix> ( <size prefix> )? <memory position>
+ * where
+ * 	   <memory area prefix> : I | Q | M
+ *     <size prefix> : X | B | W | D
+ *     <memory position> : <number> ( .<number> )* (* Depends on the target system *)
+ * 	
+ * An alternative is to use the following semantic signal naming rules:
+ * 
+ *     (* AHU fan physical input signals *)
+ *     ahuFanDriveControlWord : WORD;
+ *     ahuFanDriveStatusWord : WORD;
+ *     ahuFanDriveRO1 : BOOL; (* Relay output 1 *)
+ * 
+ *     (* Air renewal fan physical input signals *)
+ *     airRenewalFanDriveControlWord : WORD;
+ *     airRenewalFanDriveStatusWord : WORD;
+ *     airRenewalFanDriveRO1 : BOOL; (* Relay output 1 *) 
+ * 
+ *     (* Cold glycol circulating pump physical input signals *)
+ *     coldGlycolPumpMotorStarterSignalingContact : BOOL;
+ *     coldGlycolPumpMotorStarterShuntTrip : BOOL;
+ *     coldGlycolPumpContactorSignalingContact : BOOL;
+ * 
+ *     ...
+ * 
+ *)
+TYPE IOFacade : STRUCT
+	(* ========== Phyisical Input Terminals/Signals ========== *)
+	
+	(* Motion example: *)
+	speedFeedbackSignal : ARRAY[0..1] OF WORD;
+	accelerationFeedbackSignal : ARRAY[0..3] OF WORD;
+
+	(* ========== Phyisical Output Terminals/Signals ========== *)
+	
+	(*
+	(* Motion example: *)
+	(* Example mapping for a word analog signal *)
+    speedRefSignal : WORD;
+	(* Example mapping for a 32-bit analog signal *)
+    speedRefSignal : ARRAY[0..1] OF WORD;
+	(* Example of an alternative mapping for a 64-bit analog signal *)
+	speedRefSignal : ARRAY[0..3] OF WORD;
+	(* Example of an alternative mapping for a 32-bit physical value to a REAL variable *)
+	speedRefSignal : REAL;
+	(* Example of an alternative mapping for a 64-bit physical value to an LREAL variable *)
+	speedRefSignal : REAL;
+	(* It is possible to apply the same logic to other variables such as: acceleration/deceleration, torque, etc. *)
+	*)
+
+	(* ABB IO remote device information *)
+	io1DeviceInformationBlock : WORD;
+END_STRUCT END_TYPE

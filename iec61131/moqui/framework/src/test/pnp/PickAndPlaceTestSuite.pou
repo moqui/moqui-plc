@@ -1,0 +1,367 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+ * PickAndPlaceTestSuite - integration test suite for a pick-and-place scenario.
+ *
+ * This test suite directly instantiates and drives the four component controllers:
+ *   Environment - drives + cone/ring frame-tracking
+ *   TripodRobot - tripod FSM via AxisGroup + Axis wrappers
+ *   (Ring and Cone are internal to Environment)
+ *
+ * Orchestration rules:
+ *   operationType = Init -> reset all pnp enable/status flags; no FB calls
+ *   operationType = Run -> call TripodRobot then Environment each scan
+ *   enable = FALSE -> return immediately, state unchanged
+ *
+ * Test sequence (20 pass flags):
+ *   pass[1] : Init resets all pnp flags; robotState = 0
+ *   pass[2] : enable=FALSE leaves robotState unchanged
+ *   pass[3] : axis enables set on first Run scan
+ *   pass[4] : axes powered/homed; robotState = 10
+ *   pass[5] : SetPosition done; robotState = 20
+ *   pass[6] : coord transform applied; coordTransformDone; robotState = 30
+ *   pass[7] : tripodGroupEnable = TRUE (state 30)
+ *   pass[8] : group Standby; robotState = 40
+ *   pass[9] : readyForMotion = TRUE at state 40
+ *   pass[10] : ringOnTable = TRUE (ring FSM -> state 20)
+ *   pass[11] : MoveLinearAbsolute to ring issued; robotState = 50
+ *   pass[12] : arrived at ring; robotState = 60
+ *   pass[13] : up from ring (200 ms TON); robotState = 70
+ *   pass[14] : ringAttached = TRUE (robotState in [70..100])
+ *   pass[15] : rest position; robotState = 80
+ *   pass[16] : above cone; robotState = 90
+ *   pass[17] : dontChangePCS_2 = TRUE (robotState in [90..110])
+ *   pass[18] : ring on cone; robotState = 100
+ *   pass[19] : up from cone; robotState = 110
+ *   pass[20] : cycle complete; robotState loops back to 40
+ *)
+PROGRAM PickAndPlaceTestSuite
+VAR_EXTERNAL
+	pnp : PickAndPlaceFixture;
+END_VAR
+VAR CONSTANT
+	TIMEOUT : UDINT  := 5000;
+END_VAR
+VAR
+	(* Component controllers *)
+	env : Environment;
+	tripodRobot : TripodRobot;
+
+	(* Orchestration control - set by test steps each scan *)
+	operationType : OperatingMode := OperatingMode.Init;
+	enable : BOOL;
+
+	(* Orchestration outputs *)
+	error : BOOL;
+	done : BOOL;
+
+	(* Test infrastructure *)
+	step : UINT  := 0;
+	cycles : UDINT := 0;
+	testDone : BOOL;
+	testFailed : BOOL;
+	failStep : UINT;
+	testReset : BOOL;
+	allPass : BOOL;
+	pass : ARRAY[1..20] OF BOOL;
+
+	(* Diagnostic mirrors - inspect when testFailed = TRUE *)
+	mirRobotState : INT;
+	mirAxis1Enable : BOOL;
+	mirAxis2Enable : BOOL;
+	mirAxis3Enable : BOOL;
+	mirGroupEnable : BOOL;
+	mirCoordTransformOk : BOOL;
+	mirReadyForMotion : BOOL;
+	mirRingAttached : BOOL;
+	mirDontChangePCS2 : BOOL;
+	mirRingOnTable : BOOL;
+	mirError : BOOL;
+	i : UINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Watchdog - timeout *)
+cycles := cycles + 1;
+IF (cycles > TIMEOUT) AND NOT testDone THEN
+	testFailed := TRUE;
+	failStep   := step;
+END_IF;
+
+(* Watchdog - group error *)
+IF error AND NOT testDone THEN
+	testFailed := TRUE;
+	failStep   := step;
+END_IF;
+
+(* Post-failure cleanup - run Init every scan to power down drives cleanly *)
+IF testFailed THEN
+	PickAndPlaceData.pnp.tripod1Enable := FALSE;
+	PickAndPlaceData.pnp.tripod2Enable := FALSE;
+	PickAndPlaceData.pnp.tripod3Enable := FALSE;
+	PickAndPlaceData.pnp.tripodEnable := FALSE;
+	PickAndPlaceData.pnp.rotaryTableEnable := FALSE;
+	PickAndPlaceData.pnp.conveyorEnable := FALSE;
+	PickAndPlaceData.pnp.coordTransformDone := FALSE;
+	PickAndPlaceData.pnp.robotState := 0;
+	PickAndPlaceData.pnp.readyForMotion := FALSE;
+	PickAndPlaceData.pnp.ringAttached := FALSE;
+	PickAndPlaceData.pnp.dontChangePCS_2 := FALSE;
+	PickAndPlaceData.pnp.ringOnTable := FALSE;
+	env(operationType := OperatingMode.Init);
+	tripodRobot(operationType := OperatingMode.Init);
+	RETURN;
+END_IF;
+
+(* Warm-download reset - write testReset := TRUE in the online monitor *)
+IF testReset THEN
+	step := 0;
+	cycles := 0;
+	testDone := FALSE;
+	testFailed := FALSE;
+	failStep := 0;
+	allPass := FALSE;
+	FOR i := 1 TO 20 DO pass[i] := FALSE; END_FOR;
+	testReset := FALSE;
+END_IF;
+
+(*
+ * Test sequence
+ *
+ * Each step sets operationType / enable for this scan, then checks the
+ * result of the previous scan's orchestration (at the bottom of this POU body).
+ * Motion steps take many cycles; the TIMEOUT watchdog is the safety net.
+ * cycles > 1 guards on steps 4-8 give the drives at
+ * least one full orchestration cycle before the state check fires.
+ *)
+CASE step OF
+	0 : (* boot: run Init once to reach a clean known state *)
+		operationType := OperatingMode.Init; PickAndPlaceTestSuite.enable := TRUE;
+		step := 1; cycles := 0;
+	
+	(* pass[1] - Init resets all pap flags *)
+	1 :
+		operationType := OperatingMode.Init; PickAndPlaceTestSuite.enable := TRUE;
+		IF NOT PickAndPlaceData.pnp.tripod1Enable
+				AND NOT PickAndPlaceData.pnp.tripod2Enable
+				AND NOT PickAndPlaceData.pnp.tripod3Enable
+		   		AND NOT PickAndPlaceData.pnp.tripodEnable
+		   		AND NOT PickAndPlaceData.pnp.rotaryTableEnable
+		   		AND NOT PickAndPlaceData.pnp.conveyorEnable
+		   		AND NOT PickAndPlaceData.pnp.coordTransformDone
+		   		AND (PickAndPlaceData.pnp.robotState = 0)
+		   		AND NOT PickAndPlaceData.pnp.readyForMotion
+		   		AND NOT PickAndPlaceData.pnp.ringAttached
+		   		AND NOT PickAndPlaceData.pnp.dontChangePCS_2
+		   		AND NOT PickAndPlaceData.pnp.ringOnTable THEN
+			pass[1] := TRUE;
+			step := 2; cycles := 0;
+		END_IF;
+	
+	(* pass[2] - enable=FALSE leaves robotState unchanged *)
+	2 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := FALSE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.robotState = 0 THEN
+			pass[2] := TRUE;
+			operationType := OperatingMode.Init; PickAndPlaceTestSuite.enable := TRUE;
+			PickAndPlaceData.pnp.automaticPnp := TRUE;
+			step := 3; cycles := 0;
+		END_IF;
+	
+	(* pass[3] - axis enable flags set on the first Run scan *)
+	3 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 0 AND PickAndPlaceData.pnp.tripod1Enable
+				AND PickAndPlaceData.pnp.tripod2Enable
+				AND PickAndPlaceData.pnp.tripod3Enable THEN
+			pass[3] := TRUE;
+			step := 4; cycles := 0;
+		END_IF;
+	
+	(* pass[4] - all three tripod axes powered and homed; robotState = 10 *)
+	4 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.robotState = 10 THEN
+			pass[4] := TRUE;
+			step := 5; cycles := 0;
+		END_IF;
+	
+	(* pass[5] - SetPosition done for all three axes; robotState = 20 *)
+	5 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.robotState = 20 THEN
+			pass[5] := TRUE;
+			step := 6; cycles := 0;
+		END_IF;
+	
+	(* pass[6] - coordinate transform applied; bCoordTransformOk = TRUE; robotState = 30 *)
+	6 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.coordTransformDone
+				AND PickAndPlaceData.pnp.robotState = 30 THEN
+			pass[6] := TRUE;
+			step := 7; cycles := 0;
+		END_IF;
+	
+	(* pass[7] - tripodGroupEnable = TRUE *)
+	7 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.tripodEnable THEN
+			pass[7] := TRUE;
+			step := 8; cycles := 0;
+		END_IF;
+	
+	(* pass[8] - axis group in Standby; robotState = 40 *)
+	8 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF cycles > 1 AND PickAndPlaceData.pnp.robotState = 40 THEN
+			pass[8] := TRUE;
+			step := 9; cycles := 0;
+		END_IF;
+	
+	(* pass[9] - bReadyForMotion = TRUE at state 40 *)
+	9 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.readyForMotion THEN
+			pass[9] := TRUE;
+			step := 10; cycles := 0;
+		END_IF
+	
+	(* pass[10] - bRingOnTable = TRUE (ring FSM -> state 20) *)
+	10 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.ringOnTable THEN
+			pass[10] := TRUE;
+			step := 11; cycles := 0;
+		END_IF;
+	
+	(* pass[11] - MoveLinearAbsolute to ring issued; robotState = 50 *)
+	11 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 50 THEN
+			pass[11] := TRUE;
+			step := 12; cycles := 0;
+		END_IF;
+	
+	(* pass[12] - arrived at ring; robotState = 60 *)
+	12 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 60 THEN
+			pass[12] := TRUE;
+			step := 13; cycles := 0;
+		END_IF;
+	
+	(* pass[13] - up from ring (200 ms TON elapsed); robotState = 70 *)
+	13 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 70 THEN
+			pass[13] := TRUE;
+			step := 14; cycles := 0;
+		END_IF;
+	
+	(* pass[14] - bRingAttached = TRUE while robotState in [70..100] *)
+	14 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.ringAttached AND PickAndPlaceData.pnp.robotState >= 70
+				AND PickAndPlaceData.pnp.robotState <= 100 THEN
+			pass[14] := TRUE;
+			step := 15; cycles := 0;
+		END_IF;
+	
+	(* pass[15] - robot at WCS rest position; robotState = 80 *)
+	15 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 80 THEN
+			pass[15] := TRUE;
+			step := 16; cycles := 0;
+		END_IF;
+	
+	(* pass[16] - robot above cone (PCS_2); robotState = 90 *)
+	16 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 90 THEN
+			pass[16] := TRUE;
+			step := 17; cycles := 0;
+		END_IF;
+	
+	(* pass[17] - bDontChangePCS_2 = TRUE while robotState in [90..110] *)
+	17 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.dontChangePCS_2 AND PickAndPlaceData.pnp.robotState >= 90
+				AND PickAndPlaceData.pnp.robotState <= 110 THEN
+			pass[17] := TRUE;
+			step := 18; cycles := 0;
+		END_IF;
+	
+	(* pass[18] - ring placed on cone; robotState = 100 *)
+	18 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 100 THEN
+			pass[18] := TRUE;
+			step := 19; cycles := 0;
+		END_IF;
+	
+	(* pass[19] - up from cone; robotState = 110; bDontChangePCS_2 still TRUE *)
+	19 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 110 AND PickAndPlaceData.pnp.dontChangePCS_2 THEN
+			pass[19] := TRUE;
+			step := 20; cycles := 0;
+		END_IF;
+	
+	(* pass[20] - cycle complete; robotState loops back to 40 *)
+	20 :
+		operationType := OperatingMode.Run; PickAndPlaceTestSuite.enable := TRUE;
+		IF PickAndPlaceData.pnp.robotState = 40 AND pass[18] AND pass[19] THEN
+			pass[20] := TRUE;
+			testDone := TRUE;
+			step := 21; cycles := 0;
+		END_IF;
+END_CASE;
+
+(* Summary flag *)
+allPass := pass[1] AND pass[2] AND pass[3] AND pass[4] AND pass[5]
+	AND pass[6] AND pass[7] AND pass[8] AND pass[9] AND pass[10]
+    AND pass[11] AND pass[12] AND pass[13] AND pass[14] AND pass[15]
+    AND pass[16] AND pass[17] AND pass[18] AND pass[19] AND pass[20];
+
+(* Diagnostic mirrors *)
+mirRobotState := PickAndPlaceData.pnp.robotState;
+mirAxis1Enable := PickAndPlaceData.pnp.tripod1Enable;
+mirAxis2Enable := PickAndPlaceData.pnp.tripod2Enable;
+mirAxis3Enable := PickAndPlaceData.pnp.tripod3Enable;
+mirGroupEnable := PickAndPlaceData.pnp.tripodEnable;
+mirCoordTransformOk := PickAndPlaceData.pnp.coordTransformDone;
+mirReadyForMotion := PickAndPlaceData.pnp.readyForMotion;
+mirRingAttached := PickAndPlaceData.pnp.ringAttached;
+mirDontChangePCS2 := PickAndPlaceData.pnp.dontChangePCS_2;
+mirRingOnTable := PickAndPlaceData.pnp.ringOnTable;
+mirError := error;
+
+IF NOT PickAndPlaceTestSuite.enable THEN
+	(* nothing - state frozen *)
+ELSIF operationType = OperatingMode.Init THEN
+	PickAndPlaceData.pnp.tripod1Enable := FALSE;
+	PickAndPlaceData.pnp.tripod2Enable := FALSE;
+	PickAndPlaceData.pnp.tripod3Enable := FALSE;
+	PickAndPlaceData.pnp.tripodEnable := FALSE;
+	PickAndPlaceData.pnp.rotaryTableEnable := FALSE;
+	PickAndPlaceData.pnp.conveyorEnable := FALSE;
+	PickAndPlaceData.pnp.coordTransformDone := FALSE;
+	PickAndPlaceData.pnp.robotState := 0;
+	PickAndPlaceData.pnp.readyForMotion := FALSE;
+	PickAndPlaceData.pnp.ringAttached := FALSE;
+	PickAndPlaceData.pnp.dontChangePCS_2 := FALSE;
+	PickAndPlaceData.pnp.ringOnTable := FALSE;
+ELSE
+	tripodRobot(operationType := operationType);
+	env(operationType := operationType);
+END_IF;
+
+error := tripodRobot.groupError;
+done := PickAndPlaceData.pnp.robotState >= 120 AND NOT tripodRobot.groupError;

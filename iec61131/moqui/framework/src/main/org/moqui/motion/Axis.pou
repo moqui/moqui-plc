@@ -1,0 +1,2277 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+ * Axis: Digital twin of a servo drive + servo motor.
+ * Hardware abstraction layer that encapsulates the control logic of a virtual axis.
+ * Axis management procedure:
+ *  - Initialization
+ *  - Motion command dispath
+ *  - synchronization command dispatch
+ *  - Status handling
+ *  - Diagnostics (nominal / error behavior) handling
+ *
+ * FSM structure:
+ *  - Init / Start-up procedure: NotPowered → WaitPower → Powered(homing) → Ready
+ *  - Command execution: Ready → [MoveVelocity | MoveAbsolute | MoveRelative | MoveAdditive |
+ *                              MoveSuperimposed | GearIn | GearInPos | CamIn | Halt |
+ *                              HaltSuperimposed | Stop | Jog | Phasing | SetPosition |
+ *                              PositionProfile | VelocityProfile | AccelerationProfile |
+ *                              ReadParameter | WriteParameter | ReadBoolParameter |
+ *                              WriteBoolParameter | TouchProbe | AbortTrigger]
+ *  - Disengagement: GearInState / GearInPosState / CamInState + cmd change → GearOutState / CamOutState
+ *  - Error handling: Any state → Error → (reset) → WaitResetState → NotPowered
+ *
+ * Administrative / diagnostic FBs always active (not FSM-gated):
+ *   MC_SetOverride
+ *   MC_ReadActualPosition
+ *   MC_ReadActualVelocity
+ *   MC_ReadActualTorque
+ *   MC_ReadAxisError
+ *   MC_ReadStatus
+ *
+ * Typical caller pattern:
+ *   conveyor.slave := gAxis1;
+ *   conveyor.cmd := AxisCommands.MoveVelocity;
+ *   conveyor.velocity := conveyorSpeed;
+ *   conveyor(axisEnable := axisEnableFlag);
+ *   axisReady := conveyor.ready;
+ *   commandDone := conveyor.commandExecuted;
+ *
+ * Usage example - Conveyor + Cutter
+ *
+ * VAR
+ *     conveyor : Axis;
+ *     cutter : Axis;
+ *     axisEnableConveyor : BOOL;
+ *     axisEnableCutter : BOOL;
+ *     conveyorCmd : AxisCmd;
+ *     cutterCmd : AxisCmd;
+ * END_VAR
+ *
+ * (* Initialization: caller sets axisEnable := TRUE and waits for conveyor.ready = TRUE *)
+ * conveyor.cmd := conveyorCmd;
+ * conveyor.velocity := CONVEYOR_SPEED;
+ * conveyor.acceleration := 100.0;
+ * conveyor.deceleration := 100.0;
+ * conveyor(slave := axis1, axisEnable := axisEnableConveyor);
+ *
+ * conveyorPosition := conveyor.actualPosition;
+ * axisReady := conveyor.ready;
+ * commandDone := conveyor.commandExecuted;
+ *
+ * cutter.cmd := cutterCmd;
+ * cutter.position := BELT_DISTANCE;
+ * cutter.velocity := CUTTER_SPEED;
+ * cutter.acceleration := 100.0;
+ * cutter.deceleration := 100.0;
+ * cutter(slave := axis2, axisEnable := axisEnableCutter);
+ *
+ * cutterPosition := cutter.actualPosition;
+ *
+ * (* GearIn example: conveyor as master, cutter as slave *)
+ * cutter.cmd := AxisCommands.GearIn;
+ * cutter.ratioNumerator := 1;
+ * cutter.ratioDenominator := 2; (* slave runs at half master speed *)
+ *
+ * (* Error handling *)
+ * IF conveyor.axisError THEN
+ *     errorCode := conveyor.axisErrorId;
+ *     (* ... notify operator, then pulse reset := TRUE for one PLC cycle *)
+ * END_IF;
+ * 
+ *)
+{attribute 'no_assign'}
+FUNCTION_BLOCK Axis
+VAR_EXTERNAL CONSTANT
+    AXIS_IN_VELOCITY_TOLERANCE : LREAL;
+END_VAR
+VAR_INPUT
+    (* Motion / synchronization command *)
+    cmd : AxisCmd := AxisCmd.Idle;
+
+    (* Common motion parameters *)
+    position : REAL; (* [u] - absolute target position *)
+    distance : REAL; (* [u] - relative / additive / superimposed distance *)
+    velocity : REAL; (* [u/s] *)
+    velocityDiff : REAL; (* [u/s] - superimposed velocity increment *)
+    acceleration : REAL; (* [u/s²] *)
+    deceleration : REAL; (* [u/s²] *)
+    jerk : REAL; (* [u/s³] *)
+    bufferMode : SM3_Basic.MC_BUFFER_MODE := SM3_Basic.MC_BUFFER_MODE.aborting; (* PLCopen buffer mode for queued commands *)
+    direction : SM3_Basic.MC_Direction := SM3_Basic.MC_DIRECTION.positive; (* mcPositiveDirection / mcNegativeDirection / mcCurrentDirection *)
+
+    (* Homing *)
+    homePosition : REAL := 0.0;
+
+    (* Auxiliary structs and function blocks *)
+    master : REFERENCE TO SM3_Basic.AXIS_REF_SM3;
+    triggerInput : REFERENCE TO SM3_Basic.TRIGGER_REF; (* Hardware trigger for MC_TouchProbe / MC_AbortTrigger *)
+    positionProfile : REFERENCE TO SM3_Basic.MC_TP_REF;
+    velocityProfile : REFERENCE TO SM3_Basic.MC_TV_REF;
+    accelerationProfile : REFERENCE TO SM3_Basic.MC_TA_REF;
+
+    (* Gear synchronization *)
+    ratioNumerator : DINT := 1;
+    ratioDenominator : DINT := 1;
+
+    (* GearInPos - positional synchronization *)
+    masterSyncPos : LREAL := 0.0; (* Master position at which synchronization occurs *)
+    slaveSyncPos : LREAL := 0.0; (* Slave position at which synchronization occurs *)
+
+    (* CamIn - caller must register cam table via MC_CamTableSelect externally and provide the resulting ID *)
+    camId : SM3_Basic.MC_CAM_ID; (* MC_CAM_ID returned by MC_CamTableSelect *)
+    camVersion : DWORD := 0;  (* Increment when camId changes to trigger cam re-sync in CheckCamState *)
+    startMode : SM3_Basic.MC_STARTMODE := SM3_Basic.MC_STARTMODE.absolute;
+    masterOffset : LREAL := 0.0;
+    slaveOffset : LREAL := 0.0;
+
+    (* Phasing *)
+    phaseShift : LREAL; (* Phase shift applied while synchronized *)
+
+    (* SetPosition *)
+    setPositionMode : BOOL := FALSE; (* FALSE = update actual + set position, TRUE = encoder only *)
+
+    (* Override (always active when enabled) *)
+    overrideEnable : BOOL;
+    velFactor : REAL := 1.0;
+    accFactor : REAL := 1.0;
+    jerkFactor : REAL := 1.0;
+
+    (* Jog command inputs *)
+    jogForward : BOOL;
+    jogBackward : BOOL;
+
+    (* Error reset *)
+    reset : BOOL; (* Rising edge: MC_Reset + re-initialization *)
+
+    (* Parameter access *)
+    parameterNumber : WORD; (* Axis parameter number *)
+    parameterValue : LREAL; (* Value to write for MC_WriteParameter *)
+    parameterBoolValue : BOOL; (* Value to write for MC_WriteBoolParameter *)
+
+    (* Touch probe *)
+    touchProbeWindow : BOOL; (* TRUE = windowed capture, FALSE = immediate capture *)
+    touchProbeFirst : LREAL; (* Window start position *)
+    touchProbeLast : LREAL; (* Window end position *)
+END_VAR
+VAR_IN_OUT
+    axisEnable : BOOL; (* Caller requests initialization by setting TRUE; FB clears when homing is complete *)
+    slave : SM3_Basic.AXIS_REF_SM3;
+END_VAR
+VAR_OUTPUT
+    ready : BOOL; (* Axis homed, in Ready state, accepts commands *)
+    commandExecuted : BOOL; (* Current command reached steady-state *)
+    commandAborted : BOOL; (* Current command aborted by a command change *)
+    axisError : BOOL; (* Axis in Error state - inspect axisErrorId *)
+    axisErrorId : DWORD; (* Error code read by MC_ReadAxisError *)
+    axisNotInitialized : BOOL; (* TRUE while NotPowered / WaitPower / Powered *)
+    status : AxisStatus;  (* PLCopen drive state machine state from MC_ReadStatus *)
+    actualPosition : LREAL;
+    actualVelocity : LREAL;
+    actualTorque : LREAL;
+    parameterReadValue : LREAL; (* Last value read by MC_ReadParameter *)
+    parameterBoolRead : BOOL; (* Last value read by MC_ReadBoolParameter *)
+    touchProbeValue : LREAL; (* Position recorded by MC_TouchProbe *)
+    cmdError : BOOL;  (* TRUE = a motion command FB triggered the Error state *)
+    cmdErrorId : DWORD; (* Drive error code captured at the moment cmdError was set *)
+	(* Logger name for centralized signal management *)
+	loggerName : STRING;
+END_VAR
+VAR
+    (* FSM state *)
+    internalStatus : AxisInternalStatus := AxisInternalStatus.NotPowered;
+
+    (* Change-detection shadow variables *)
+    oldCmd : AxisCmd;
+    oldPosition : REAL;
+    oldDistance : REAL;
+    oldVelocity : REAL;
+    oldRatioNumerator : DINT;
+    oldRatioDenominator : DINT;
+    oldCamVersion : DWORD;
+    oldStartMode : SM3_Basic.MC_STARTMODE;
+    oldMasterOffset : LREAL;
+    oldSlaveOffset : LREAL;
+
+    (* Pending command slot - one-level buffer for PLCopen BufferMode *)
+    hasPending : BOOL;
+    pendingCmd : AxisCmd;
+    pendingOldPosition : REAL;
+    pendingOldDistance : REAL;
+    pendingOldVelocity : REAL;
+    pendingOldRatioNumerator : DINT;
+    pendingOldRatioDenominator : DINT;
+    pendingOldCamVersion : DWORD;
+    pendingOldStartMode : SM3_Basic.MC_STARTMODE;
+    pendingOldMasterOffset : LREAL;
+    pendingOldSlaveOffset : LREAL;
+
+    (* Reset edge detection *)
+    resetOld : BOOL;
+    resetActivation : BOOL;
+
+    (*
+     * Execute / enable signals driven by the FSM.
+     * These signals are consumed by the unconditional PLCopen FB calls below.
+     *)
+    powerEnable : BOOL;
+    homeExecute : BOOL;
+    resetCmdExecute : BOOL;
+    setPositionExecute : BOOL;
+    moveVelocityExecute : BOOL;
+    moveAbsoluteExecute : BOOL;
+    moveRelativeExecute : BOOL;
+    moveAdditiveExecute : BOOL;
+    moveSuperimposedExecute : BOOL;
+    haltExecute : BOOL;
+    haltSuperimposedExecute : BOOL;
+    stopExecute : BOOL;
+    gearInExecute : BOOL;
+    gearInPosExecute : BOOL;
+    gearOutExecute : BOOL;
+    camInExecute : BOOL;
+    camOutExecute : BOOL;
+    phasingExecute : BOOL;
+    posProfileExecute : BOOL;
+    velProfileExecute : BOOL;
+    accProfileExecute : BOOL;
+    readParameterExecute : BOOL;
+    writeParameterExecute : BOOL;
+    readBoolParameterExecute : BOOL;
+    writeBoolParameterExecute : BOOL;
+    touchProbeExecute : BOOL;
+    abortTriggerExecute : BOOL;
+
+    (* PLCopen MC FBs - Administrative / Configuration *)
+    power : SM3_Basic.MC_Power;
+    resetCmd : SM3_Basic.MC_Reset;
+    setPosition : SM3_Basic.MC_SetPosition;
+
+    (* PLCopen MC FBs - Motion *)
+    home : SM3_Basic.MC_Home;
+    moveVelocity : SM3_Basic.MC_MoveVelocity;
+    moveAbsolute : SM3_Basic.MC_MoveAbsolute;
+    moveRelative : SM3_Basic.MC_MoveRelative;
+    moveAdditive : SM3_Basic.MC_MoveAdditive;
+    moveSuperimposed : SM3_Basic.MC_MoveSuperImposed;
+    halt : SM3_Basic.MC_Halt;
+    haltSuperimposed : SM3_Basic.MC_HaltSuperImposed;
+    stop : SM3_Basic.MC_Stop;
+    jog : SM3_Basic.MC_Jog;
+    setOverride : SM3_Basic.MC_SetOverride;
+
+    (* PLCopen MC FBs - Master/Slave synchronization *)
+    gearIn : SM3_Basic.MC_GearIn;
+    gearInPos : SM3_Basic.MC_GearInPos;
+    gearOut : SM3_Basic.MC_GearOut;
+    camIn : SM3_Basic.MC_CamIn;
+    camOut : SM3_Basic.MC_CamOut;
+    phasing : SM3_Basic.MC_Phasing;
+
+    (* PLCopen MC FBs - Profiles *)
+    mcPositionProfile : SM3_Basic.MC_PositionProfile;
+    mcVelocityProfile : SM3_Basic.MC_VelocityProfile;
+    mcAccProfile : SM3_Basic.MC_AccelerationProfile;
+
+    (* PLCopen MC FBs - Parameter access *)
+    readParameter : SM3_Basic.MC_ReadParameter;
+    writeParameter : SM3_Basic.MC_WriteParameter;
+    readBoolParameter : SM3_Basic.MC_ReadBoolParameter;
+    writeBoolParameter : SM3_Basic.MC_WriteBoolParameter;
+
+    (* PLCopen MC FBs - Additional services *)
+    touchProbe : SM3_Basic.MC_TouchProbe;
+    abortTrigger : SM3_Basic.MC_AbortTrigger;
+
+    (* PLCopen MC FBs - Diagnostics (always enabled) *)
+    readActualPosition : SM3_Basic.MC_ReadActualPosition;
+    readActualVelocity : SM3_Basic.MC_ReadActualVelocity;
+    readActualTorque : SM3_Basic.MC_ReadActualTorque;
+    readAxisError : SM3_Basic.MC_ReadAxisError;
+    readStatus : SM3_Basic.MC_ReadStatus;
+	(* Logger facade *)
+	logger : LoggerFacade;
+	init : BOOL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF NOT init THEN
+	(* Logger facade init *)
+	logger.enable := TRUE; logger.loggerName := TO_STRING(slave.wDriveId);
+	init := TRUE;
+END_IF;
+
+logger(message := 'Running actuator.', level := LogLevel.DEBUG);
+
+(*
+ * Diagnostics Handler - executed first every PLC cycle.
+ * Detects FB-level errors and routes the FSM into Error.
+ * Error recovery:
+ *   Error --(reset rising edge)--> WaitResetState --(MC_Reset.Done)--> NotPowered
+ *)
+resetActivation := reset AND NOT resetOld;
+resetOld := reset;
+
+IF internalStatus <> AxisInternalStatus.Error AND internalStatus <> AxisInternalStatus.WaitResetState THEN
+    (*
+     * Trigger 1 - motion command FB error.
+     * One of the active PLCopen FBs reported Error=TRUE.
+     * Note: readAxisError.Error is intentionally excluded: it is the MC_ReadAxisError
+     * FB's own fault (e.g. comms issue), not evidence that the drive has an axis error.
+     *)
+    IF power.Error OR home.Error OR resetCmd.Error OR
+       moveVelocity.Error OR moveAbsolute.Error OR moveRelative.Error OR
+       moveAdditive.Error OR moveSuperimposed.Error OR
+       halt.Error OR haltSuperimposed.Error OR stop.Error OR jog.Error OR
+       gearIn.Error OR gearInPos.Error OR gearOut.Error OR
+       camIn.Error OR camOut.Error OR phasing.Error OR
+       mcPositionProfile.Error OR mcVelocityProfile.Error OR mcAccProfile.Error OR
+       setPosition.Error OR
+       readParameter.Error OR writeParameter.Error OR
+       readBoolParameter.Error OR writeBoolParameter.Error OR
+       touchProbe.Error OR abortTrigger.Error THEN
+        internalStatus := AxisInternalStatus.Error;
+        commandAborted := TRUE;
+        cmdError := TRUE;
+        cmdErrorId := readAxisError.AxisErrorID; (* Drive code at time of FB failure *)
+    (*
+     * Trigger 2 - drive-level ErrorStop.
+     * The drive entered the PLCopen ErrorStop state independently (hardware fault,
+     * limit switch, over-current, etc.) without one of our motion FBs reporting Error.
+     *)
+    ELSIF readStatus.ErrorStop THEN
+        internalStatus := AxisInternalStatus.Error;
+        commandAborted := TRUE;
+        cmdError := FALSE;
+        cmdErrorId := 0;
+    END_IF;
+END_IF;
+
+IF internalStatus = AxisInternalStatus.Error THEN
+	logger(message := 'Axis error.', level := LogLevel.DEBUG);
+    axisError := TRUE;
+    ready := FALSE;
+    axisNotInitialized := TRUE;
+    commandExecuted := FALSE;
+    hasPending := FALSE;
+
+    IF resetActivation THEN
+        resetCmdExecute := TRUE; (* Trigger MC_Reset to exit ErrorStop state *)
+        internalStatus := AxisInternalStatus.WaitResetState;
+    END_IF;
+
+ELSIF internalStatus = AxisInternalStatus.WaitResetState THEN
+	logger(message := 'Axis reset.', level := LogLevel.DEBUG);
+    IF resetCmd.Done THEN
+        resetCmdExecute := FALSE;
+
+        (* Disable all FSM-driven FB requests *)
+        powerEnable := FALSE;
+        homeExecute := FALSE;
+        moveVelocityExecute := FALSE;
+        moveAbsoluteExecute := FALSE;
+        moveRelativeExecute := FALSE;
+        moveAdditiveExecute := FALSE;
+        moveSuperimposedExecute := FALSE;
+        haltExecute := FALSE;
+        haltSuperimposedExecute := FALSE;
+        stopExecute := FALSE;
+        gearInExecute := FALSE;
+        gearInPosExecute := FALSE;
+        gearOutExecute := FALSE;
+        camInExecute := FALSE;
+        camOutExecute := FALSE;
+        phasingExecute := FALSE;
+        posProfileExecute := FALSE;
+        velProfileExecute := FALSE;
+        accProfileExecute := FALSE;
+        setPositionExecute := FALSE;
+        readParameterExecute := FALSE;
+        writeParameterExecute := FALSE;
+        readBoolParameterExecute := FALSE;
+        writeBoolParameterExecute := FALSE;
+        touchProbeExecute := FALSE;
+        abortTriggerExecute := FALSE;
+
+        (* Reset exported status *)
+        axisError := FALSE;
+        axisErrorId := 0;
+        cmdError := FALSE;
+        cmdErrorId := 0;
+        commandAborted := FALSE;
+        commandExecuted := FALSE;
+        status := AxisStatus.Disabled;
+
+        (* Reset shadow state *)
+        oldCmd := AxisCmd.Idle;
+        oldPosition := 0.0;
+        oldDistance := 0.0;
+        oldVelocity := 0.0;
+        oldCamVersion   := 0;
+        oldStartMode := SM3_Basic.MC_STARTMODE.absolute;
+        oldMasterOffset := 0.0;
+        oldSlaveOffset := 0.0;
+        hasPending := FALSE;
+
+        internalStatus := AxisInternalStatus.NotPowered;
+    END_IF;
+END_IF;
+
+IF internalStatus = AxisInternalStatus.Error OR internalStatus = AxisInternalStatus.WaitResetState THEN
+    (* Continue to unconditional FB calls below so execute / enable transitions are propagated *)
+ELSE
+    (*
+     * Power-off cross-cutting check - runs before the main FSM.
+     * When axisEnable is withdrawn while the FSM is in any active state (motion, wait, etc.),
+     * immediately clear all execute signals and return to NotPowered.
+     * This also fires when a test run ends with testFailed=TRUE and the Axis FB is called
+     * one more cycle - it prevents stale execute flags from persisting into the next run
+     * (which would cause MC FBs to see no fresh rising edge and stay in their previous Error state).
+     *)
+    IF NOT axisEnable AND internalStatus >= AxisInternalStatus.Ready THEN
+        powerEnable := FALSE;
+        homeExecute := FALSE;
+        moveVelocityExecute := FALSE;
+        moveAbsoluteExecute := FALSE;
+        moveRelativeExecute := FALSE;
+        moveAdditiveExecute := FALSE;
+        moveSuperimposedExecute := FALSE;
+        haltExecute := FALSE;
+        haltSuperimposedExecute := FALSE;
+        stopExecute := FALSE;
+        gearInExecute := FALSE;
+        gearInPosExecute := FALSE;
+        gearOutExecute := FALSE;
+        camInExecute := FALSE;
+        camOutExecute := FALSE;
+        phasingExecute := FALSE;
+        posProfileExecute := FALSE;
+        velProfileExecute := FALSE;
+        accProfileExecute := FALSE;
+        setPositionExecute := FALSE;
+        readParameterExecute := FALSE;
+        writeParameterExecute := FALSE;
+        readBoolParameterExecute := FALSE;
+        writeBoolParameterExecute := FALSE;
+        touchProbeExecute := FALSE;
+        abortTriggerExecute := FALSE;
+        resetCmdExecute := FALSE;
+        hasPending := FALSE;
+        commandAborted := (internalStatus <> AxisInternalStatus.Ready);
+        internalStatus := AxisInternalStatus.NotPowered;
+    END_IF;
+
+    (*
+     * Emergency Stop - cross-cutting check before the main FSM.
+     * MC_Stop supersedes any currently active motion command.
+     *)
+    IF (cmd = AxisCmd.Stop) AND
+			(internalStatus <> AxisInternalStatus.StoppingState) AND
+       		(internalStatus >= AxisInternalStatus.Ready) THEN
+        moveVelocityExecute := FALSE;
+        moveAbsoluteExecute := FALSE;
+        moveRelativeExecute := FALSE;
+        moveAdditiveExecute := FALSE;
+        moveSuperimposedExecute := FALSE;
+        haltExecute := FALSE;
+        haltSuperimposedExecute := FALSE;
+        gearInExecute := FALSE;
+        gearInPosExecute := FALSE;
+        camInExecute := FALSE;
+        phasingExecute := FALSE;
+        posProfileExecute := FALSE;
+        velProfileExecute := FALSE;
+        accProfileExecute := FALSE;
+        setPositionExecute := FALSE;
+        stopExecute := TRUE;
+        commandAborted := (internalStatus <> AxisInternalStatus.Ready);
+        oldCmd := cmd;
+        internalStatus := AxisInternalStatus.StoppingState;
+    END_IF;
+
+    (*
+     * Initialization Handler.
+     * NotPowered → WaitPower → Powered (homing) → Ready
+     * axisEnable handshake: caller sets TRUE; FB clears it when homing is done.
+     *)
+    CASE internalStatus OF
+        AxisInternalStatus.NotPowered :
+            (*
+             * Clear every motion execute flag every cycle while powered off.
+             * This prevents stale TRUE flags (e.g. from a previous test run that ended
+             * mid-motion) from triggering PLCopen FBs during the next power-up / homing sequence.
+             *)
+            homeExecute := FALSE;
+            moveVelocityExecute := FALSE;
+            moveAbsoluteExecute := FALSE;
+            moveRelativeExecute := FALSE;
+            moveAdditiveExecute := FALSE;
+            moveSuperimposedExecute := FALSE;
+            haltExecute := FALSE;
+            haltSuperimposedExecute := FALSE;
+            stopExecute := FALSE;
+            gearInExecute := FALSE;
+            gearInPosExecute := FALSE;
+            gearOutExecute := FALSE;
+            camInExecute := FALSE;
+            camOutExecute := FALSE;
+            phasingExecute := FALSE;
+            posProfileExecute := FALSE;
+            velProfileExecute := FALSE;
+            accProfileExecute := FALSE;
+            setPositionExecute := FALSE;
+            readParameterExecute := FALSE;
+            writeParameterExecute := FALSE;
+            readBoolParameterExecute := FALSE;
+            writeBoolParameterExecute:= FALSE;
+            touchProbeExecute := FALSE;
+            abortTriggerExecute := FALSE;
+            resetCmdExecute := FALSE;
+            hasPending := FALSE;
+
+            axisNotInitialized := TRUE;
+            ready := FALSE;
+
+            IF axisEnable THEN
+				logger(message := 'Axis initialization.', level := LogLevel.DEBUG);
+                powerEnable := TRUE;
+                internalStatus := AxisInternalStatus.WaitPower;
+            END_IF;
+
+        AxisInternalStatus.WaitPower :
+            axisNotInitialized := TRUE;
+            IF power.Status THEN
+				homeExecute := TRUE;
+                internalStatus := AxisInternalStatus.Powered;
+            END_IF;
+
+        AxisInternalStatus.Powered :
+            axisNotInitialized := TRUE;
+
+            IF home.Done THEN
+				logger(message := 'Axis homing.', level := LogLevel.DEBUG);
+                homeExecute := FALSE;
+                axisEnable := FALSE; (* Handshake: notify caller that init is complete *)
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (*
+         * Command Handler - Ready dispatches to motion sub-states
+         *)
+        AxisInternalStatus.Ready :
+			logger(message := 'Axis ready to accept commands.', level := LogLevel.DEBUG);
+            axisNotInitialized := FALSE;
+            ready := TRUE;
+            commandExecuted := FALSE;
+            commandAborted := FALSE;
+
+            IF NOT axisEnable THEN
+                powerEnable := FALSE;
+                internalStatus := AxisInternalStatus.NotPowered;
+
+            ELSIF cmd = AxisCmd.Halt THEN
+                haltExecute := TRUE;
+                ready := FALSE;
+                oldCmd := cmd;
+                internalStatus := AxisInternalStatus.HaltState;
+
+            ELSIF cmd = AxisCmd.HaltSuperimposed THEN
+                haltSuperimposedExecute := TRUE;
+                ready := FALSE;
+                oldCmd := cmd;
+                internalStatus := AxisInternalStatus.HaltSuperimposedState;
+
+            ELSIF cmd = AxisCmd.SetPosition THEN
+                setPositionExecute := TRUE;
+                ready := FALSE;
+                oldCmd := cmd;
+                internalStatus := AxisInternalStatus.SetPositionState;
+
+            ELSIF cmd = AxisCmd.MoveVelocity THEN
+                moveVelocityExecute := TRUE;
+                oldVelocity := velocity;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.MoveVelocityState;
+
+            ELSIF cmd = AxisCmd.MoveAbsolute THEN
+                moveAbsoluteExecute := TRUE;
+                oldPosition := position;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.MoveAbsoluteState;
+
+            ELSIF cmd = AxisCmd.MoveRelative THEN
+                moveRelativeExecute := TRUE;
+                oldDistance := distance;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.MoveRelativeState;
+
+            ELSIF cmd = AxisCmd.MoveAdditive THEN
+                moveAdditiveExecute := TRUE;
+                oldDistance := distance;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.MoveAdditiveState;
+
+            ELSIF cmd = AxisCmd.MoveSuperimposed THEN
+                moveSuperimposedExecute := TRUE;
+                oldDistance := distance;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.MoveSuperimposedState;
+
+            ELSIF cmd = AxisCmd.GearIn AND __ISVALIDREF(master) THEN
+                oldRatioNumerator := ratioNumerator;
+                oldRatioDenominator := ratioDenominator;
+                gearInExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.GearInState;
+
+            ELSIF cmd = AxisCmd.GearInPos AND __ISVALIDREF(master) THEN
+                oldRatioNumerator := ratioNumerator;
+                oldRatioDenominator := ratioDenominator;
+                gearInPosExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.GearInPosState;
+
+            ELSIF cmd = AxisCmd.CamIn AND __ISVALIDREF(master) THEN
+                camInExecute := TRUE;
+                oldCamVersion   := camVersion;
+                oldStartMode := startMode;
+                oldMasterOffset := masterOffset;
+                oldSlaveOffset := slaveOffset;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.CamInState;
+
+            ELSIF cmd = AxisCmd.Phasing AND __ISVALIDREF(master) THEN
+                phasingExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.PhasingState;
+
+            ELSIF cmd = AxisCmd.Jog THEN
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.JogState;
+
+            ELSIF cmd = AxisCmd.PositionProfile AND __ISVALIDREF(positionProfile) THEN
+                posProfileExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.PositionProfileState;
+
+            ELSIF cmd = AxisCmd.VelocityProfile AND __ISVALIDREF(velocityProfile) THEN
+                velProfileExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.VelocityProfileState;
+
+            ELSIF cmd = AxisCmd.AccelerationProfile AND __ISVALIDREF(accelerationProfile) THEN
+                accProfileExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.AccelerationProfileState;
+
+            ELSIF cmd = AxisCmd.ReadParameter THEN
+                readParameterExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.ReadParameterState;
+
+            ELSIF cmd = AxisCmd.WriteParameter THEN
+                writeParameterExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.WriteParameterState;
+
+            ELSIF cmd = AxisCmd.ReadBoolParameter THEN
+                readBoolParameterExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.ReadBoolParameterState;
+
+            ELSIF cmd = AxisCmd.WriteBoolParameter THEN
+                writeBoolParameterExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.WriteBoolParameterState;
+
+            ELSIF cmd = AxisCmd.TouchProbe AND __ISVALIDREF(triggerInput) THEN
+                touchProbeExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.TouchProbeState;
+
+            ELSIF cmd = AxisCmd.AbortTrigger AND __ISVALIDREF(triggerInput) THEN
+                abortTriggerExecute := TRUE;
+                oldCmd := cmd;
+                ready := FALSE;
+                internalStatus := AxisInternalStatus.AbortTriggerState;
+            END_IF;
+
+        (* MoveVelocityState / CheckVelocityState *)
+        AxisInternalStatus.MoveVelocityState :
+            (*
+             * Primary: SM3_Basic InVelocity signal.
+             * Fallback: actual velocity within 2% of target - covers drives where InVelocity
+             * does not fire (e.g. servo drive with Quadratic ramp profile).
+             *)
+            IF moveVelocity.InVelocity OR
+               (moveVelocity.Busy AND
+                ABS(ABS(actualVelocity) - TO_LREAL(velocity)) <= TO_LREAL(velocity) * AXIS_IN_VELOCITY_TOLERANCE) THEN
+                moveVelocityExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.CheckVelocityState;
+            END_IF;
+  
+            IF cmd <> oldCmd THEN
+                moveVelocityExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        AxisInternalStatus.CheckVelocityState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            ELSIF velocity <> oldVelocity THEN
+                oldVelocity := velocity;
+                moveVelocityExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.MoveVelocityState;
+            END_IF;
+
+        (* MoveAbsoluteState / CheckAbsoluteState *)
+        AxisInternalStatus.MoveAbsoluteState :
+            IF moveAbsolute.Done THEN
+                moveAbsoluteExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE 
+                            internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.CheckAbsoluteState;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    moveAbsoluteExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE (* Idle and other non-bufferable cmds: abort immediately *)
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        AxisInternalStatus.CheckAbsoluteState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            ELSIF position <> oldPosition THEN
+                oldPosition := position;
+                moveAbsoluteExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.MoveAbsoluteState;
+            END_IF;
+
+        (* MoveRelative *)
+        AxisInternalStatus.MoveRelativeState :
+            IF moveRelative.Done THEN
+                moveRelativeExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+                            internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.CheckRelativeState;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    moveRelativeExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn: gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile : accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        AxisInternalStatus.CheckRelativeState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            ELSIF distance <> oldDistance THEN
+                oldDistance := distance;
+                moveRelativeExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.MoveRelativeState;
+            END_IF;
+
+        (* MoveAdditive *)
+        AxisInternalStatus.MoveAdditiveState :
+            IF moveAdditive.Done THEN
+                moveAdditiveExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.CheckAdditiveState;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    moveAdditiveExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        AxisInternalStatus.CheckAdditiveState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            ELSIF distance <> oldDistance THEN
+                oldDistance := distance;
+                moveAdditiveExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.MoveAdditiveState;
+            END_IF;
+
+        (* MoveSuperimposed *)
+        AxisInternalStatus.MoveSuperimposedState :
+            IF moveSuperimposed.Done THEN
+                moveSuperimposedExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+                            internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.CheckSuperimposedState;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    moveSuperimposedExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        AxisInternalStatus.CheckSuperimposedState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            ELSIF distance <> oldDistance THEN
+                oldDistance := distance;
+                moveSuperimposedExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.MoveSuperimposedState;
+            END_IF;
+
+        (* GearInState / CheckGearState *)
+        AxisInternalStatus.GearInState :
+            IF gearIn.InGear THEN
+                gearInExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.CheckGearState;
+            END_IF;
+
+            IF cmd <> oldCmd THEN
+                gearInExecute := FALSE;
+                gearOutExecute := TRUE; (* Explicit disengagement before command change *)
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.GearOutState;
+            END_IF;
+
+        AxisInternalStatus.CheckGearState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                gearOutExecute := TRUE;
+                internalStatus := AxisInternalStatus.GearOutState;
+            ELSIF (ratioNumerator <> oldRatioNumerator) OR (ratioDenominator <> oldRatioDenominator) THEN
+                oldRatioNumerator := ratioNumerator;
+                oldRatioDenominator := ratioDenominator;
+                gearInExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.GearInState;
+            END_IF;
+
+        (* GearOut - disengage gear synchronization *)
+        AxisInternalStatus.GearOutState :
+            IF gearOut.Done THEN
+                gearOutExecute := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* GearInPos (positional synchronization) *)
+        AxisInternalStatus.GearInPosState :
+            IF gearInPos.InSync THEN
+                gearInPosExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.CheckGearInPosState;
+            END_IF;
+
+            IF cmd <> oldCmd THEN
+                gearInPosExecute := FALSE;
+                gearOutExecute := TRUE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.GearOutState;
+            END_IF;
+
+        AxisInternalStatus.CheckGearInPosState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                gearOutExecute := TRUE;
+                internalStatus := AxisInternalStatus.GearOutState;
+            ELSIF (ratioNumerator <> oldRatioNumerator) OR (ratioDenominator <> oldRatioDenominator) THEN
+                oldRatioNumerator := ratioNumerator;
+                oldRatioDenominator := ratioDenominator;
+                gearInPosExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.GearInPosState;
+            END_IF;
+
+        (* CamInState / CheckCamState *)
+        AxisInternalStatus.CamInState :
+            IF camIn.InSync THEN
+                camInExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.CheckCamState;
+            END_IF;
+
+            IF cmd <> oldCmd THEN
+                camInExecute := FALSE;
+                camOutExecute := TRUE; (* Explicit disengagement before command change *)
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.CamOutState;
+            END_IF;
+
+        AxisInternalStatus.CheckCamState :
+            IF cmd <> oldCmd THEN
+                commandExecuted := FALSE;
+                camOutExecute := TRUE;
+                internalStatus := AxisInternalStatus.CamOutState;
+            ELSIF (camVersion <> oldCamVersion) OR (startMode <> oldStartMode) OR
+                    (masterOffset <> oldMasterOffset) OR (slaveOffset <> oldSlaveOffset) THEN
+                oldCamVersion := camVersion;
+                oldStartMode := startMode;
+                oldMasterOffset := masterOffset;
+                oldSlaveOffset := slaveOffset;
+                camInExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisInternalStatus.CamInState;
+            END_IF;
+
+        (* CamOut - disengage CAM synchronization *)
+        AxisInternalStatus.CamOutState :
+            IF camOut.Done THEN
+                camOutExecute := FALSE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* Phasing - shift slave phase while in sync *)
+        AxisInternalStatus.PhasingState :
+            IF phasing.Done THEN
+                phasingExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    phasingExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* Jog - manual jog (level-triggered: jogForward/jogBackward) *)
+        AxisInternalStatus.JogState :
+            IF cmd <> oldCmd THEN
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* Halt - decelerate to standstill *)
+        AxisInternalStatus.HaltState :
+            IF halt.Done THEN
+                haltExecute := FALSE;
+                IF NOT axisEnable THEN
+                    (* Power withdrawn - discard any pending command *)
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+  
+	                powerEnable := FALSE;
+                    internalStatus := AxisInternalStatus.NotPowered;
+                ELSIF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+                    	internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    haltExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+                    	hasPending := FALSE;
+                        commandAborted := TRUE;
+                        internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* HaltSuperimposed - halt only the superimposed motion *)
+        AxisInternalStatus.HaltSuperimposedState :
+            IF haltSuperimposed.Done THEN
+                haltSuperimposedExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                haltSuperimposedExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* Stopping - PLCopen Stopping state.
+         * MC_Stop decelerates to standstill; Execute must remain TRUE while in Stopping.
+         * Setting Execute := FALSE after Done returns the axis to Standstill. *)
+        AxisInternalStatus.StoppingState :
+            IF stop.Done THEN
+                stopExecute := FALSE; (* Dropping Execute releases MC_Stop and returns axis to Standstill *)
+                commandExecuted := TRUE;
+                IF NOT axisEnable THEN
+                    powerEnable := FALSE;
+                    internalStatus := AxisInternalStatus.NotPowered;
+                ELSE
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+
+        (* SetPosition - shift coordinate system without motion *)
+        AxisInternalStatus.SetPositionState :
+            IF setPosition.Done THEN
+                setPositionExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+                        internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    setPositionExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* PositionProfile *)
+        AxisInternalStatus.PositionProfileState :
+            IF mcPositionProfile.Done THEN
+                posProfileExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+                        internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    posProfileExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+					ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* VelocityProfile *)
+        AxisInternalStatus.VelocityProfileState :
+            IF mcVelocityProfile.Done THEN
+                velProfileExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    velProfileExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* AccelerationProfile *)
+        AxisInternalStatus.AccelerationProfileState :
+            IF mcAccProfile.Done THEN
+                accProfileExecute := FALSE;
+                IF hasPending THEN
+                    hasPending := FALSE;
+                    oldPosition := pendingOldPosition; oldDistance := pendingOldDistance; oldVelocity := pendingOldVelocity;
+                    oldRatioNumerator := pendingOldRatioNumerator; oldRatioDenominator := pendingOldRatioDenominator;
+                    oldCamVersion := pendingOldCamVersion; oldStartMode := pendingOldStartMode;
+                    oldMasterOffset := pendingOldMasterOffset; oldSlaveOffset := pendingOldSlaveOffset;
+                    commandExecuted := FALSE; commandAborted := FALSE;
+
+                    CASE oldCmd OF
+                        AxisCmd.MoveVelocity : internalStatus := AxisInternalStatus.MoveVelocityState;
+                        AxisCmd.MoveAbsolute : internalStatus := AxisInternalStatus.MoveAbsoluteState;
+                        AxisCmd.MoveRelative : internalStatus := AxisInternalStatus.MoveRelativeState;
+                        AxisCmd.MoveAdditive : internalStatus := AxisInternalStatus.MoveAdditiveState;
+                        AxisCmd.MoveSuperimposed : internalStatus := AxisInternalStatus.MoveSuperimposedState;
+                        AxisCmd.Halt : internalStatus := AxisInternalStatus.HaltState;
+                        AxisCmd.GearIn : internalStatus := AxisInternalStatus.GearInState;
+                        AxisCmd.GearInPos : internalStatus := AxisInternalStatus.GearInPosState;
+                        AxisCmd.CamIn : internalStatus := AxisInternalStatus.CamInState;
+                        AxisCmd.Phasing : internalStatus := AxisInternalStatus.PhasingState;
+                        AxisCmd.SetPosition : internalStatus := AxisInternalStatus.SetPositionState;
+                        AxisCmd.PositionProfile : internalStatus := AxisInternalStatus.PositionProfileState;
+                        AxisCmd.VelocityProfile : internalStatus := AxisInternalStatus.VelocityProfileState;
+                        AxisCmd.AccelerationProfile: internalStatus := AxisInternalStatus.AccelerationProfileState;
+                    ELSE
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                ELSE
+                    commandExecuted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                END_IF;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                IF bufferMode = SM3_Basic.MC_BUFFER_MODE.aborting OR hasPending THEN
+                    accProfileExecute := FALSE;
+                    IF hasPending THEN
+                        CASE pendingCmd OF
+                            AxisCmd.MoveVelocity : moveVelocityExecute := FALSE;
+                            AxisCmd.MoveAbsolute : moveAbsoluteExecute := FALSE;
+                            AxisCmd.MoveRelative : moveRelativeExecute := FALSE;
+                            AxisCmd.MoveAdditive : moveAdditiveExecute := FALSE;
+                            AxisCmd.MoveSuperimposed : moveSuperimposedExecute := FALSE;
+                            AxisCmd.Halt : haltExecute := FALSE;
+                            AxisCmd.GearIn : gearInExecute := FALSE;
+                            AxisCmd.GearInPos : gearInPosExecute := FALSE;
+                            AxisCmd.CamIn : camInExecute := FALSE;
+                            AxisCmd.Phasing : phasingExecute := FALSE;
+                            AxisCmd.SetPosition : setPositionExecute := FALSE;
+                            AxisCmd.PositionProfile : posProfileExecute := FALSE;
+                            AxisCmd.VelocityProfile : velProfileExecute := FALSE;
+                            AxisCmd.AccelerationProfile: accProfileExecute := FALSE;
+                        END_CASE;
+
+                        hasPending := FALSE;
+                    END_IF;
+
+                    commandAborted := TRUE;
+                    internalStatus := AxisInternalStatus.Ready;
+                ELSE
+                    pendingCmd := cmd;
+                    pendingOldPosition := position; pendingOldDistance := distance; pendingOldVelocity := velocity;
+                    pendingOldRatioNumerator := ratioNumerator; pendingOldRatioDenominator := ratioDenominator;
+                    pendingOldCamVersion := camVersion; pendingOldStartMode := startMode;
+                    pendingOldMasterOffset := masterOffset; pendingOldSlaveOffset := slaveOffset;
+                    hasPending := TRUE;
+                    oldCmd := pendingCmd;
+
+                    CASE pendingCmd OF
+                        AxisCmd.MoveVelocity : moveVelocityExecute := TRUE;
+                        AxisCmd.MoveAbsolute : moveAbsoluteExecute := TRUE;
+                        AxisCmd.MoveRelative : moveRelativeExecute := TRUE;
+                        AxisCmd.MoveAdditive : moveAdditiveExecute := TRUE;
+                        AxisCmd.MoveSuperimposed : moveSuperimposedExecute := TRUE;
+                        AxisCmd.Halt : haltExecute := TRUE;
+                        AxisCmd.GearIn : gearInExecute := TRUE;
+                        AxisCmd.GearInPos : gearInPosExecute := TRUE;
+                        AxisCmd.CamIn : camInExecute := TRUE;
+                        AxisCmd.Phasing : phasingExecute := TRUE;
+                        AxisCmd.SetPosition : setPositionExecute := TRUE;
+                        AxisCmd.PositionProfile : posProfileExecute := TRUE;
+                        AxisCmd.VelocityProfile : velProfileExecute := TRUE;
+                        AxisCmd.AccelerationProfile: accProfileExecute := TRUE;
+                    ELSE
+						hasPending := FALSE;
+						commandAborted := TRUE;
+						internalStatus := AxisInternalStatus.Ready;
+                    END_CASE;
+                END_IF;
+            END_IF;
+
+        (* ReadParameter *)
+        AxisInternalStatus.ReadParameterState :
+            IF readParameter.Valid THEN
+                readParameterExecute := FALSE;
+                parameterReadValue := readParameter.Value;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                readParameterExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* WriteParameter *)
+        AxisInternalStatus.WriteParameterState :
+            IF writeParameter.Done THEN
+                writeParameterExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                writeParameterExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* ReadBoolParameter *)
+        AxisInternalStatus.ReadBoolParameterState :
+            IF readBoolParameter.Valid THEN
+                readBoolParameterExecute := FALSE;
+                parameterBoolRead := readBoolParameter.Value;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                readBoolParameterExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* WriteBoolParameter *)
+        AxisInternalStatus.WriteBoolParameterState :
+            IF writeBoolParameter.Done THEN
+                writeBoolParameterExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                writeBoolParameterExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* TouchProbe - capture axis position on hardware trigger *)
+        AxisInternalStatus.TouchProbeState :
+            IF touchProbe.Done THEN
+                touchProbeExecute := FALSE;
+                touchProbeValue := touchProbe.RecordedPosition;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                touchProbeExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+
+        (* AbortTrigger - cancel any pending touch probe *)
+        AxisInternalStatus.AbortTriggerState :
+            IF abortTrigger.Done THEN
+                abortTriggerExecute := FALSE;
+                commandExecuted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+            IF cmd <> oldCmd THEN
+                abortTriggerExecute := FALSE;
+                commandAborted := TRUE;
+                internalStatus := AxisInternalStatus.Ready;
+            END_IF;
+    END_CASE;
+
+END_IF; (* End error-recovery guard *)
+
+
+(*
+ * Status Handler - level-triggered, unconditional, every cycle
+ *)
+readActualPosition(
+    Axis := slave,
+    Enable := TRUE
+);
+actualPosition := readActualPosition.Position;
+
+readActualVelocity(
+    Axis := slave,
+    Enable := TRUE
+);
+actualVelocity := readActualVelocity.Velocity;
+
+readActualTorque(
+    Axis := slave,
+    Enable := TRUE
+);
+actualTorque := readActualTorque.Torque;
+
+readAxisError(
+    Axis := slave,
+    Enable := TRUE
+);
+axisErrorId := readAxisError.AxisErrorID;
+
+readStatus(
+    Axis := slave,
+    Enable := TRUE
+);
+(* Priority order matches PLCopen FSM: ErrorStop > Disabled > Stopping > Homing > motion states > Standstill *)
+IF readStatus.ErrorStop THEN
+    status := AxisStatus.ErrorStop;
+ELSIF readStatus.Disabled THEN
+    status := AxisStatus.Disabled;
+ELSIF readStatus.Stopping THEN
+    status := AxisStatus.Stopping;
+ELSIF readStatus.Homing THEN
+    status := AxisStatus.Homing;
+ELSIF readStatus.SynchronizedMotion THEN
+    status := AxisStatus.SynchronizedMotion;
+ELSIF readStatus.ContinuousMotion THEN
+    status := AxisStatus.ContinuousMotion;
+ELSIF readStatus.DiscreteMotion THEN
+    status := AxisStatus.DiscreteMotion;
+ELSIF readStatus.Standstill THEN
+    status := AxisStatus.Standstill;
+ELSE
+    status := AxisStatus.Standstill; (* Fallback - consider adding Unknown to AxisStatus DUT *)
+END_IF;
+
+
+(*
+ * PLCopen FB calls - unconditional every PLC cycle.
+ * Execute / Enable signals are generated exclusively by the FSM above.
+ * All motion parameters come directly from VAR_INPUT each cycle.
+ *)
+
+(* Administrative / Configuration *)
+power(
+    Axis := slave,
+    Enable := powerEnable,
+    bRegulatorOn := powerEnable,
+    bDriveStart := powerEnable
+);
+
+resetCmd(
+    Axis := slave,
+    Execute := resetCmdExecute
+);
+
+setPosition(
+    Axis := slave,
+    Execute := setPositionExecute,
+    Position := position,
+    Mode := setPositionMode
+);
+
+(* Homing *)
+home(
+    Axis := slave,
+    Execute := homeExecute,
+    Position := homePosition
+);
+
+(* Motion *)
+moveVelocity(
+    Axis := slave,
+    Execute := moveVelocityExecute,
+    Velocity := velocity,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk,
+    Direction := direction,
+    BufferMode := bufferMode
+);
+
+moveAbsolute(
+    Axis := slave,
+    Execute := moveAbsoluteExecute,
+    Position := position,
+    Velocity := velocity,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk,
+    Direction := direction,
+    BufferMode := bufferMode
+);
+
+moveRelative(
+    Axis := slave,
+    Execute := moveRelativeExecute,
+    Distance := distance,
+    Velocity := velocity,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk,
+    BufferMode := bufferMode
+);
+
+moveAdditive(
+    Axis := slave,
+    Execute := moveAdditiveExecute,
+    Distance := distance,
+    Velocity := velocity,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+moveSuperimposed(
+    Axis := slave,
+    Execute := moveSuperimposedExecute,
+    Distance := distance,
+    VelocityDiff := velocityDiff,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+halt(
+    Axis := slave,
+    Execute := haltExecute,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+haltSuperimposed(
+    Axis := slave,
+    Execute := haltSuperimposedExecute,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+stop(
+    Axis := slave,
+    Execute := stopExecute,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+jog(
+    Axis := slave,
+    JogForward := jogForward AND (internalStatus = AxisInternalStatus.JogState),
+    JogBackward := jogBackward AND (internalStatus = AxisInternalStatus.JogState),
+    Velocity := velocity,
+    Acceleration := acceleration,
+    Deceleration := deceleration,
+    Jerk := jerk
+);
+
+(* Override *)
+setOverride(
+    Axis := slave,
+    Enable := overrideEnable,
+    VelFactor := velFactor,
+    AccFactor := accFactor,
+    JerkFactor := jerkFactor
+);
+
+(* Synchronization - master reference required *)
+IF __ISVALIDREF(master) THEN
+    gearIn(
+        Master := master,
+        Slave := slave,
+        Execute := gearInExecute,
+        RatioNumerator := ratioNumerator,
+        RatioDenominator := TO_UDINT(ratioDenominator),
+        Acceleration := acceleration,
+        Deceleration := deceleration,
+        Jerk := jerk,
+        BufferMode := bufferMode
+    );
+    gearInPos(
+        Master := master,
+        Slave := slave,
+        Execute := gearInPosExecute,
+        RatioNumerator := ratioNumerator,
+        RatioDenominator := ratioDenominator,
+        MasterSyncPosition := masterSyncPos,
+        SlaveSyncPosition := slaveSyncPos
+    );
+    camIn(
+        Master := master,
+        Slave := slave,
+        Execute := camInExecute,
+        CamTableID := camId,
+        StartMode := startMode,
+        MasterOffset := masterOffset,
+        SlaveOffset := slaveOffset,
+        BufferMode := bufferMode
+    );
+    phasing(
+        Master := master,
+        Slave := slave,
+        Execute := phasingExecute,
+        PhaseShift := phaseShift,
+        Velocity := velocity,
+        Acceleration := acceleration,
+        Deceleration := deceleration,
+        Jerk := jerk
+    );
+END_IF
+
+gearOut(
+    Slave := slave,
+    Execute := gearOutExecute
+);
+
+camOut(
+    Slave := slave,
+    Execute := camOutExecute
+);
+
+(* Profiles *)
+IF __ISVALIDREF(positionProfile) THEN
+    mcPositionProfile(
+        Axis := slave,
+        Execute := posProfileExecute,
+        TimePosition := positionProfile
+    );
+END_IF
+
+IF __ISVALIDREF(velocityProfile) THEN
+    mcVelocityProfile(
+        Axis := slave,
+        Execute := velProfileExecute,
+        TimeVelocity := velocityProfile
+    );
+END_IF
+
+IF __ISVALIDREF(accelerationProfile) THEN
+    mcAccProfile(
+        Axis := slave,
+        Execute := accProfileExecute,
+        TimeAcceleration := accelerationProfile
+    );
+END_IF
+
+(* Parameter access *)
+readParameter(
+    Axis := slave,
+    Enable := readParameterExecute,
+    ParameterNumber := parameterNumber
+);
+
+writeParameter(
+    Axis := slave,
+    Execute := writeParameterExecute,
+    ParameterNumber := parameterNumber,
+    Value := parameterValue
+);
+
+readBoolParameter(
+    Axis := slave,
+    Enable := readBoolParameterExecute,
+    ParameterNumber := parameterNumber
+);
+
+writeBoolParameter(
+    Axis := slave,
+    Execute := writeBoolParameterExecute,
+    ParameterNumber := parameterNumber,
+    Value := parameterBoolValue
+);
+
+(* Additional services - triggerInput reference required *)
+IF __ISVALIDREF(triggerInput) THEN
+    touchProbe(
+        Axis := slave,
+        Execute := touchProbeExecute,
+        TriggerInput := triggerInput,
+        WindowOnly := touchProbeWindow,
+        FirstPosition := touchProbeFirst,
+        LastPosition := touchProbeLast
+    );
+    abortTrigger(
+        Axis := slave,
+        Execute := abortTriggerExecute,
+        TriggerInput := triggerInput
+    );
+END_IF

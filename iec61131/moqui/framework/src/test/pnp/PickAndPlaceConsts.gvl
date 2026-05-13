@@ -1,0 +1,42 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+VAR_GLOBAL CONSTANT
+    (* Tripod MCS origin - machine-frame → tripod-base transform [mm] *)
+    tripodTransX : LREAL := 0;
+    tripodTransY : LREAL := 0;
+    tripodTransZ : LREAL := 1700;
+    tripodSize : LREAL := 180;
+
+    (* Conveyor belt MCS offset *)
+    beltTransX : LREAL := 0;
+    beltTransY : LREAL := 500;
+    beltTransZ : LREAL := 0;
+
+    (* Rotary table MCS offset *)
+    tableTransX : LREAL := 0;
+    tableTransY : LREAL := -500;
+    tableTransZ : LREAL := 0;
+
+    (* TCP offset to bottom of ring (ring thickness + gripper) [mm] *)
+    tcpRing : LREAL := 0.02 * tripodSize + 15; (* ≈ 18.6 mm *)
+
+    (* Tripod initial slider positions [mm] *)
+    tripod1PosOrig : REAL := 50;
+    tripod2PosOrig : REAL := 75;
+    tripod3PosOrig : REAL := 25;
+
+    (* Tripod group dynamics *)
+    tripodVelocity : LREAL := 1000; (* [mm/s] *)
+    tripodAcceleration : LREAL :=  10000; (* [mm/s²] *)
+    tripodJerk : LREAL := 100000; (* [mm/s³] *)
+
+    (* Rotary-table drive dynamics *)
+    tableVelocity : LREAL :=  50; (* [°/s] *)
+    tableAcceleration : LREAL :=  30; (* [°/s²] *)
+
+    (* Conveyor belt drive dynamics *)
+    beltVelocity : LREAL := 300; (* [mm/s] *)
+    beltAcceleration : LREAL := 150; (* [mm/s²] *)
+END_VAR

@@ -1,0 +1,52 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Shared fixture for the pick-and-place test suite *)
+TYPE PickAndPlaceFixture : STRUCT
+    (* Tripod individual-axis enable flags *)
+    tripod1Enable : BOOL;
+    tripod2Enable : BOOL;
+    tripod3Enable : BOOL;
+
+    (* Tripod coordinated group enable flag *)
+    tripodEnable : BOOL;
+
+    (* Drive enable flags *)
+    rotaryTableEnable : BOOL;
+    conveyorEnable : BOOL;
+
+    (* Tripod TCP position - mirrored from AxisGroup.actualPosition each scan. *)
+    tripodActualPos : SM3_Robotics.SMC_POS_REF;
+
+    (* Robot FSM flags *)
+    robotState : INT;
+    readyForMotion : BOOL; (* Group not in Disabled or ErrorStop *)
+    ringAttached : BOOL; (* TRUE while robotState ∈ [70..100] *)
+    dontChangePCS_2 : BOOL; (* TRUE while robotState ∈ [90..110] *)
+    targetConePtr : POINTER TO Cone; (* Cone targeted during ring-place *)
+
+    (* Environment / conveyor state *)
+    activeConePtr : POINTER TO Cone; (* Cone currently defining PCS_2 *)
+    ringOnTable : BOOL; (* TRUE if any ring is on the table *)
+
+    (*
+     * Coordinate-transform gate.
+     * Set TRUE by TripodRobot after MC_SetCoordinateTransform.Done.
+     * Prevents re-execution after successful setup.
+     *)
+    coordTransformDone : BOOL;
+
+    (* Process control flags *)
+    automaticPnp : BOOL; (* Continuous automatic pick-and-place cycle *)
+    setRing : BOOL; (* Manual one-shot ring release *)
+
+    (* Ring FSM diagnostics - written by Environment each scan *)
+    ring1State : DINT;
+    ring1TrtDone : BOOL;
+    ring1TrtError : BOOL;
+
+    (* Rotary table drive diagnostics - written by Environment each scan *)
+    rotaryTableAxisReady : BOOL; (* MC_Power.Status *)
+    rotaryTableAxisError : BOOL; (* MC_Power.Error *)
+END_STRUCT END_TYPE

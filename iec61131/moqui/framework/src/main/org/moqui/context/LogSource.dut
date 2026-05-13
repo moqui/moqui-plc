@@ -1,0 +1,12 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+TYPE LogSource : STRUCT
+	(* Reference to log ring buffer *)
+    logRef : REFERENCE TO LogRingBuffer;
+	lastLogSize : UINT;
+	lastHead : UINT := 1;
+	lastTail : UINT := 1;
+	lastOverflowCount : UDINT;
+END_STRUCT END_TYPE

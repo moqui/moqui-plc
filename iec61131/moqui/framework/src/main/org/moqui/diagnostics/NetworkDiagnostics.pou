@@ -1,0 +1,132 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Run network diagnostics on the Ethernet adapter and IO modules *)
+FUNCTION_BLOCK NetworkDiagnostics
+VAR_EXTERNAL
+	fieldbus : FieldbusProtocol;
+END_VAR
+VAR_OUTPUT
+	error: BOOL;
+END_VAR
+VAR
+	(* Logger facade *)
+	logger : LoggerFacade;
+	module : DED.IDevice;
+	moduleInfo : DED.DEVICE_INFO;
+	moduleName : STRING;
+	moduleStatus : DED.DEVICE_STATE;
+	moduleError : DED.ERROR;
+	diagnosisInfoAvailable : BOOL;
+    diagnosisInfoBuffer : STRING; 
+	fieldbusDataPtr : DED.CAA.PVOID;
+	fieldbusdata : POINTER TO STRING;
+	dataSize : DED.CAA.SIZE;
+    dataCount : DED.CAA.SIZE;
+	diagnoseIoModule : RemoteIoModuleDiagnostics;
+	i: INT;
+	init : BOOL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+error := TRUE;
+
+IF NOT init THEN
+	(* Logger facade init *)
+	logger.enable := TRUE; logger.loggerName := 'RunNetworkDiagnostics';
+	init := TRUE;
+END_IF;
+
+(* 
+ * CODESYS includes an OPC UA Server that exposes the PLC variables for external clients.
+ * Typically, you do not detect the server’s "failure" directly in user logic,
+ * because the server is part of the CODESYS runtime.
+ *)
+
+(*
+ * To enable/disable the ethernet adapter or other devices, use the following reconfigure command: 
+ *     Ethernet.Enable := TRUE/FALSE;
+ *     reconfigure(xExecute := TRUE, itfNode := Ethernet);
+*)
+ 
+logger(message := concat(concat(concat('Run diagnostics on Ethernet adapeter with name: ', ethernet.DeviceName), ' and NIC name: '), ethernet.NICName),
+	level := LogLevel.DEBUG);
+(* For applications without remote IO modules or with IO modules integrated into the PLC rack. *)
+IF NOT ethernet.Enable THEN
+	logger(message := 'The Ethernet adapter is disabled.', level := LogLevel.DEBUG);
+	NetworkDiagnostics.error := FALSE;
+	RETURN;
+END_IF;
+IF ethernet.ChildNodeCount = 0 THEN
+	logger(message := 'No child devices under the Ethernet adapter. Disable the Ethernet adapter!');
+END_IF;
+IF ethernet.State = IODrvEthernet.EthernetState.ERROR THEN
+	logger(message := 'Ethernet adapter in error state.', level := LogLevel.ERROR);
+	RETURN;
+END_IF;
+IF ethernet.State = IODrvEthernet.EthernetState.NOT_CONFIGURED THEN
+	logger(message := 'Ethernet adapter not configured.', level := LogLevel.ERROR);
+	RETURN;
+END_IF;
+IF ethernet.State = IODrvEthernet.EthernetState.SET_IP_ERROR THEN
+	logger(message := 'Invalid IP address configured for the Ethernet adapter.', level := LogLevel.ERROR);
+	RETURN;
+END_IF;
+IF ethernet.State = IODrvEthernet.EthernetState.DISCONNECTED THEN
+	logger(message := 'Ethernet adapter disconnected.', level := LogLevel.ERROR);
+	RETURN;
+END_IF;
+
+(* 
+ * Avoid checking software subsystems of the network stack (e.g. Modbus TCP Client component).
+ * Check only the physical remote devices.
+ * Find the first physical remote device.
+ *)
+module := DED.INode_TO_IDevice(ethernet.FirstChildNode.FirstChildNode);
+FOR i := 1 TO __UXINT_TO_INT(module.SiblingNodeCount) DO
+	module := DED.INode_TO_IDevice(module.NextSiblingNode);
+	module.GetDeviceInfo(deiInfo := moduleInfo);
+	moduleName := DED.GetDeviceNameString(module);
+
+	IF NOT module.Enable THEN
+		logger(message := concat(concat('The ', moduleName), ' IO module is disabled.'), level := LogLevel.DEBUG);
+		CONTINUE;
+	END_IF;
+	IF module.ChildNodeCount = 0 THEN
+		logger(message := concat(concat('The ', moduleName), ' IO module has no child devices.'), level := LogLevel.DEBUG);
+	END_IF;
+	moduleStatus := module.GetDeviceState(xDiagnosisinfoAvailable => diagnosisInfoAvailable, eError => moduleError);
+	IF moduleStatus = DED.DEVICE_STATE.ERROR THEN
+		logger(message := concat(concat(concat(concat('The ', moduleName), ' IO module is in error state.'), ' Error code: '),
+			TO_STRING(moduleError)), level := LogLevel.ERROR);
+		logger(message := concat(concat(concat(concat(concat('Module info: Type ', TO_STRING(moduleInfo.eType)), ' - Instance number '),
+			TO_STRING(moduleInfo.idInstance)), ' - Unique ID '), TO_STRING(moduleInfo.idSystem)), level := LogLevel.ERROR);
+
+		IF diagnosisInfoAvailable THEN
+			moduleError := module.GetDeviceDiagnosisInfo(pData := fieldbusDataPtr, szSize := dataSize, szCount => dataCount);
+			fieldbusData := fieldbusDataPtr; 
+			diagnosisInfoBuffer := fieldbusData^;
+			logger(message := 'Diagnosis data:', level := LogLevel.ERROR);
+			logger(message := concat('Error code: ', TO_STRING(moduleError)), level := LogLevel.ERROR);
+			logger(message := concat('Error stack: ', TO_STRING(fieldbusData)), level := LogLevel.ERROR);
+		END_IF;
+		CONTINUE;
+	END_IF;
+	
+	(* 
+     * Check the remote IO module registers for detecting any errors, if needed.
+	 * Otherwise, comment out the following code.
+     *)
+	diagnoseIoModule(moduleName := moduleName, error => error, diagnosisInfo => diagnosisInfoBuffer);
+	IF error THEN
+		logger(message := 'The remote IO module is connected but has errors.', level := LogLevel.ERROR);
+		logger(message := concat('Error stack: ', diagnosisInfoBuffer), level := LogLevel.ERROR); 
+		CONTINUE;
+	END_IF;
+END_FOR;
+
+error := FALSE;

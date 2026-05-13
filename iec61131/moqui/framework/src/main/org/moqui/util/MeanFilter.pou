@@ -1,0 +1,317 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Mean / Moving Average Filter: SMA, WMA_Ramp, WMA_Triangular(+OddOnly), TRI_SMA2, EMA *)
+FUNCTION_BLOCK MeanFilter
+VAR_INPUT
+    execute : BOOL; (* Enable filter *)
+    clock : BOOL;   (* Tick pulse (one-scan TRUE) *)
+    reset : BOOL;
+    input : REAL;
+
+    filterType : MeanFilterType := MeanFilterType.SMA;
+
+    (* Windowed filters (SMA/WMA) *)
+    windowSize : UINT := 10; (* must be <= MAX_WINDOW *)
+
+    (* EMA parameters (alpha mandatory) *)
+    emaAlpha : REAL := 0.1; (* MUST be in (0..1] *)
+END_VAR
+VAR_OUTPUT
+    output : REAL;
+    done : BOOL;
+    busy : BOOL;
+    error : BOOL;
+    errorId : INT; (* 1: InvalidWindow, 3: InvalidAlpha, 4: RequiresOddWindow *)
+END_VAR
+VAR CONSTANT
+    MAX_WINDOW : UINT := 256;
+END_VAR
+VAR
+    buffer : ARRAY[1..MAX_WINDOW] OF REAL;
+    idx : UINT; (* Next position to overwrite = oldest sample *)
+    initialized : BOOL;
+    (* Common *)
+    i : UINT;
+    (* SMA *)
+    sum : REAL;
+    (* WMA_Ramp (linear 1..N) *)
+    wsumRamp : REAL; (* Σ(k*x_k) *)
+    denomRamp : REAL; (* N(N+1)/2 *)
+    xOld : REAL;
+    xNew : REAL;
+    sumOld : REAL;
+    (* WMA_Triangular *)
+    wsumTri : REAL;
+    denomTri : REAL;
+    pos : UINT;
+    w : REAL;
+    k : UINT; (* 1..N position from oldest..newest *)
+    mid : UINT; (* floor((N+1)/2) *)
+    dist : UINT;
+    (* TRI_SMA2 (two SMA in cascade) *)
+    sma2_buf1 : ARRAY[1..MAX_WINDOW] OF REAL;
+    sma2_buf2 : ARRAY[1..MAX_WINDOW] OF REAL;
+    sma2_idx1 : UINT;
+    sma2_idx2 : UINT;
+    sma2_sum1 : REAL;
+    sma2_sum2 : REAL;
+    sma2_y1 : REAL;
+    sma2_y2 : REAL;
+    sma2_init : BOOL;
+    (* EMA *)
+    emaY : REAL;
+    (* Config change detection *)
+    prevType : MeanFilterType;
+    prevWindow : UINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
+
+(* Config change forces internal reset *)
+IF (filterType <> prevType) OR (windowSize <> prevWindow) THEN
+    reset := TRUE;
+END_IF;
+prevType := filterType;
+prevWindow := windowSize;
+
+CASE filterType OF
+	(* Validate window for windowed filters *)
+	MeanFilterType.SMA, MeanFilterType.WMA_Ramp,
+   	MeanFilterType.WMA_Triangular, MeanFilterType.WMA_TriangularOddOnly,
+	MeanFilterType.TRI_SMA2 :
+
+		IF (windowSize = 0) OR (windowSize > MAX_WINDOW) THEN
+			error := execute;
+			errorId := 1;
+			RETURN;
+		END_IF;
+
+		(* Odd-only constraint: checked here because CASE does not fall-through *)
+		IF (filterType = MeanFilterType.WMA_TriangularOddOnly) AND ((windowSize MOD 2) = 0) THEN
+			error := execute;
+			errorId := 4;
+			RETURN;
+		END_IF;
+
+	(* Validate alpha for EMA *)
+	MeanFilterType.EMA :
+		IF (emaAlpha <= 0.0) OR (emaAlpha > 1.0) THEN
+			error := execute;
+			errorId := 3;
+			RETURN;
+		END_IF;
+END_CASE;
+
+IF reset THEN
+    idx := 1;
+    initialized := FALSE;
+
+    sum := 0.0;
+
+    wsumRamp := 0.0;
+    denomRamp := 0.0;
+
+    wsumTri := 0.0;
+    denomTri := 0.0;
+
+    emaY := 0.0;
+
+    sma2_idx1 := 1;
+    sma2_idx2 := 1;
+    sma2_sum1 := 0.0;
+    sma2_sum2 := 0.0;
+    sma2_y1 := 0.0;
+    sma2_y2 := 0.0;
+    sma2_init := FALSE;
+
+    (* Optional: clear buffers *)
+    FOR i := 1 TO MAX_WINDOW DO
+        buffer[i] := 0.0;
+        sma2_buf1[i] := 0.0;
+        sma2_buf2[i] := 0.0;
+    END_FOR;
+END_IF;
+
+IF execute THEN
+    busy := TRUE;
+
+    CASE filterType OF
+        MeanFilterType.SMA :
+            IF NOT initialized THEN
+                (* Prime buffer with first input *)
+                FOR i := 1 TO windowSize DO buffer[i] := input; END_FOR;
+                sum := input * TO_REAL(windowSize);
+                idx := 1;
+                initialized := TRUE;
+                output := input;
+            ELSE
+                IF clock THEN
+                    xOld := buffer[idx];
+                    buffer[idx] := input;
+
+                    sum := sum - xOld + input;
+
+                    idx := idx + 1;
+                    IF idx > windowSize THEN idx := 1; END_IF;
+
+                    output := sum / TO_REAL(windowSize);
+                END_IF;
+            END_IF;
+
+        MeanFilterType.WMA_Ramp :
+            (* Linear weights: 1..N from oldest..newest (O(1)) *)
+            IF NOT initialized THEN
+                FOR i := 1 TO windowSize DO buffer[i] := input; END_FOR;
+
+                denomRamp := TO_REAL(windowSize) * TO_REAL(windowSize + 1) / 2.0;
+
+                sum := input * TO_REAL(windowSize);
+                wsumRamp := input * denomRamp;
+
+                idx := 1;
+                initialized := TRUE;
+                output := input;
+            ELSE
+                IF clock THEN
+                    xOld := buffer[idx]; (* oldest *)
+                    xNew := input;
+
+                    sumOld := sum;
+
+                    buffer[idx] := xNew;
+
+                    (* S' = S - xOld + xNew *)
+                    sum := sumOld - xOld + xNew;
+
+                    (* W' = W - S_old + N*xNew *)
+                    wsumRamp := wsumRamp - sumOld + (TO_REAL(windowSize) * xNew);
+
+                    idx := idx + 1;
+                    IF idx > windowSize THEN idx := 1; END_IF;
+
+                    output := wsumRamp / denomRamp;
+                END_IF;
+            END_IF;
+
+        MeanFilterType.WMA_Triangular,
+        MeanFilterType.WMA_TriangularOddOnly :
+            (* Symmetric triangular weights, center-weighted (O(N)) *)
+            IF NOT initialized THEN
+                FOR i := 1 TO windowSize DO buffer[i] := input; END_FOR;
+                idx := 1;
+                initialized := TRUE;
+                output := input;
+            END_IF;
+
+            IF clock THEN
+                (* Update ring buffer *)
+                buffer[idx] := input;
+                idx := idx + 1;
+                IF idx > windowSize THEN idx := 1; END_IF;
+
+                (* Compute triangular weights *)
+                (* k=1..N from oldest..newest *)
+                mid := (windowSize + 1) / 2; (* integer div *)
+
+                wsumTri := 0.0;
+                denomTri := 0.0;
+
+                (* Oldest sample is at idx (next to overwrite) *)
+                FOR i := 0 TO windowSize - 1 DO
+                    pos := idx + i;
+                    IF pos > windowSize THEN pos := pos - windowSize; END_IF;
+
+                    k := i + 1;
+
+                    (* w = mid - |k-mid|  (triangle peak at center) *)
+                    IF k >= mid THEN
+                        dist := k - mid;
+                    ELSE
+                        dist := mid - k;
+                    END_IF;
+
+                    w := TO_REAL(mid - dist);
+                    wsumTri := wsumTri + w * buffer[pos];
+                    denomTri := denomTri + w;
+                END_FOR;
+
+                IF denomTri > 0.0 THEN
+                    output := wsumTri / denomTri;
+                ELSE
+                    output := input;
+                END_IF;
+            END_IF;
+
+        MeanFilterType.TRI_SMA2 :
+            (* 
+             * Triangular approximation via two SMA in cascade:
+             *     y1 = SMA(input), y2 = SMA(y1). This approximates a triangular FIR well.
+            *)
+            IF NOT sma2_init THEN
+                FOR i := 1 TO windowSize DO
+                    sma2_buf1[i] := input;
+                    sma2_buf2[i] := input;
+                END_FOR;
+
+                sma2_sum1 := input * TO_REAL(windowSize);
+                sma2_sum2 := input * TO_REAL(windowSize);
+
+                sma2_idx1 := 1;
+                sma2_idx2 := 1;
+
+                sma2_y1 := input;
+                sma2_y2 := input;
+
+                sma2_init := TRUE;
+                output := input;
+            ELSE
+                IF clock THEN
+                    (* SMA stage 1 *)
+                    xOld := sma2_buf1[sma2_idx1];
+                    sma2_buf1[sma2_idx1] := input;
+                    sma2_sum1 := sma2_sum1 - xOld + input;
+
+                    sma2_idx1 := sma2_idx1 + 1;
+                    IF sma2_idx1 > windowSize THEN sma2_idx1 := 1; END_IF;
+
+                    sma2_y1 := sma2_sum1 / TO_REAL(windowSize);
+
+                    (* SMA stage 2 *)
+                    xOld := sma2_buf2[sma2_idx2];
+                    sma2_buf2[sma2_idx2] := sma2_y1;
+                    sma2_sum2 := sma2_sum2 - xOld + sma2_y1;
+
+                    sma2_idx2 := sma2_idx2 + 1;
+                    IF sma2_idx2 > windowSize THEN sma2_idx2 := 1; END_IF;
+
+                    sma2_y2 := sma2_sum2 / TO_REAL(windowSize);
+
+                    output := sma2_y2;
+                END_IF;
+            END_IF;
+
+        MeanFilterType.EMA :
+            (* EMA (alpha mandatory) *)
+            IF NOT initialized THEN
+                emaY := input;
+                initialized := TRUE;
+            ELSE
+                IF clock THEN
+                    emaY := emaY + emaAlpha * (input - emaY);
+                END_IF;
+            END_IF;
+
+            output := emaY;
+    END_CASE;
+
+    done := NOT error;
+ELSE
+    busy := FALSE;
+    done := FALSE;
+END_IF;

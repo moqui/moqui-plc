@@ -1,0 +1,12 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE ActuatorGroupStatus : (
+    Disabled := 0, (* No actuators running; group not active *)
+    Running, (* Active: demand-driven start/stop in progress *)
+    Stopping, (* Transitional: shutting down all running actuators *)
+    Autochange (* Transitional: rotating the priority order (stop old / start new) *)
+); END_TYPE

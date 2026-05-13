@@ -1,0 +1,16 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE LogMarker : (
+	Diagnostics := 0,
+	Lifecycle,
+	Integration,
+	Health,
+	Telemetry,
+	AuditLog,
+	Kpi,
+	Measurement
+); END_TYPE

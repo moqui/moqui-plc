@@ -1,0 +1,19 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE ActuatorType : (
+  OnOff := 0, (* Fallback value *)
+  Contactor,
+  SoftStarter,
+  Vfd, (* Frequency converter / Inverter drive *)
+  PneumaticCylinder,
+  PneumaticValve,
+  HydraulicCylinder,
+  HydraulicValve,
+  Damper,
+  SolenoidValve
+  (* etc. *)
+); END_TYPE

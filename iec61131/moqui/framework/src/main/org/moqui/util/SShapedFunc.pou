@@ -1,0 +1,89 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK SShapedFunc
+VAR_INPUT
+    execute : BOOL; (* PLCopen: Start on rising edge *)
+    clock : BOOL;
+    startValue : REAL;
+    endValue : REAL;
+    duration : TIME;
+    tickTime : TIME := T#10ms;
+END_VAR
+VAR_OUTPUT
+    output : REAL;
+    done : BOOL;
+    busy : BOOL;
+    error : BOOL;
+    errorId : INT; (* 1 : InvalidTime *)
+END_VAR
+VAR
+    prevExecute : BOOL;
+    active : BOOL;
+    elapsedTicks : UDINT;
+    totalTicks : UDINT;
+    progress : REAL;
+    deltaValue : REAL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Defaults *)
+done := FALSE; busy := FALSE; error := (errorId <> 0);
+
+(* Rising edge detection *)
+IF execute AND NOT prevExecute THEN
+    errorId := 0; (* Clear previous error on new rising edge *)
+    (* Validate timing *)
+    IF (TO_DINT(duration) <= 0) OR (TO_DINT(tickTime) <= 0) THEN
+        error := TRUE;
+        errorId := 1;
+        active := FALSE;
+    ELSE
+        active := TRUE;
+        elapsedTicks := 0;
+
+        totalTicks := TO_UDINT(TO_DINT(duration) / TO_DINT(tickTime));
+        IF totalTicks = 0 THEN totalTicks := 1; END_IF;
+
+        deltaValue := endValue - startValue;
+        output := startValue;
+    END_IF;
+END_IF;
+
+IF execute THEN
+    IF active THEN
+        busy := TRUE;
+
+        IF clock THEN
+            IF elapsedTicks < totalTicks THEN
+                elapsedTicks := elapsedTicks + 1;
+            END_IF;
+        END_IF;
+
+        progress := TO_REAL(elapsedTicks) / TO_REAL(totalTicks);
+
+        IF progress >= 1.0 THEN
+            output := endValue;
+            active := FALSE;
+            done := TRUE;
+        ELSE
+            output := startValue + deltaValue * (3.0 * progress * progress - 2.0 * progress * progress * progress);
+        END_IF;
+    ELSE
+        IF NOT error THEN
+            done := TRUE;
+        END_IF;
+    END_IF;
+ELSE
+    (* Reset when execute is FALSE: clear state and acknowledge any error *)
+    active := FALSE;
+    elapsedTicks := 0;
+    totalTicks := 0;
+    errorId := 0;
+END_IF;
+
+prevExecute := execute;

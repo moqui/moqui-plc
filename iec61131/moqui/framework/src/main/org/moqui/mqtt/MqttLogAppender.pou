@@ -1,0 +1,92 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK MqttLogAppender
+VAR_EXTERNAL CONSTANT
+    LOG_MAX_SIZE : UINT;
+	LOG_JSON_PAYLOAD_MAX_SIZE : UINT;
+	pubPayloadFormatIndicator : BYTE;
+	pubMessageExpiryInterval : UDINT;
+	pubContentType : WSTRING(32);
+	(* pubUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
+	logPubQoS : MQTT.MQTT_QOS;
+	logPubRetain : BOOL;
+	logReDelivery : BOOL;
+	logTopic : WSTRING(1024);
+	logAppenderTimeout : UINT;
+END_VAR
+VAR_EXTERNAL
+	connectionFactory : MqttConnectionFactory;
+END_VAR
+VAR_INPUT
+    execute : BOOL;
+    (* Data sources *)
+    logBuffer : REFERENCE TO ARRAY[1..LOG_MAX_SIZE] OF LogEvent;
+    logBufferSize : UINT;
+END_VAR
+VAR_OUTPUT
+	done, busy, error : BOOL;
+    errorId : INT; (* 100 : ArgsErr *)
+END_VAR
+VAR
+	pubTopic : WSTRING(1024) := logTopic;
+	(* Publisher *)
+	publisher : MQTT.MQTTPublish;
+	(* Publish properties v5 *)
+	mqttPublishProperties : MQTT.MQTTPublishProperties := (
+		bPayloadFormatIndicator := pubPayloadFormatIndicator,
+		wsContentType := pubContentType,
+		udiMessageExpiryInterval := pubMessageExpiryInterval
+		(* userProperties := pubUserProperties *)
+	);
+    (* JSON serializer *)
+    logMapper : SerializeLogToJson;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF NOT execute THEN
+	logMapper(execute := FALSE, done => done, busy => busy,
+		error => error, errorId => errorId);
+    publisher(xExecute := FALSE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
+		xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+	RETURN;
+END_IF;
+
+(* Connect to the broker *)
+connectionFactory(connect := TRUE, error => error, errorId => errorId);
+(* Reset and retry on next cycle *)
+IF connectionFactory.error THEN
+	connectionFactory(connect := FALSE, error => error, errorId => errorId);
+	done := FALSE; busy := FALSE;
+	RETURN;
+END_IF;
+
+(* Waiting for connection to broker *)
+IF NOT connectionFactory.connected THEN RETURN; END_IF;
+
+IF NOT publisher.xBusy THEN
+	(* JSON mapping *)
+	logMapper(execute := TRUE, logBuffer := logBuffer, logBufferSize := logBufferSize,
+		lineBreak := "", (* compact output: avoid WSTRING line-break embedding null bytes in byte array *)
+		busy => busy, error => error, errorId => errorId);
+	IF logMapper.error THEN
+		(* Reset JSON writer *)
+		logMapper(execute := FALSE, busy => busy,
+			error => error, errorId => errorId);
+		done := FALSE; busy := FALSE;
+		RETURN;
+	END_IF;
+END_IF;
+
+IF logMapper.done THEN
+	(* Publish the payload *)
+	publisher(xExecute := TRUE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
+		pbPayload := ADR(logMapper.jsonPayload), udiPayloadSize := logMapper.payloadSize,
+		eQoS := logPubQoS, xReDelivery := logReDelivery, xRetain := logPubRetain,
+		udiTimeOut := UINT_TO_UDINT(logAppenderTimeout), mQTTPublishProperties := mqttPublishProperties,
+		xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+END_IF;

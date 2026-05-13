@@ -1,0 +1,53 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Signal filtering and deboucing.
+   Usage:
+	
+       (* heatingPlatesOpened *)
+       VAR
+           heatingPlatesOpenedFilter : Filter;
+       END_VAR
+
+       heatingPlatesOpenedFilter(operationType := operationType, clock := heatingPlatesControlClock,
+           signal := heatingPlatesOpened, activationDelay := 0, deactivationDelay := heatingPlatesOpeningDelay,
+	   	   delayedSignal => heatingPlatesOpened);
+ *)
+FUNCTION_BLOCK Filter
+VAR_INPUT
+	operationType : OperatingMode;
+	clock : BOOL;
+	signal : BOOL;
+	activationDelay : UDINT;
+	deactivationDelay : UDINT;
+END_VAR
+VAR_OUTPUT
+	delayedSignal : BOOL;
+END_VAR
+VAR
+	delay : UDINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF (operationType = OperatingMode.Init) THEN
+	delay := 0;
+END_IF;
+
+IF clock AND (delay > 0) THEN
+	delay := delay - 1;
+END_IF;
+
+IF delay = 0 THEN
+	delayedSignal := signal;
+END_IF;
+
+IF signal = delayedSignal THEN
+	IF signal THEN
+		delay := deactivationDelay;
+	ELSE
+		delay := activationDelay;
+	END_IF;
+END_IF;

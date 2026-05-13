@@ -1,0 +1,12 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MqttCmd : (
+	Idle := 0,
+	Publish,
+    Subscribe,
+	Unsubscribe
+); END_TYPE

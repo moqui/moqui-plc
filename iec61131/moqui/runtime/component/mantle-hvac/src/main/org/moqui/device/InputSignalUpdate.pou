@@ -1,0 +1,75 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* 
+ * Input signal acquisition and pre-processing unit.
+ * Map physical input terminals/signals to their logical parameters, performing pre-processing (e.g.: signal filtering) if necessary.
+ *)
+FUNCTION_BLOCK InputSignalUpdate
+VAR_EXTERNAL
+	dev : DeviceFacade;
+	io : IOFacade; 
+END_VAR
+VAR_INPUT
+	operationType : OperatingMode;
+END_VAR
+VAR
+	(* Logger facade *)
+	logger : LoggerFacade;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Logger facade init *)
+logger.enable := TRUE; logger.loggerName := 'InputSignalUpdate';
+
+logger(message := 'Input signals acquisition and pre-processing.', level := LogLevel.DEBUG);
+
+(* 
+	Physical to logical terminals mapping example:
+
+	IF operationType = OperatingMode.Init THEN
+		(* Special processing for the init phase, if needed, such as the restart phase after a blackout. *)
+		(* etc. *)
+	ELSIF operationType = OperatingMode.Run THEN
+		(* Example mapping of 32 bits and 64 bits analog signals *)
+		dev.speedFeedback := doubleWordToReal(wordArray := io.speedFeedbackSignal);
+		dev.speedFeedback := longWordToLongReal(wordArray := io.speedFeedbackSignal);
+		(* Reverse logic *)
+		dev.coldGlycolValve.disabledSensor := NOT io.coldGlycolValveSignalingContact;
+
+		outletColdGlycolTemp := TO_REAL(outletColdGlycolTempSignal);
+		(* Analog input processing (scaling, limiting, etc. *)
+		dev.tempFeedback := processAnalogInput(io.tempFeedbackSignal, 0, 27000, dev.tempMin, dev.tempMax, -20, 70, 0);
+		(* Analog input exponential (1-pole) filtering *)
+		expFilter(input := io.coldGlycolTempSignal, t:= 3, start := TRUE, timeElapsed => timeElapsed);
+		IF timeElapsed >= 3 THEN dev.outletColdGlycolTemp := expFilter.output; END_IF;
+		(* Digital input processing (filtering, debouncing, reverse logic, etc. *)
+		digitalFilter(signal := io.airFlowEnabledSensor, enableDelay := T#10MS, disableDelay := T#15MS);
+		dev.airFlow.enabledSensor := digitalFilter.delayedSignal;
+		(* Drive status word, feedbacks, etc. mapping *)
+		processDriveCyclicInData(model := DriveModel.ABBACH580, statusWord := io.compressorStatusWord,
+			enabledSensor => dev.compressor.enabledSensor, disabledSensor => dev.compressor.disabledSensor,
+			externalFault => dev.compressorExternalFault);
+		dev.speedFeedback := TO_REAL(speedFeedbackSignal);
+		dev.coldGlycolPump.enabledSensor := io.coldGlycolPumpAuxContact;
+		dev.coldGlycolPump.disabledSensor := NOT io.coldGlycolPumpAuxContact;
+		dev.coldGlycolPumpThermistors := io.coldGlycolPumpThermistors;
+		dev.coldGlycolFlowSwitch := io.coldGlycolFlowSwitch;
+		dev.coldGlycolPumpPowerSupplyFault := NOT io.coldGlycolPumpShuntTrip;
+		dev.coldGlycolCircPumpExternalFault := io.coldGlycolPumpShuntTrip OR io.coldGlycolPumpThermistors
+			OR io.coldGlycolFlowSwitch;
+		...
+
+	END_IF;
+	
+	(* 
+	 * Configure and call the logger facade to log signals where needed.
+	 *     logger(payloadType := LogPayloadType.Numeric, numericValue := dev.speedRef, level := LogLevel.DEBUG);
+	 *     logger(payloadType := LogPayloadType.Numeric, numericValue := dev.outletColdGlycolTemp, level := LogLevel.DEBUG);
+	 *     (* etc. *)
+	 *)
+*)

@@ -1,0 +1,11 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MoquiStartStatus : (
+	Idle := 0,
+	Run,
+	Error
+); END_TYPE

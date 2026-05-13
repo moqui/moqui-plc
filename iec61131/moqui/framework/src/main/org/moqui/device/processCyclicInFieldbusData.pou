@@ -1,0 +1,37 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Mapping of bits of the fieldbus status word to the basic actuator inputs *)
+FUNCTION processCyclicInFieldbusData : BOOL
+VAR_INPUT
+	model : ActuatorModel;
+	fieldbus : FieldbusProtocol;
+	statusWord : WORD;
+END_VAR
+VAR_OUTPUT
+	enabledSensor : BOOL := FALSE;
+	disabledSensor : BOOL := FALSE;
+	externalFault : BOOL := FALSE;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+processCyclicInFieldbusData := FALSE;
+
+CASE model OF
+	ActuatorModel.ABBACH580 :
+		(* Set parameters based on the drive statusWord interpretation *)
+		enabledSensor := statusWord.0 AND statusWord.1 AND statusWord.2;
+		disabledSensor := NOT statusWord.0 OR NOT statusWord.1 OR NOT statusWord.2;
+		externalFault := statusWord.3 OR statusWord.4 OR statusWord.5 OR statusWord.6 OR statusWord.9;
+	ActuatorModel.CTM700 :
+		(* etc. *)
+	ActuatorModel.DanfossFc102 :
+		(* etc. *)
+	ELSE
+		RETURN;
+END_CASE;
+
+processCyclicInFieldbusData := TRUE;

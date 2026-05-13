@@ -1,0 +1,285 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Tripod robot motion FSM using Moqui AxisGroup and Axis wrappers.
+ *
+ * FSM:
+ *   0    Wait for all three tripod axes powered and ready
+ *   10   Set initial slider positions (AxisCmd.SetPosition x 3)
+ *   20   Set MCS coordinate transform (MC_SetCoordinateTransform, direct)
+ *   30   Enable axis group (AxisGroup.groupEnable -> Standby)
+ *   40   Wait for ring on table; issue MoveLinearAbsolute to ring (PCS_1)
+ *   50   Wait commandExecuted (arrival at ring)
+ *   60   Wait 200 ms (ring following), then issue MoveLinearRelative upward (PCS_1)
+ *   70   Wait commandExecuted; issue MoveLinearAbsolute to rest (WCS)
+ *   80   Wait commandExecuted; [release] then MoveLinearAbsolute above cone (PCS_2)
+ *   90   Wait commandExecuted; [release] then MoveLinearAbsolute on cone (PCS_2)
+ *   100  Wait commandExecuted; [release] then MoveLinearAbsolute above cone (PCS_2)
+ *   110  Wait commandExecuted; [release] then MoveLinearAbsolute to rest (WCS)
+ *   120  Wait commandExecuted; [release] then loop to state 40
+ *
+ * [release] means: the previous command was also MoveLinearAbsolute, so the
+ * AxisGroup FSM stays in CheckLinearAbsoluteState (commandExecuted=TRUE) until the caller changes cmd.
+ * On commandExecuted, set cmd=Idle -> AxisGroup returns to Standby (ready=TRUE) -> set the new MoveLinearAbsolute target.
+ * This 2-scan handshake is needed only when two consecutive commands share the
+ * same AxisGroupCmd value (both MoveLinearAbsolute).
+ *
+ * Unconditional FB calls at the bottom execute every scan regardless of state,
+ * following the standard CODESYS PLCopen pattern.
+ *)
+FUNCTION_BLOCK TripodRobot
+VAR_EXTERNAL
+	pnp : PickAndPlaceFixture;
+END_VAR
+VAR_INPUT
+	operationType : OperatingMode;
+END_VAR
+VAR_OUTPUT
+	groupError : BOOL;
+	groupErrorId : DWORD;
+END_VAR
+VAR
+	(* Tripod individual axes *)
+	tripodAxis1 : Axis;
+	tripodAxis2 : Axis;
+	tripodAxis3 : Axis;
+
+	(* Tripod coordinated group - AxisGroup wraps all Cartesian moves *)
+	tripodGroup : AxisGroup;
+
+	(* Coordinate transform - direct PLCopen call *)
+	setCoord : SM3_Robotics.MC_SetCoordinateTransform;
+	mcs : SM3_Robotics.MC_COORD_REF;
+
+	(* 200ms ring-following timer (state 60) *)
+	ton : TON := (PT := T#200MS);
+
+	(* 
+     * Constant Cartesian target positions.
+	 * All X,Y components default to 0 (struct zero-init).
+	 * Only Z (and coordinate system) distinguishes them.
+     *)
+	posAboveRingPCS1 : SM3_Robotics.SMC_POS_REF; (* Z = tcpRing, PCS_1 *)
+	posAboveConePCS2 : SM3_Robotics.SMC_POS_REF; (* Z = 200, PCS_2 *)
+	posOnConePCS2 : SM3_Robotics.SMC_POS_REF; (* Z = tcpRing, PCS_2 *)
+	posRestWCS : SM3_Robotics.SMC_POS_REF; (* Z = 300, WCS *)
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Target positions - set each scan (struct re-init on first scan) *)
+posAboveRingPCS1.c.Z := tcpRing;
+posAboveConePCS2.c.Z := 200;
+posOnConePCS2.c.Z := tcpRing;
+posRestWCS.c.Z := 300;
+
+(* Tripod robot FSM *)
+CASE pnp.robotState OF
+	0 : (* Wait for all three tripod axes powered and homed *)
+		pnp.tripod1Enable := TRUE;
+		pnp.tripod2Enable := TRUE;
+		pnp.tripod3Enable := TRUE;
+		IF tripodAxis1.ready AND tripodAxis2.ready AND tripodAxis3.ready THEN
+			pnp.robotState := 10;
+		END_IF
+
+	10 : (* Set initial slider positions *)
+		tripodAxis1.cmd := AxisCmd.SetPosition;
+		tripodAxis1.position := tripod1PosOrig;
+		tripodAxis2.cmd := AxisCmd.SetPosition;
+		tripodAxis2.position := tripod2PosOrig;
+		tripodAxis3.cmd := AxisCmd.SetPosition;
+		tripodAxis3.position := tripod3PosOrig;
+
+		IF tripodAxis1.commandExecuted AND tripodAxis2.commandExecuted
+				AND tripodAxis3.commandExecuted THEN
+			tripodAxis1.cmd := AxisCmd.Idle;
+			tripodAxis2.cmd := AxisCmd.Idle;
+			tripodAxis3.cmd := AxisCmd.Idle;
+			setCoord.Execute := FALSE; (* Arm rising edge for state 20 *)
+			pnp.robotState := 20;
+		END_IF;
+
+	20 : (* Set MCS coordinate transform (direct MC_SetCoordinateTransform) *)
+		mcs.X := tripodTransX;
+		mcs.Y := tripodTransY;
+		mcs.Z := tripodTransZ;
+		setCoord.Execute := TRUE;
+		setCoord.CoordTransform := mcs;
+		setCoord.CoordSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+
+		IF setCoord.Done THEN
+			pnp.coordTransformDone := TRUE;
+			pnp.robotState := 30;
+		END_IF;
+
+	30 : (* Enable axis group - AxisGroup transitions to Standby *)
+		pnp.tripodEnable := TRUE;
+
+		IF tripodGroup.ready THEN
+			pnp.robotState := 40;
+		END_IF;
+
+	40 : (* Wait for ring on table, then issue move to ring (PCS_1) *)
+		IF pnp.ringOnTable THEN
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+			tripodGroup.endPoint := posAboveRingPCS1;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.PCS_1;
+			tripodGroup.velocity := tripodVelocity;
+			tripodGroup.acceleration := tripodAcceleration;
+			tripodGroup.deceleration := tripodAcceleration;
+			tripodGroup.jerk := tripodJerk;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.BlendingHigh;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+			tripodGroup.transitionParameter := 500;
+			pnp.robotState := 50;
+		END_IF;
+
+	50 : (* Wait for arrival at ring *)
+		IF tripodGroup.commandExecuted THEN
+			ton(IN := FALSE); (* Reset 200 ms timer *)
+			pnp.robotState := 60;
+		END_IF;
+
+	60 : (* Wait 200 ms following the ring, then move upward *)
+		ton(IN := TRUE);
+
+		IF ton.Q THEN
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearRelative;
+			tripodGroup.endPoint.c.X := 0;
+			tripodGroup.endPoint.c.Y := 0;
+			tripodGroup.endPoint.c.Z := 150;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.WCS;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.Buffered;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+			tripodGroup.transitionParameter := 0;
+			pnp.robotState := 70;
+		END_IF;
+
+	70 : (* Queue MoveLinearAbsolute to rest (WCS), matching the sample's buffered handoff *)
+		tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+		tripodGroup.endPoint := posRestWCS;
+		tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.WCS;
+		tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.BlendingHigh;
+		tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+		tripodGroup.transitionParameter := 500;
+		pnp.robotState := 80;
+
+	80 : (* [release] wait rest-pos done; then move above cone (PCS_2) *)
+		IF tripodGroup.commandExecuted THEN
+			tripodGroup.cmd := AxisGroupCmd.Idle;
+		ELSIF tripodGroup.ready THEN
+			pnp.targetConePtr := pnp.activeConePtr;
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+			tripodGroup.endPoint := posAboveConePCS2;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.PCS_2;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+			tripodGroup.transitionParameter := 0;
+			pnp.robotState := 90;
+		END_IF;
+
+	90 : (* [release] wait above-cone done; then move down to cone (PCS_2) *)
+		IF tripodGroup.commandExecuted THEN
+			tripodGroup.cmd := AxisGroupCmd.Idle;
+		ELSIF tripodGroup.ready THEN
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+			tripodGroup.endPoint := posOnConePCS2;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.PCS_2;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+			tripodGroup.transitionParameter := 0;
+			pnp.robotState := 100;
+		END_IF;
+
+	100 : (* [release] ring placed on cone; move back above cone (PCS_2) *)
+		IF tripodGroup.commandExecuted THEN
+			tripodGroup.cmd := AxisGroupCmd.Idle;
+		ELSIF tripodGroup.ready THEN
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+			tripodGroup.endPoint := posAboveConePCS2;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.PCS_2;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.Buffered;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+			tripodGroup.transitionParameter := 0;
+			pnp.robotState := 110;
+		END_IF;
+
+	110 : (* [release] wait above-cone done; move back to rest (WCS) *)
+		IF tripodGroup.commandExecuted THEN
+			tripodGroup.cmd := AxisGroupCmd.Idle;
+		ELSIF tripodGroup.ready THEN
+			tripodGroup.cmd := AxisGroupCmd.MoveLinearAbsolute;
+			tripodGroup.endPoint := posRestWCS;
+			tripodGroup.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.WCS;
+			tripodGroup.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+			tripodGroup.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+			tripodGroup.transitionParameter := 0;
+			pnp.robotState := 120;
+		END_IF;
+
+	120 : (* [release] cycle complete; loop to state 40 *)
+		IF tripodGroup.commandExecuted THEN
+			tripodGroup.cmd := AxisGroupCmd.Idle;
+		ELSIF tripodGroup.ready THEN
+			pnp.robotState := 40;
+		END_IF;
+END_CASE;
+
+(* Mirror TCP position to shared parameters *)
+pnp.tripodActualPos := tripodGroup.actualPosition;
+
+(* Status flags (read by Ring and Cone) *)
+pnp.readyForMotion := NOT tripodGroup.groupError AND tripodGroup.status <> AxisGroupStatus.Disabled;
+pnp.ringAttached := pnp.robotState >= 70 AND pnp.robotState <= 100;
+pnp.dontChangePCS_2 := pnp.robotState >= 90 AND pnp.robotState <= 110;
+
+groupError := tripodGroup.groupError;
+groupErrorId := tripodGroup.groupErrorId;
+
+(* Auto-reset: rising edge on first scan groupError is TRUE triggers MC_GroupReset → Standby *)
+tripodGroup.reset := tripodGroup.groupError;
+
+(* Individual tripod axes *)
+tripodAxis1(
+	slave := Tripod1,
+	axisEnable := pnp.tripod1Enable,
+	cmd := tripodAxis1.cmd,
+	position := tripodAxis1.position,
+	velocity := tripodVelocity,
+	acceleration := tripodAcceleration,
+	deceleration := tripodAcceleration,
+	jerk := tripodJerk);
+
+tripodAxis2(
+	slave := Tripod2,
+	axisEnable := pnp.tripod2Enable,
+	cmd := tripodAxis2.cmd,
+	position := tripodAxis2.position,
+	velocity := tripodVelocity,
+	acceleration := tripodAcceleration,
+	deceleration := tripodAcceleration,
+	jerk := tripodJerk);
+
+tripodAxis3(
+	slave := Tripod3,
+	axisEnable := pnp.tripod3Enable,
+	cmd := tripodAxis3.cmd,
+	position := tripodAxis3.position,
+	velocity := tripodVelocity,
+	acceleration := tripodAcceleration,
+	deceleration := tripodAcceleration,
+	jerk := tripodJerk);
+
+(* Coordinated tripod group - AxisGroup.pou *)
+tripodGroup(
+	axisGroupId := 'Tripod',
+	axisGroupName := 'Tripod',
+	group := Tripod,
+	groupEnable := pnp.tripodEnable);
+
+(* Coordinate transform - called every scan so the FB processes its internal state machine *)
+setCoord(AxisGroup := Tripod);

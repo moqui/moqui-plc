@@ -1,0 +1,418 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Process PID *)
+FUNCTION_BLOCK ProcessPid
+VAR_INPUT
+    enable : BOOL; (* Master enable: if FALSE, resets the PID and clears the outputs *)
+    reset : BOOL; (* Manual reset of internal components *)
+    (* Control system metadata for logging purpose *)
+    controlSystemId : STRING;
+    controlSystemName : STRING;
+    (* The actual value of process feedback *)
+    feedback : REAL;
+    (* Defines the multiplier with which the feedback is multiplied *)
+    feedbackMultiplier : REAL := 1.0;
+    (* Setpoint. The running direction for the setpoint is determined by the sign of the setpoint itself. *)
+    setpoint : REAL;
+    (* Defines the “at setpoint” limits for output control of the device.
+     * When the difference between the setpoint and the feedback is smaller than this hysteresis,
+     * the device is considered to be “at setpoint”.
+     *)
+    atSetpointHysteresis : REAL;
+    (* Defines the multiplier with which the setpoint is multiplied *)
+    setpointMultiplier : REAL := 1.0;
+    (* Defines a minimum limit for the process PID controller setpoint *)
+    setpointMin : REAL;
+    (* Defines a maximum limit for the process PID controller setpoint *)
+    setpointMax : REAL;
+    (* Select a ramp function to increase the setpoint *)
+    setpointRampType : RampType := RampType.Linear;
+    (* Defines the minimum time it takes for the setpoint to increase from 0% to 100% *)
+    setpointIncreaseTime : TIME := T#0S;
+    (* Defines the minimum time it takes for the setpoint to decrease from 100% to 0% *)
+    setpointDecreaseTime : TIME := T#0S;
+    (* Freezes the setpoint of the process PID controller *)
+    setpointFreezeEnable : BOOL;
+    (* Inverts the input of the process PID controller.
+     * Deviation not inverted (Deviation = Setpoint - Feedback).
+     * Deviation inverted (Deviation = Feedback - Setpoint).
+     *)
+    deviationInversion : BOOL;
+    (* Defines the minimum limit for the process PID controller output. Using the minimum and maximum limits, it is possible to restrict the operation range *)
+    outputMin : REAL;
+    (* Defines the maximum limit for the process PID controller output *)
+    outputMax : REAL;
+    (* Freezes (or defines a source that can be used to freeze) the output of the process PID controller, keeping the output at the value it was before freeze was enabled.
+     * This feature can be used when, for example, a sensor providing process feedback must to be serviced without stopping the process.
+     *)
+    outputFreezeEnable : BOOL;
+    (* Defines the gain for the process PID controller *)
+    gain : REAL := 1.0;
+    (* Defines the integration time for the process PID controller.
+     * This time needs to be set to the same order of magnitude as
+     * the reaction time of the process being controlled, otherwise
+     * instability will result.
+     *)
+    integrationTime : REAL := 0.0;
+    (* The derivative component. Defines the derivation time of the process PID controller. *)
+    derivationTime : REAL := 0.0;
+    (* Offset for the output variable *)
+    offset : REAL := 0.0;
+    (* Defines a deadband around the setpoint.
+     * Whenever process feedback enters the deadband, a delay timer starts.
+     * If the feedback remains within the deadband longer than the delay (set deadband delay),
+     * the PID controller output is frozen. Normal operation resumes after the feedback value leaves the deadband.
+     *)
+    deadbandRange : REAL;
+    (* Delay for the deadband *)
+    deadbandDelay : TIME;
+    (* Defines the start limit for the sleep function. If the value is 0.0, set 1 sleep mode is disabled.
+     * The sleep function compares PID output (parameter PID output actual) to the value of this parameter.
+     * If PID output remains below this value longer than the sleep delay,
+     * the drive enters the sleep mode and stops the motor. If the value is 0.0, sleep mode is disabled.
+     *)
+    sleepLevel : REAL := 0.0;
+    (* Defines a delay before the sleep function actually becomes enabled,
+     * to prevent nuisance sleeping. The delay timer starts when the sleep mode is enabled by
+     * parameter sleep level, and resets when the sleep mode is disabled.
+     *)
+    sleepDelay : TIME;
+    (* Defines the wake-up level as deviation between process setpoint and feedback.
+     * When the deviation exceeds the value of this parameter, and remains there for
+     * the duration of the wake-up delay, the drive wakes up.
+     *)
+    wakeupDeviation : REAL;
+    (* Defines a wake-up delay for the sleep function to prevent nuisance wake-ups.
+     * The delay timer starts when the deviation exceeds the wake-up level (wake-up deviation),
+     * and resets if the deviation falls below the wake-up level.
+     *)
+    wakeupDelay : TIME;
+    (* Defines the output level forced during the sleep boost phase.
+     * If 0.0 or sleepBoostTime is T#0S, the boost phase is skipped and sleep is entered directly.
+     *)
+    sleepBoostLevel : REAL := 0.0;
+    (* Defines how long the output is held at sleepBoostLevel before entering sleep mode. *)
+    sleepBoostTime : TIME;
+    (* Activates (or selects a source that activates) tracking mode.
+     * In tracking mode, the value selected by parameter tracking reference is substituted for the PID controller output.
+     *)
+    trackingMode : BOOL := FALSE;
+    trackingRef : REAL := 0.0;
+    (* Timing *)
+    clock : BOOL; (* Tick pulse, e.g. clks.clock10ms *)
+    tickTime : TIME := T#10ms;
+    (* Optional setpoint change epsilon (avoid restart on tiny changes) *)
+    setpointEpsilon : REAL := 0.000001;
+END_VAR
+(* Process PID outputs and diagnostics *)
+VAR_OUTPUT
+    (* Displays the value of process PID feedback after processing *)
+    feedbackActual : REAL;
+    (* Displays the value of process PID setpoint after processing *)
+    setpointActual : REAL;
+    (* Displays the process PID deviation. By default, this value equals setpoint - feedback, but deviation can be inverted by parameter deviationInversion. *)
+    deviationActual : REAL;
+    (* Displays the output of the controller *)
+    outputActual : REAL;
+    (* Diagnostics. It display status information on process PID control. *)
+    invalidConfig : BOOL;
+    active, (* Indicates that the process PID has control on the device *)
+    atSetpoint, (* The device is at setpoint *)
+    zeroOutput, (* Device is at zero output *)
+    setpointFrozen, (* Process PID setpoint frozen *)
+    outputFrozen, (* Process PID controller output frozen *)
+    sleepMode, (* Sleep mode active *)
+    sleepBoost, (* Sleep boost active: output is held at sleepBoostLevel before entering sleep mode *)
+    deadband, (* Feedback value is in the deadband range *)
+    tracking, (* Tracking function active *)
+    outputLimitsActive, (* The output has exceeded the given limits outputMin, outputMax and is limited to these values *)
+    overflow : BOOL; (* Overflow in integral part *)
+    (* Logger name for the signal management *)
+    loggerName : STRING;
+END_VAR
+VAR
+    (* PID controller *)
+    pid : PID;
+    (* Deadband timer *)
+    deadbandTimer : TON;
+    (* Sleep mode timer *)
+    sleepTimer : TON;
+    (* Sleep boost timer *)
+    sleepBoostTimer : TON;
+    (* Wake-up timer *)
+    wakeupTimer : TON;
+    (* Internal setpoint and output *)
+    setpointTarget : REAL;
+    setpointInternal : REAL;
+    (* Last setpoint value *)
+    lastSetpoint : REAL;
+    lastSetpointTarget : REAL;
+    outputInternal : REAL;
+    (* Last output value *)
+    lastOutput : REAL;
+    (* For sleep decision (use last PID output to avoid cyclic dependency) *)
+    lastPidOutput : REAL;
+    (* Internal execution control *)
+    execute : BOOL;
+    manualMode : BOOL;
+    yManual : REAL;
+    sleepReq : BOOL;
+    wakeupReq : BOOL;
+    (* Reset edge handling *)
+    prevReset : BOOL;
+    resetEdge : BOOL;
+    (* Ramp generator *)
+    rampFunc : RAMP_REAL;
+    (* S-shaped function *)
+    sShapedFunc : SShapedFunc;
+    (* Exponential ramp helper (uses time constant in seconds) *)
+    expRamp : IIRFilter;
+    (* Ramp helpers *)
+    incMs, decMs : DINT;
+    incSec, decSec, spRange, ascRate, decRate : REAL;
+    (* Ramp (S-shaped / exponential) start *)
+    startRamp : BOOL;
+    expTau : REAL;
+    (* Logger facade *)
+    logger : LoggerFacade;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Master enable gate *)
+IF NOT enable THEN
+    (* If disabled, force resets and clear all outputs to zero *)
+    active := FALSE;
+    execute := FALSE;
+    outputActual := 0.0;
+    zeroOutput := TRUE;
+    atSetpoint := FALSE;
+    
+    (* Reset internal asynchronous components to prevent wind-up or jumps on re-enable *)
+    pid(reset := TRUE);
+    rampFunc(reset := TRUE);
+    deadbandTimer(IN := FALSE);
+    sleepTimer(IN := FALSE);
+    sleepBoostTimer(IN := FALSE);
+    wakeupTimer(IN := FALSE);
+    sleepMode := FALSE;
+    sleepBoost := FALSE;
+
+    RETURN; (* Stop execution *)
+END_IF;
+
+(* Args validation *)
+invalidConfig := FALSE;
+IF (controlSystemId = '' AND controlSystemName = '') THEN
+    active := FALSE;
+    execute := FALSE;
+    invalidConfig := TRUE;
+    RETURN;
+END_IF;
+
+(* Logger facade init *)
+loggerName := concat(concat(concat(controlSystemName, '['), controlSystemId), ']');
+logger.enable := TRUE; logger.loggerName := loggerName;
+
+(* Configuration parameters validation *)
+IF (integrationTime < 0) OR (derivationTime < 0) OR (gain <= 0)
+        OR (setpointMin > setpointMax) OR (outputMin > outputMax) THEN
+    logger(message := 'Invalid PID arguments detected.', level := LogLevel.Error);
+    active := FALSE;
+    execute := FALSE;
+    invalidConfig := TRUE;
+    RETURN;
+END_IF;
+
+(* Enable core logic *)
+active := TRUE;
+execute := TRUE;
+
+logger(message := 'Running process PID.', level := LogLevel.Debug);
+
+(* Reset handling *)
+resetEdge := reset AND NOT prevReset;
+prevReset := reset;
+
+IF resetEdge THEN
+    logger(message := 'Reset process PID.', level := LogLevel.Warn);
+    setpointTarget := 0; setpointInternal := 0; setpointActual := 0;
+    lastSetpoint := 0; lastSetpointTarget := 0;
+    deviationActual := 0; outputInternal := 0; outputActual := 0;
+    lastOutput := 0; lastPidOutput := 0;
+    deadbandTimer(IN := FALSE); sleepTimer(IN := FALSE); sleepBoostTimer(IN := FALSE); wakeupTimer(IN := FALSE);
+    rampFunc(reset := TRUE);
+    sShapedFunc(execute := FALSE); expRamp(execute := FALSE, reset := TRUE);
+    pid(reset := TRUE);
+    sleepMode := FALSE;
+    sleepBoost := FALSE;
+END_IF;
+
+(* Feedback processing (scaling) *)
+feedbackActual := feedback * feedbackMultiplier;
+logger(message := concat('Input feedback value ', TO_STRING(feedback)), level := LogLevel.Debug);
+logger(message := concat('Scaled feedback value ', TO_STRING(feedbackActual)), level := LogLevel.Debug);
+
+(* Setpoint processing (limit + ramp + freeze). *)
+IF setpointFreezeEnable THEN
+    logger(message := concat('Setpoint freezed at value', TO_STRING(lastSetpoint)), level := LogLevel.Debug);
+    setpointTarget := lastSetpoint;
+ELSE
+    setpointTarget := LIMIT(setpointMin, setpoint * setpointMultiplier, setpointMax);
+END_IF;
+
+(* Ramp is enabled only when both times are > 0 *)
+IF (setpointIncreaseTime > T#0S) AND (setpointDecreaseTime > T#0S) THEN
+    logger(message := 'Setpoint ramp up enabled.', level := LogLevel.Debug);
+
+    (* Detect target changes to restart the ramp generator (epsilon-based) *)
+    startRamp := (ABS(setpointTarget - lastSetpointTarget) > setpointEpsilon) OR resetEdge;
+    lastSetpointTarget := setpointTarget;
+
+    CASE setpointRampType OF
+        RampType.SShaped :
+            sShapedFunc(execute := startRamp OR sShapedFunc.busy, clock := clock,
+                startValue := lastSetpoint, endValue := setpointTarget,
+                duration := SEL(setpointTarget >= lastSetpoint, setpointDecreaseTime, setpointIncreaseTime),
+                tickTime := tickTime);
+            setpointInternal := SEL(sShapedFunc.error, sShapedFunc.output, setpointTarget);
+
+        RampType.Linear :
+            incMs := TO_DINT(setpointIncreaseTime); decMs := TO_DINT(setpointDecreaseTime);
+            incSec := MAX(0.001, TO_REAL(incMs) / 1000.0); decSec := MAX(0.001, TO_REAL(decMs) / 1000.0);
+            spRange := MAX(1.0, setpointMax - setpointMin);
+            ascRate := spRange / incSec; decRate := spRange / decSec;
+            rampFunc(in := setpointTarget, ascend := ascRate, descend := decRate,
+                timebase := tickTime, reset := resetEdge, out => setpointInternal);
+
+        RampType.Exponential :
+        	(* 
+             * Exponential ramp: use ExpFilter as a first-order approach to target.
+			 * We select a time constant tau such that the response reaches ~99% at the configured ramp time.
+			 * For a first-order system: 1 - exp(-t/tau) = 0.99 -> tau = t / 4.605
+			 *)
+            expTau := TO_REAL(TO_DINT(SEL(setpointTarget >= lastSetpoint, setpointDecreaseTime, setpointIncreaseTime))) / 4605.0; (* T / 4.605 *)
+            expRamp(execute := TRUE, clock := clock, reset := startRamp, input := setpointTarget, T := MAX(0.001, expTau), tickTime := tickTime);
+            setpointInternal := SEL(expRamp.error, expRamp.output, setpointTarget);
+    END_CASE;
+    lastSetpoint := setpointInternal;
+ELSE
+    setpointInternal := setpointTarget;
+    lastSetpoint := setpointInternal;
+    lastSetpointTarget := setpointTarget;
+END_IF;
+
+(* Update the process PID status *)
+setpointFrozen := setpointFreezeEnable;
+setpointActual := setpointInternal;
+logger(message := concat('Actual setpoint value ', TO_STRING(setpointActual)), level := LogLevel.Debug);
+
+(* Deviation and control modes *)
+(* Deviation calculation *)
+deviationActual := SEL(deviationInversion, setpointActual - feedbackActual, feedbackActual - setpointActual);
+logger(message := concat('Actual deviation value ', TO_STRING(deviationActual)), level := LogLevel.Debug);
+
+(* Deadband logic *)
+deadbandTimer(IN := (deadbandRange > 0.0) AND (ABS(deviationActual) <= deadbandRange), PT := deadbandDelay);
+deadband := deadbandTimer.Q;
+
+(*
+ * Sleep mode logic. Sleep enabled only when sleepLevel > 0.
+ * ABB semantics: compare PID output actual to sleepLevel and wait sleepDelay.
+ * We use lastPidOutput (one-cycle delayed) to avoid a cyclic dependency.
+ * This is acceptable because sleep has a delay timer.
+ *)
+sleepReq := (sleepLevel > 0.0) AND (lastPidOutput <= sleepLevel) AND (NOT sleepMode) AND (NOT sleepBoost) AND (NOT trackingMode);
+sleepTimer(IN := sleepReq, PT := sleepDelay);
+
+(* Wake-up logic *)
+wakeupReq := (wakeupDeviation > 0.0) AND (ABS(deviationActual) >= wakeupDeviation) AND sleepMode;
+wakeupTimer(IN := wakeupReq, PT := wakeupDelay);
+
+IF sleepTimer.Q THEN
+    sleepTimer(IN := FALSE);
+    IF (sleepBoostLevel > 0.0) AND (sleepBoostTime > T#0S) THEN
+        logger(message := 'Sleep boost started.', level := LogLevel.Debug);
+        sleepBoost := TRUE;
+    ELSE
+        logger(message := 'Sleep mode enabled.', level := LogLevel.Debug);
+        sleepMode := TRUE;
+    END_IF;
+END_IF;
+
+(* Sleep boost timer: hold sleepBoostLevel for sleepBoostTime, then enter sleep *)
+sleepBoostTimer(IN := sleepBoost, PT := sleepBoostTime);
+IF sleepBoostTimer.Q THEN
+    logger(message := 'Sleep boost completed. Entering sleep mode.', level := LogLevel.Debug);
+    sleepBoost := FALSE;
+    sleepBoostTimer(IN := FALSE);
+    sleepMode := TRUE;
+END_IF;
+
+IF wakeupTimer.Q THEN
+    logger(message := 'Sleep mode disabled. Wakeup the PID.', level := LogLevel.Debug);
+    sleepMode := FALSE;
+    (* Reset sleep timer once awake (prevents immediate re-sleep) *)
+    sleepTimer(IN := FALSE);
+END_IF;
+
+(* PID calculation and output gating *)
+(* Priority (substitution/freeze functions): Tracking > SleepBoost > Sleep > Deadband > Freeze *)
+tracking := FALSE; manualMode := FALSE;
+yManual := lastOutput;
+
+IF trackingMode THEN
+    logger(message := 'Tracking mode enabled.', level := LogLevel.Debug);
+    tracking := TRUE; manualMode := TRUE; yManual := trackingRef;
+    sleepTimer(IN := FALSE);
+    sleepBoost := FALSE; sleepBoostTimer(IN := FALSE);
+ELSIF sleepBoost THEN
+    manualMode := TRUE; yManual := sleepBoostLevel;
+ELSIF sleepMode THEN
+    manualMode := TRUE; yManual := 0.0;
+ELSIF deadband THEN
+    logger(message := 'Deadband enabled.', level := LogLevel.Debug);
+    manualMode := TRUE; yManual := lastOutput;
+ELSE
+    manualMode := outputFreezeEnable;
+    yManual := lastOutput;
+END_IF;
+
+(* Core PID execution *)
+pid(actual := feedbackActual, set_point := setpointActual, kp := gain, tn := integrationTime, tv := derivationTime,
+    y_manual := yManual, y_offset := offset, y_min := outputMin, y_max := outputMax,
+    manual := manualMode, reset := resetEdge, y => outputInternal,
+    limits_active => outputLimitsActive, overflow => overflow);
+
+IF overflow THEN
+    logger(message := 'PID overflow. Resetting the integral part.', level := LogLevel.Error);
+END_IF;
+
+IF outputLimitsActive THEN
+    logger(message := 'Output limits active.', level := LogLevel.Debug);
+END_IF;
+
+(* Update ABB-like output reference for sleep decision *)
+lastPidOutput := outputInternal;
+
+(* Apply final output substitution rules consistent with selected mode *)
+outputActual := outputInternal;
+logger(message := concat('Actual output value ', TO_STRING(outputActual)), level := LogLevel.Debug);
+
+outputFrozen := outputFreezeEnable OR deadband;
+zeroOutput := (ABS(outputActual) < setpointEpsilon);
+lastOutput := outputActual;
+IF zeroOutput THEN
+	logger(message := 'PID output to zero', level := LogLevel.Debug);
+END_IF;
+
+IF ABS(deviationActual) < atSetpointHysteresis THEN
+		logger(message := 'PID at setpoint.', level := LogLevel.Debug);
+    atSetpoint := TRUE;
+ELSE
+    atSetpoint := FALSE;
+END_IF;

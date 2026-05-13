@@ -1,0 +1,20 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(* Constants are defined to represent the different speed levels required by a motor.
+ * Alternatively, the speed setpoint/reference can be defined as a continuous analog output.
+ * It is possible to apply the same logic to other variables such as:
+ *     acceleration/deceleration, torque, etc.
+ *)
+TYPE SpeedSetpointLevel : (
+	ZeroSpeed := 0,
+	NominalSpeed,
+	MinSpeed,
+	MaxSpeed,
+	JoggingSpeed,
+	SafelyLimitedSpeed
+	(* etc. *)
+); END_TYPE

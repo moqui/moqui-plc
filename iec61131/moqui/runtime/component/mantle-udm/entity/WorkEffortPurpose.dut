@@ -1,0 +1,13 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE WorkEffortPurpose : (
+	Production := 0,
+    Prototype,
+	Test,
+	Safety
+	(* etc. *)
+); END_TYPE

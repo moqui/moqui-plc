@@ -1,0 +1,20 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+FUNCTION toByteArray : BOOL
+VAR_INPUT
+    inputWord : WORD;
+END_VAR
+VAR_OUTPUT
+	byteArray : ARRAY [0..1] OF BYTE; (* Output array: [highByte, lowByte] *)
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+toByteArray := FALSE;
+(* Extract high and low byte *)
+byteArray[0] := TO_BYTE(SHR(inputWord, 8)); (* High byte *)
+byteArray[1] := TO_BYTE(inputWord AND 16#00FF); (* Low byte *)
+toByteArray := TRUE;

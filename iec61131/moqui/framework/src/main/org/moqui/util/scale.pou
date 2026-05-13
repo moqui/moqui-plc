@@ -1,0 +1,26 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+FUNCTION scale : REAL
+VAR_INPUT
+	inputValue: REAL;
+	minInputValue: REAL;
+	maxInputValue: REAL;
+	minOutputValue: REAL;
+	maxOutputValue: REAL;
+END_VAR
+VAR
+	outputValue: REAL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+IF maxInputValue <= minInputValue THEN
+	outputValue := minOutputValue;
+ELSE
+    outputValue := (maxOutputValue - minOutputValue) / (maxInputValue - minInputValue)
+		* (LIMIT(minInputValue, inputValue, maxInputValue) - minInputValue) + minOutputValue;
+END_IF;
+scale := outputValue;

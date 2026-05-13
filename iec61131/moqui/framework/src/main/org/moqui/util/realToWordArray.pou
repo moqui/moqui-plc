@@ -1,0 +1,25 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Convert a real variable to a word array *)
+FUNCTION realToWordArray : ARRAY[0..1] OF WORD
+VAR_INPUT
+    value : REAL;
+    bigEndian : BOOL := FALSE;
+END_VAR
+VAR
+    dwordValue : DWORD;
+    result : ARRAY[0..1] OF WORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+dwordValue := TO_DWORD(value);
+IF bigEndian THEN
+    dwordValue := swapDWordEndian(dwordValue);
+END_IF;
+result[0] := TO_WORD(SHR(dwordValue, 16));
+result[1] := TO_WORD(dwordValue AND 16#FFFF);
+realToWordArray := result;

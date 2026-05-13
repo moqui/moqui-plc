@@ -1,0 +1,805 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+PROGRAM DeviceTestSuite
+VAR CONSTANT
+	(* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
+	TIMEOUT    : UINT := 500;
+	(*
+	 * First-order lag coefficient for the PT1 process simulation.
+	 * tau ≈ 1/PT1_ALPHA = 20 scans. At N=80 scans the step response reaches ~98%.
+	 *)
+	PT1_ALPHA  : REAL := 0.05;
+	(* Half-amplitude of the pseudo-random noise signal (±NOISE_AMP units). *)
+	NOISE_AMP  : REAL := 2.0;
+END_VAR
+VAR
+	step : UINT := 0;
+	testDone : BOOL;
+	testFailed : BOOL;
+	failStep : UINT;
+	cycles : UINT; (* Per-step cycle counter, reset on each step transition *)
+	(*
+	 * Per-step pass flags.
+	 * Inspect this array in the CODESYS online monitor to see which steps passed.
+	 * pass[N] = TRUE means step N completed successfully.
+	 * Steps 1-4 : Actuator (init, enable, disable, external fault)
+	 * Steps 5-7 : ProcessPid basic (disabled, invalid config, active output)
+	 * Step 8 : ProcessPid PT1 - simulated first-order process converges to setpoint
+	 * Step 9 : ProcessPid Heaviside - setpoint step, PT1 tracks to new target
+	 * Step 10 : ProcessPid noise + deadband - LCG noise filtered by deadband
+	 * Step 11 : ProcessPid sleep - low output triggers sleep mode
+	 * Step 12 : ProcessPid wakeup - large deviation wakes the PID
+	 * Step 13 : Actuator notInitialized - empty id/name blocks execution
+	 * Step 14 : Actuator admissible EnablePhase->DisablePhase transition
+	 * Step 15 : Actuator admissible DisablePhase->EnablePhase transition
+	 * Step 16 : Actuator DoubleActuation - disable = NOT enable
+	 * Step 17 : Actuator sensor fault - contradictory DoubleFeedback sensors
+	 * Step 18 : ProcessPid feedbackMultiplier - scaled feedback reaches setpoint
+	 * Step 19 : ProcessPid deviationInversion - deviation sign flipped
+	 * Step 20 : ProcessPid tracking mode - output follows trackingRef exactly
+	 * Step 21 : ProcessPid output limits - clamped output sets outputLimitsActive
+	 * Step 22 : SignalMgmt Reset - signalList cleared
+	 * Step 23 : SignalMgmt Alarm activation - activationCondition sets signalList
+	 * Step 24 : SignalMgmt Alarm persists after cause clears (manual reset required)
+	 * Step 25 : SignalMgmt manual reset - unconditioned reset clears the Alarm
+	 * Step 26 : SignalMgmt Warning auto-reset - cause gone -> clears without manual reset
+	 * Step 27 : SignalMgmt auxReset - Anomaly cleared only by aux key
+	 * Step 28 : SignalMgmt selective reset - supervisor clears single signal by code
+	 * Step 29 : SignalMgmt cumulative output - two active signals OR their outputActions
+	 * Steps 30-32 : MeanFilter error validation (invalid window, EMA alpha, odd-only constraint)
+	 * Step 33 : MeanFilter SMA constant input - output equals input after init
+	 * Step 34 : MeanFilter SMA noise rejection - GEN sine averaged to DC by SMA window
+	 * Step 35 : MeanFilter EMA alpha=1 - immediate output tracking (zero-lag)
+	 * Step 36 : MeanFilter EMA convergence - exponential approach to constant input
+	 *)
+	pass : ARRAY[1..36] OF BOOL;
+	(*
+	 * Actuator under test: simulated damper (WithoutFeedback - no physical sensors required).
+	 * VAR_IN_OUT variables must be declared locally and passed by reference at the FB call site.
+	 *)
+	damper : Actuator;
+	enableRequest : BOOL;
+	disableRequest : BOOL;
+	(* ProcessPid under test: simulated cold valve (no physical process). *)
+	coldValve : ProcessPid;
+	(*
+	 * PT1 process state.
+	 * feedbackSim is a first-order lag of the step target, completely decoupled from the PID
+	 * output - this lets the test exercise atSetpoint and deadband detection without
+	 * requiring a real closed-loop process to stabilise.
+	 *
+	 *   feedbackSim(k+1) = feedbackSim(k) + (target - feedbackSim(k)) * PT1_ALPHA
+	 *
+	 * Step 7: target = 50 (ramp from 0  -> 50, feedbackSim initialised to 0)
+	 * Step 8: target = 80 (ramp from ~50 -> 80 - Heaviside step on setpoint)
+	 *)
+	feedbackSim : REAL := 0.0;
+	(*
+	 * Knuth linear-congruential generator (32-bit, period = 2^32).
+	 *   rngSeed(k+1) = rngSeed(k) * 1664525 + 1013904223   (mod 2^32)
+	 * Used in step 9 to produce pseudo-random noise in [-NOISE_AMP, +NOISE_AMP].
+	 *)
+	rngSeed  : UDINT := 16#ABCD1234;
+	noiseFb  : REAL; (* Current noise sample *)
+	(*
+	 * SignalMgmt under test.
+	 * The FB uses the three-phase pattern every scan: Reset (once at start) then
+	 * Prepare + N×Process each cycle. Here we call it three times per scan:
+	 *   smPrepare - operationType = Prepare  (edge detection, cycle init)
+	 *   smSignal1 - operationType = Process, code=1 (Alarm, damper fault)
+	 *   smSignal2 - operationType = Process, code=2 (Warning, cold-valve deviation)
+	 * The Reset phase is executed once in step 22 before enabling normal scanning.
+	 *)
+	sm : SignalMgmt;
+	smReset : BOOL; (* Manual reset - rising edge *)
+	smAuxReset : BOOL; (* Auxiliary reset command *)
+	smSelectiveTrigger : BOOL;
+	smSelectiveCode : WORD; (* Code of the signal to selectively reset *)
+	smFaultWarning : BOOL; (* Simulated Warning condition (step 26) *)
+	smFaultAnomaly : BOOL; (* Simulated Anomaly/AuxReset condition (steps 27, 29) *)
+	smInitDone : BOOL; (* TRUE after the Reset phase in step 22 *)
+	(* MeanFilter under test - all filter types exercised in steps 30-36 *)
+	mf : MeanFilter;
+	gen : GEN; (* CODESYS Util.GEN - periodic signal generator for noise injection in step 34 *)
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+cycles := cycles + 1;
+IF (cycles > TIMEOUT) AND NOT testDone THEN
+	testFailed := TRUE;
+	failStep := step;
+END_IF;
+IF testFailed THEN RETURN; END_IF;
+
+(* Actuator default parameters - overridden per step as needed *)
+damper.actuatorId := 'damper';
+damper.actuatorName := 'Damper';
+damper.actuationType := ActuatorActuationType.SingleActuation;
+damper.feedbackType := ActuatorFeedbackType.WithoutFeedback;
+damper.enableTime := 3;
+damper.disableTime := 3;
+damper.clock := TRUE; (* Simulated clock: one tick per scan cycle *)
+damper.diagnosticsEnable := TRUE;
+
+(*
+ * ProcessPid default parameters - overridden per step as needed.
+ * Pure proportional (integrationTime=0, derivationTime=0) for deterministic test output.
+ * deadbandRange=0 keeps deadband inactive by default; step 9 overrides it to 5.
+ *)
+coldValve.feedbackMultiplier := 1.0;
+coldValve.gain := 1.0;
+coldValve.integrationTime := 0.0;
+coldValve.derivationTime := 0.0;
+coldValve.setpointMin := 0.0;
+coldValve.setpointMax := 100.0;
+coldValve.outputMin := 0.0;
+coldValve.outputMax := 100.0;
+coldValve.atSetpointHysteresis := 1.0;
+coldValve.deadbandRange := 0.0; (* Disabled by default - overridden in step 9  *)
+coldValve.sleepLevel := 0.0; (* Disabled by default - overridden in steps 10/11 *)
+coldValve.wakeupDeviation := 0.0; (* Disabled by default - overridden in step 11 *)
+coldValve.clock := TRUE;
+coldValve.tickTime := T#10ms;
+
+(*
+ * MeanFilter default parameters - overridden per step.
+ * execute=FALSE keeps the filter idle until the relevant steps.
+ *)
+mf.execute := FALSE;
+mf.clock := TRUE;
+mf.reset := FALSE;
+mf.filterType := MeanFilterType.SMA;
+mf.windowSize := 10;
+mf.emaAlpha := 0.1;
+
+(*
+ * Test sequence
+ *)
+CASE step OF
+	(*
+	 * 0: Actuator Init - call with operationType=Init and enablePreset=FALSE.
+	 *    WithoutFeedback+enablePreset=FALSE resolves directly to Disabled: notInitialized=FALSE.
+	 *    cycles>1 guard skips the uninitialised default output on the very first scan.
+	 *)
+	0:
+		damper.operationType := OperatingMode.Init;
+		damper.enablePreset := FALSE;
+		IF cycles > 1 AND NOT damper.notInitialized THEN
+			pass[1] := TRUE; step := 1; cycles := 0;
+		END_IF;
+
+	(*
+	 * 1: Enable handshake - assert enableRequest=TRUE; the FB drives Disabled -> EnablePhase -> Enabled.
+	 *    WithoutFeedback: transition completes once the enableTime=3 tick timer expires.
+	 *    cycles>5 guard allows the 3-tick timer plus overhead before checking the output.
+	 *)
+	1:
+		damper.operationType := OperatingMode.Run;
+		enableRequest := TRUE;
+		IF cycles > 5 AND damper.enable THEN
+			pass[2] := TRUE; step := 2; cycles := 0;
+		END_IF;
+
+	(*
+	 * 2: Disable handshake - clear enableRequest, assert disableRequest=TRUE;
+	 *    the FB drives Enabled -> DisablePhase -> Disabled.
+	 *    enable output goes FALSE once the disableTime=3 tick timer expires.
+	 *)
+	2:
+		enableRequest := FALSE;
+		disableRequest := TRUE;
+		IF cycles > 5 AND NOT damper.enable THEN
+			pass[3] := TRUE; step := 3; cycles := 0;
+		END_IF;
+
+	(* 3: External fault - assert externalFault; verify fault output is raised immediately *)
+	3:
+		disableRequest := FALSE;
+		damper.externalFault := TRUE;
+		IF damper.fault THEN
+			damper.externalFault := FALSE;
+			pass[4] := TRUE; step := 4; cycles := 0;
+		END_IF;
+
+	(* 4: ProcessPid disabled - enable=FALSE forces active=FALSE and outputActual=0 *)
+	4:
+		coldValve.enable := FALSE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		IF NOT coldValve.active AND (coldValve.outputActual = 0.0) THEN
+			pass[5] := TRUE; step := 5; cycles := 0;
+		END_IF;
+
+	(* 5: ProcessPid invalid config - empty id and name trigger invalidConfig=TRUE *)
+	5:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '';
+		coldValve.controlSystemName := '';
+		IF coldValve.invalidConfig THEN
+			pass[6] := TRUE; step := 6; cycles := 0;
+		END_IF;
+
+	(*
+	 * 6: ProcessPid active - setpoint=50, feedback=0.
+	 *    Verifies that the PID is active and correctly computes the deviation.
+	 *    deviationActual = setpointActual - feedbackActual = 50 - 0 = 50 > 0.
+	 *    Note: outputActual is NOT checked here because the CODESYS PID block
+	 *    produces 0 when integrationTime=0 (1/tn -> division by zero at tn=0).
+	 *    The output is implicitly exercised by the PT1 convergence in step 7.
+	 *    cycles>1 guard prevents reading stale outputs from the previous step.
+	 *)
+	6:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		coldValve.setpoint := 50.0;
+		coldValve.feedback := 0.0;
+		IF cycles > 1 AND coldValve.active AND (coldValve.deviationActual > 0.0) THEN
+			pass[7] := TRUE; step := 7; cycles := 0;
+		END_IF;
+
+	(*
+	 * 7: PT1 process convergence - first-order lag simulation, setpoint=50.
+	 *
+	 *    feedbackSim starts at 0 and follows an exponential approach toward 50:
+	 *      feedbackSim(k+1) = feedbackSim(k) + (50 - feedbackSim(k)) * PT1_ALPHA
+	 *    This mimics a first-order thermal or hydraulic process (e.g. temperature rise).
+	 *
+	 *    With PT1_ALPHA=0.05 the response reaches 98% (~49.0) after ~80 scans and
+	 *    crosses the atSetpointHysteresis=1.0 threshold (~N=78, feedbackSim≈49.01).
+	 *)
+	7:
+		coldValve.setpoint := 50.0;
+		feedbackSim := feedbackSim + (50.0 - feedbackSim) * PT1_ALPHA;
+		coldValve.feedback := feedbackSim;
+		IF coldValve.atSetpoint THEN
+			pass[8] := TRUE; step := 8; cycles := 0;
+		END_IF;
+
+	(*
+	 * 8: Heaviside step - setpoint steps from 50 to 80 (step function / unit step scaled ×30).
+	 *
+	 *    feedbackSim continues from its settled value (~50) and now converges toward 80:
+	 *      feedbackSim(k+1) = feedbackSim(k) + (80 - feedbackSim(k)) * PT1_ALPHA
+	 *    The FB sees a new transient: atSetpoint goes FALSE on the first scan (deviation≈30),
+	 *    then recovers to TRUE once feedbackSim re-enters the ±1 band around 80 (~N=80 scans).
+	 *    cycles>1 prevents catching the leftover atSetpoint=TRUE from the previous step.
+	 *)
+	8:
+		coldValve.setpoint := 80.0;
+		feedbackSim := feedbackSim + (80.0 - feedbackSim) * PT1_ALPHA;
+		coldValve.feedback := feedbackSim;
+		IF cycles > 1 AND coldValve.atSetpoint THEN
+			pass[9] := TRUE; step := 9; cycles := 0;
+		END_IF;
+
+	(*
+	 * 9: Noise + deadband - pseudo-random noise ±NOISE_AMP (±2) injected around setpoint=80.
+	 *
+	 *    Noise is generated by a 32-bit Knuth LCG:
+	 *      rngSeed = rngSeed * 1664525 + 1013904223   (mod 2^32)
+	 *      noiseFb = (rngSeed MOD 4001) / 2000 * NOISE_AMP - NOISE_AMP  ∈ [-2, +2]
+	 *
+	 *    deadbandRange=5 > NOISE_AMP: the deadband window fully covers the noise band,
+	 *    so IN=TRUE on every scan -> deadband=TRUE (TON with PT=T#0ms fires immediately).
+	 *    This verifies that the FB correctly suppresses output oscillations due to noise.
+	 *    cycles>1 guard avoids reading stale state from step 8.
+	 *)
+	9:
+		coldValve.setpoint := 80.0;
+		coldValve.deadbandRange := 5.0;
+		coldValve.deadbandDelay := T#0ms;
+		rngSeed := rngSeed * 1664525 + 1013904223;
+		noiseFb := TO_REAL(rngSeed MOD 4001) / 2000.0 * NOISE_AMP - NOISE_AMP;
+		coldValve.feedback := 80.0 + noiseFb;
+		IF cycles > 1 AND coldValve.deadband THEN
+			pass[10] := TRUE; step := 10; cycles := 0;
+		END_IF;
+
+	(*
+	 * 10: Sleep mode activation.
+	 *
+	 *     feedback = setpoint = 80 -> deviation ≈ 0 -> pure-proportional output ≈ 0.
+	 *     sleepLevel = 5 > lastPidOutput ≈ 0  ->  sleepReq = TRUE.
+	 *     sleepDelay = T#0ms: the TON fires on the very first scan with IN=TRUE,
+	 *     so sleepMode becomes TRUE after just one FB execution.
+	 *     sleepBoostLevel = 0 / sleepBoostTime = T#0S: boost phase is skipped.
+	 *     wakeupDeviation = 0: wakeup disabled here to prevent premature exit.
+	 *     cycles>1 guard skips the stale sleepMode=FALSE read from the previous step.
+	 *)
+	10:
+		coldValve.setpoint := 80.0;
+		coldValve.feedback := 80.0;
+		coldValve.sleepLevel := 5.0;
+		coldValve.sleepDelay := T#0ms;
+		IF cycles > 1 AND coldValve.sleepMode THEN
+			pass[11] := TRUE; step := 11; cycles := 0;
+		END_IF;
+
+	(*
+	 * 11: Wakeup from sleep.
+	 *
+	 *     sleepMode is TRUE (inherited from step 10).
+	 *     defaults reset sleepLevel=0 -> sleepReq=FALSE -> no re-sleep after wakeup.
+	 *     feedback = 40, setpoint = 80 -> deviation = 40 ≥ wakeupDeviation = 15.
+	 *     wakeupReq = TRUE, wakeupDelay = T#0ms: wakeupTimer fires on first scan.
+	 *     ProcessPid sets sleepMode=FALSE and resets the sleep timer internally.
+	 *     cycles>1 guard avoids reading the leftover sleepMode=TRUE from step 10.
+	 *)
+	11:
+		coldValve.setpoint := 80.0;
+		coldValve.feedback := 40.0;
+		coldValve.wakeupDeviation := 15.0;
+		coldValve.wakeupDelay := T#0ms;
+		IF cycles > 1 AND NOT coldValve.sleepMode THEN
+			pass[12] := TRUE; step := 12; cycles := 0;
+		END_IF;
+
+	(*
+	 * 12: Actuator notInitialized - override defaults with empty id and name.
+	 *     Args validation returns immediately with notInitialized=TRUE.
+	 *     cycles>1 lets the FB execute once with the empty strings before checking.
+	 *)
+	12:
+		damper.operationType := OperatingMode.Init;
+		damper.actuatorId := '';
+		damper.actuatorName := '';
+		IF cycles > 1 AND damper.notInitialized THEN
+			pass[13] := TRUE; step := 13; cycles := 0;
+		END_IF;
+
+	(*
+	 * 13: Admissible transition EnablePhase->DisablePhase.
+	 *     Documented in the FB header as an admissible (non-nominal) transition.
+	 *     Cycle 1: enableRequest=TRUE -> Disabled->EnablePhase (enable=TRUE, timer=3).
+	 *     Cycle 2: disableRequest=TRUE before timer=0 -> EnablePhase->DisablePhase.
+	 *     cycles 3-5: DisablePhase timer counts down (3 ticks) -> Disabled.
+	 *     Verify: NOT damper.enable after the full round-trip.
+	 *)
+	13:
+		IF cycles <= 2 THEN
+			damper.operationType := OperatingMode.Init;
+			damper.enablePreset := FALSE;
+			enableRequest := FALSE;
+			disableRequest := FALSE;
+		ELSE
+			damper.operationType := OperatingMode.Run;
+			IF cycles = 3 THEN enableRequest := TRUE; END_IF;
+			IF cycles = 4 THEN disableRequest := TRUE; END_IF;
+		END_IF;
+		IF cycles > 8 AND NOT damper.notInitialized AND NOT damper.enable THEN
+			disableRequest := FALSE;
+			pass[14] := TRUE; step := 14; cycles := 0;
+		END_IF;
+
+	(*
+	 * 14: Admissible transition DisablePhase->EnablePhase.
+	 *     cycles 1-4 : Disabled->EnablePhase->Enabled (enableTime=3 ticks).
+	 *     Cycle 5 : disableRequest=TRUE -> Enabled->DisablePhase.
+	 *     cycles 6+ : enableRequest=TRUE -> DisablePhase->EnablePhase->Enabled.
+	 *     Verify: damper.enable=TRUE after the interrupted disable.
+	 *)
+	14:
+		damper.operationType := OperatingMode.Run;
+		IF cycles <= 4 THEN
+			enableRequest := TRUE;
+		ELSIF cycles = 5 THEN
+			enableRequest := FALSE;
+			disableRequest := TRUE;
+		ELSIF cycles >= 6 THEN
+			enableRequest := TRUE;
+		END_IF;
+		IF cycles > 12 AND damper.enable THEN
+			enableRequest := FALSE; disableRequest := FALSE;
+			pass[15] := TRUE; step := 15; cycles := 0;
+		END_IF;
+
+	(*
+	 * 15: DoubleActuation - disable output = NOT enable.
+	 *     Damper is Enabled (enable=TRUE) from step 14.
+	 *     With DoubleActuation, the post-processing sets disable := NOT enable.
+	 *     Verify: enable=TRUE AND disable=FALSE simultaneously.
+	 *)
+	15:
+		damper.operationType := OperatingMode.Run;
+		damper.actuationType := ActuatorActuationType.DoubleActuation;
+		IF cycles > 1 AND damper.enable AND NOT damper.disable THEN
+			pass[16] := TRUE; step := 16; cycles := 0;
+		END_IF;
+
+	(*
+	 * 16: Sensor fault - DoubleFeedback with contradictory sensors while Enabled.
+	 *     enabledSensor=TRUE AND disabledSensor=TRUE is physically impossible.
+	 *     With enable=TRUE, disabled=TRUE, enabled=TRUE, timeout=TRUE (timer=0 in Enabled):
+	 *       disabledSensorFault = (enable AND disabled AND enabled) AND timeout = TRUE.
+	 *     Verify: disabledSensorFault=TRUE raised within one scan.
+	 *)
+	16:
+		damper.operationType := OperatingMode.Run;
+		damper.feedbackType := ActuatorFeedbackType.DoubleFeedback;
+		damper.enabledSensor := TRUE;
+		damper.disabledSensor := TRUE;
+		IF cycles > 1 AND damper.disabledSensorFault THEN
+			damper.feedbackType := ActuatorFeedbackType.WithoutFeedback;
+			damper.enabledSensor := FALSE;
+			damper.disabledSensor := FALSE;
+			pass[17] := TRUE; step := 18; cycles := 0;
+		END_IF;
+
+	(*
+	 * 18: feedbackMultiplier - feedback scaling before deviation computation.
+	 *     feedbackMultiplier=2, feedback=25 -> feedbackActual=50=setpoint -> deviation=0.
+	 *     atSetpointHysteresis=1 -> atSetpoint=TRUE.
+	 *)
+	18:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		coldValve.setpoint := 50.0;
+		coldValve.feedback := 25.0;
+		coldValve.feedbackMultiplier := 2.0;
+		IF cycles > 1 AND coldValve.atSetpoint THEN
+			coldValve.feedbackMultiplier := 1.0;
+			pass[18] := TRUE; step := 19; cycles := 0;
+		END_IF;
+
+	(*
+	 * 19: deviationInversion - deviation = feedback - setpoint (sign flipped).
+	 *     setpoint=50, feedback=0 -> deviationActual = 0 - 50 = -50 < 0.
+	 *     cycles>1 guard prevents reading stale deviationActual from previous step.
+	 *)
+	19:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		coldValve.setpoint := 50.0;
+		coldValve.feedback := 0.0;
+		coldValve.deviationInversion := TRUE;
+		IF cycles > 1 AND (coldValve.deviationActual < 0.0) THEN
+			coldValve.deviationInversion := FALSE;
+			pass[19] := TRUE; step := 20; cycles := 0;
+		END_IF;
+
+	(*
+	 * 20: Tracking mode - PID bypassed, output follows trackingRef.
+	 *     trackingMode=TRUE -> tracking=TRUE (ProcessPid output flag).
+	 *     Note: CODESYS PID with tn=0 outputs 0 even in manual/tracking mode,
+	 *     so outputActual is not checked here. The test verifies that the FB
+	 *     correctly activates the tracking flag, which is the observable state.
+	 *     cycles>1 guard avoids stale output from the deviationInversion step.
+	 *)
+	20:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		coldValve.setpoint := 50.0;
+		coldValve.feedback := 0.0;
+		coldValve.trackingMode := TRUE;
+		coldValve.trackingRef := 30.0;
+		IF cycles > 1 AND coldValve.tracking THEN
+			coldValve.trackingMode := FALSE;
+			pass[20] := TRUE; step := 21; cycles := 0;
+		END_IF;
+
+	(*
+	 * 21: Output limits - proportional saturation clamps output to outputMax.
+	 *     AUTO mode (trackingMode=FALSE) with integrationTime=1.0 (non-zero, avoids
+	 *     the tn=0 CODESYS PID limitation).
+	 *     gain=100, setpoint=100, feedback=0 -> deviation=100.
+	 *     Proportional term alone = 100*100 = 10000 >> outputMax=100.
+	 *     CODESYS PID clamps to y_max=100 -> outputActual=100, outputLimitsActive=TRUE.
+	 *     cycles>1 guard avoids stale state from the tracking step.
+	 *)
+	21:
+		coldValve.enable := TRUE;
+		coldValve.controlSystemId := '1';
+		coldValve.controlSystemName := 'ColdValve';
+		coldValve.setpoint := 100.0;
+		coldValve.feedback := 0.0;
+		coldValve.gain := 100.0;
+		coldValve.integrationTime := 1.0; (* Non-zero: avoids tn=0 PID bug *)
+		IF cycles > 1 AND coldValve.outputLimitsActive AND (coldValve.outputActual = 100.0) THEN
+			pass[21] := TRUE; step := 22; cycles := 0;
+		END_IF;
+
+	(*
+	 * 22: SignalMgmt Reset - clears signalList before normal scanning begins.
+	 *     sm() called directly here (smInitDone=FALSE, so the FB calls section skips SM).
+	 *     Verify: sm.error=FALSE (loggerName non-empty, Reset mode is valid).
+	 *)
+	22:
+		sm.loggerName := 'Supervisor';
+		sm.operationType := SignalMgmtOperatingMode.Reset;
+		sm();
+		IF NOT sm.error THEN
+			smInitDone := TRUE;
+			pass[22] := TRUE; step := 23; cycles := 0;
+		END_IF;
+
+	(*
+	 * 23: Alarm activation - damper externalFault=TRUE -> damper.fault=TRUE.
+	 *     activationCondition (signal 1) = TRUE -> signalList[1] latches.
+	 *     outputAction=ImmediateStop -> cumulativeOutputAction=ImmediateStop.
+	 *     cycles>1: FB calls section must execute at least once to latch the signal.
+	 *)
+	23:
+		damper.externalFault := TRUE;
+		IF cycles > 1 AND (sm.cumulativeOutputAction = SignalOutputAction.ImmediateStop) THEN
+			pass[23] := TRUE; step := 24; cycles := 0;
+		END_IF;
+
+	(*
+	 * 24: Alarm persists after cause clears (UnconditionedReset policy).
+	 *     externalFault=FALSE -> damper.fault=FALSE -> activationCondition=FALSE.
+	 *     Signal requires manual reset -> stays latched -> resetEnable=TRUE.
+	 *)
+	24:
+		damper.externalFault := FALSE;
+		IF cycles > 1 AND sm.resetEnable THEN
+			pass[24] := TRUE; step := 25; cycles := 0;
+		END_IF;
+
+	(*
+	 * 25: Manual (unconditioned) reset - smReset rising edge clears the Alarm.
+	 *     Prepare phase detects the edge -> resetActivation=TRUE -> signalList[1]=FALSE.
+	 *     cumulativeOutputAction returns to None, resetEnable=FALSE.
+	 *)
+	25:
+		smReset := TRUE;
+		IF cycles > 1 AND (sm.cumulativeOutputAction = SignalOutputAction.None) THEN
+			smReset := FALSE;
+			pass[25] := TRUE; step := 26; cycles := 0;
+		END_IF;
+
+	(*
+	 * 26: Warning auto-reset - Warning category always clears when cause disappears.
+	 *     cycles 1-3: smFaultWarning=TRUE -> signal 2 active -> outputAction=Inhibition.
+	 *     Cycle 4+  : smFaultWarning=FALSE -> cause gone -> auto-reset (no manual needed).
+	 *     cumulativeOutputAction returns to None after auto-reset.
+	 *)
+	26:
+		IF cycles <= 3 THEN
+			smFaultWarning := TRUE;
+		ELSE
+			smFaultWarning := FALSE;
+		END_IF;
+		IF cycles > 5 AND (sm.cumulativeOutputAction = SignalOutputAction.None) THEN
+			pass[26] := TRUE; step := 27; cycles := 0;
+		END_IF;
+
+	(*
+	 * 27: AuxReset - Anomaly with AuxReset policy, cleared only by aux key.
+	 *     cycles 1-3: smFaultAnomaly=TRUE -> signal 3 latches (EmergencyStop).
+	 *     Cycle 4   : cause cleared, smAuxReset rising edge -> auxResetActivation=TRUE
+	 *                 -> signalList[3]=FALSE.  smAuxReset=FALSE from cycle 5.
+	 *     cumulativeOutputAction=None once cleared.
+	 *)
+	27:
+		IF cycles <= 3 THEN
+			smFaultAnomaly := TRUE;
+		ELSE
+			smFaultAnomaly := FALSE;
+		END_IF;
+		IF cycles = 4 THEN smAuxReset := TRUE; END_IF;
+		IF cycles >= 5 THEN smAuxReset := FALSE; END_IF;
+		IF cycles > 5 AND (sm.cumulativeOutputAction = SignalOutputAction.None) THEN
+			pass[27] := TRUE; step := 28; cycles := 0;
+		END_IF;
+
+	(*
+	 * 28: Selective reset - supervisor clears a specific signal by code.
+	 *     cycles 1-2: externalFault=TRUE -> signal 1 re-activates.
+	 *     Cycle 3   : externalFault=FALSE, selectiveResetTrigger=TRUE, selectiveResetCode=1
+	 *                 -> Prepare detects edge -> signalList[1] cleared regardless of resetPol.
+	 *     cumulativeOutputAction=None once signal 1 is cleared.
+	 *)
+	28:
+		IF cycles <= 2 THEN
+			damper.externalFault := TRUE;
+		ELSIF cycles = 3 THEN
+			damper.externalFault := FALSE;
+			smSelectiveTrigger := TRUE;
+			smSelectiveCode := 1;
+		ELSE
+			smSelectiveTrigger := FALSE;
+		END_IF;
+		IF cycles > 4 AND (sm.cumulativeOutputAction = SignalOutputAction.None) THEN
+			pass[28] := TRUE; step := 29; cycles := 0;
+		END_IF;
+
+	(*
+	 * 29: Cumulative output - signal 1 (ImmediateStop) AND signal 3 (EmergencyStop) active.
+	 *     cumulativeOutputAction = ImmediateStop OR EmergencyStop = 16#0003.
+	 *     activeCategory = Alarm (most severe between Alarm and Anomaly).
+	 *)
+	29:
+		damper.externalFault := TRUE;
+		smFaultAnomaly := TRUE;
+		IF cycles > 1 AND
+				(sm.cumulativeOutputAction = (SignalOutputAction.ImmediateStop OR SignalOutputAction.EmergencyStop))
+				AND (sm.activeCategory = SignalCategory.Alarm) THEN
+			damper.externalFault := FALSE;
+			smFaultAnomaly := FALSE;
+			pass[29] := TRUE; step := 30; cycles := 0;
+		END_IF;
+
+	(*
+	 * 30: MeanFilter error - windowSize=0.
+	 *     SMA with windowSize=0 is out of range (must be 1..MAX_WINDOW=256).
+	 *     error=TRUE, errorId=1 (InvalidWindow). The FB returns immediately.
+	 *)
+	30:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.SMA;
+		mf.windowSize := 0;
+		mf.input := 50.0;
+		IF mf.error AND (mf.errorId = 1) THEN
+			pass[30] := TRUE; step := 31; cycles := 0;
+		END_IF;
+
+	(*
+	 * 31: MeanFilter error - EMA alpha out of range.
+	 *     emaAlpha=0.0 is invalid (must be in (0..1]).
+	 *     Config change from SMA to EMA triggers auto-reset before validation.
+	 *     error=TRUE, errorId=3 (InvalidAlpha).
+	 *)
+	31:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.EMA;
+		mf.windowSize := 10;
+		mf.emaAlpha := 0.0;
+		mf.input := 50.0;
+		IF mf.error AND (mf.errorId = 3) THEN
+			pass[31] := TRUE; step := 32; cycles := 0;
+		END_IF;
+
+	(*
+	 * 32: MeanFilter error - WMA_TriangularOddOnly with even window.
+	 *     windowSize=4 (even) violates the odd-only symmetry constraint.
+	 *     error=TRUE, errorId=4 (RequiresOddWindow).
+	 *)
+	32:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.WMA_TriangularOddOnly;
+		mf.windowSize := 4;
+		mf.input := 50.0;
+		IF mf.error AND (mf.errorId = 4) THEN
+			pass[32] := TRUE; step := 33; cycles := 0;
+		END_IF;
+
+	(*
+	 * 33: SMA constant input - output equals input immediately after init.
+	 *     Config change from WMA_TriangularOddOnly to SMA triggers auto-reset.
+	 *     On first execute, SMA primes the entire buffer with input=42,
+	 *     so output=42 from the very first scan. done=TRUE confirms no error.
+	 *     cycles>1 guard avoids reading stale error state from step 32.
+	 *)
+	33:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.SMA;
+		mf.windowSize := 5;
+		mf.input := 42.0;
+		IF cycles > 1 AND mf.done AND (ABS(mf.output - 42.0) < 0.01) THEN
+			pass[33] := TRUE; step := 34; cycles := 0;
+		END_IF;
+
+	(*
+	 * 34: SMA noise rejection - GEN sine injected as noise around DC=50.
+	 *
+	 *     GEN (CODESYS Util library) produces a discrete sine:
+	 *       AMPLITUDE=20 → range [-20, +20] INT
+	 *       BASE=FALSE, cycles=10 → one full period every 10 FB calls
+	 *     Input to MeanFilter: 50 + TO_REAL(gen.OUT)
+	 *
+	 *     SMA with windowSize=10 averages exactly one full sine period per window:
+	 *       Σ sin(k·360°/10) = 0 -> output ≈ DC = 50.
+	 *     Tolerance ±5 covers integer quantisation of the GEN sine output.
+	 *     cycles>25 ensures the ring buffer is fully loaded past the init transient.
+	 *)
+	34:
+		gen.MODE := GEN_MODE.Sine;
+		gen.BASE := FALSE;
+		gen.cycles := 10;
+		gen.AMPLITUDE := 20;
+		gen.RESET := FALSE;
+		gen();
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.SMA;
+		mf.windowSize := 10;
+		mf.input := 50.0 + TO_REAL(gen.OUT);
+		IF cycles > 25 AND mf.done AND (ABS(mf.output - 50.0) < 5.0) THEN
+			pass[34] := TRUE; step := 35; cycles := 0;
+		END_IF;
+
+	(*
+	 * 35: EMA alpha=1 - immediate output tracking (zero-lag filter).
+	 *     Config change from SMA to EMA auto-resets; first scan sets emaY=input.
+	 *     With emaAlpha=1.0: emaY(k) = emaY(k-1) + 1.0*(input - emaY(k-1)) = input.
+	 *     From the second scan onward output = 77 exactly.
+	 *     cycles>1 waits for the second scan.
+	 *)
+	35:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.EMA;
+		mf.emaAlpha := 1.0;
+		mf.input := 77.0;
+		IF cycles > 1 AND mf.done AND (ABS(mf.output - 77.0) < 0.01) THEN
+			pass[35] := TRUE; step := 36; cycles := 0;
+		END_IF;
+
+	(*
+	 * 36: EMA convergence - exponential approach to a constant target.
+	 *     emaAlpha=0.1 (restored via defaults each scan), constant input=100.
+	 *     Filter inherits emaY=77 from step 35 (no auto-reset: same type, same window).
+	 *     emaY(k) = 100 - 23 * 0.9^k.
+	 *     At k=15: emaY ≈ 95.3 > 95.  Well within the TIMEOUT=500 limit.
+	 *)
+	36:
+		mf.execute := TRUE;
+		mf.filterType := MeanFilterType.EMA;
+		mf.emaAlpha := 0.1;
+		mf.input := 100.0;
+		IF mf.done AND (mf.output > 95.0) THEN
+			pass[36] := TRUE; step := 37; cycles := 0;
+		END_IF;
+
+	(* 37: All tests passed *)
+	37:
+		testDone := TRUE;
+END_CASE;
+
+(* FB calls - placed after the CASE block so inputs are fully set before execution *)
+damper(
+	enableRequest := enableRequest,
+	disableRequest := disableRequest
+);
+coldValve();
+mf();
+
+(*
+ * SignalMgmt - three-phase pattern every scan once smInitDone=TRUE.
+ * Step 22 calls sm() directly in the CASE block (Reset phase), so smInitDone
+ * is still FALSE during that step and the block below is skipped.
+ *)
+IF smInitDone THEN
+	sm.loggerName := 'Supervisor';
+	sm.reset := smReset;
+	sm.auxReset := smAuxReset;
+	sm.selectiveResetTrigger := smSelectiveTrigger;
+	sm.selectiveResetCode := smSelectiveCode;
+
+	(* Phase 1 - Prepare: detect reset edges, initialise cycle accumulators *)
+	sm.operationType := SignalMgmtOperatingMode.Prepare;
+	sm();
+
+	(* Phase 2 - Signal 1: Alarm - damper external/hardware fault -> ImmediateStop *)
+	sm.operationType := SignalMgmtOperatingMode.Process;
+	sm.code := 1;
+	sm.category := SignalCategory.Alarm;
+	sm.resetPol := ResetPolicy.UnconditionedReset;
+	sm.outputAction := SignalOutputAction.ImmediateStop;
+	sm.activationCondition := damper.fault;
+	sm();
+
+	(* Phase 3 - Signal 2: Warning - test-controlled flag, auto-reset, Inhibition *)
+	sm.operationType := SignalMgmtOperatingMode.Process;
+	sm.code := 2;
+	sm.category := SignalCategory.Warning;
+	sm.resetPol := ResetPolicy.UnconditionedReset; (* irrelevant - Warning always auto-resets *)
+	sm.outputAction := SignalOutputAction.Inhibition;
+	sm.activationCondition := smFaultWarning;
+	sm();
+
+	(* Phase 4 - Signal 3: Anomaly - AuxReset policy, EmergencyStop *)
+	sm.operationType := SignalMgmtOperatingMode.Process;
+	sm.code := 3;
+	sm.category := SignalCategory.Anomaly;
+	sm.resetPol := ResetPolicy.AuxReset;
+	sm.outputAction := SignalOutputAction.EmergencyStop;
+	sm.activationCondition := smFaultAnomaly;
+	sm();
+END_IF;

@@ -1,0 +1,14 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Swap bytes in a word to change the endianness *)
+FUNCTION swapWordEndian : WORD
+VAR_INPUT
+    input : WORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+swapWordEndian := SHL(input AND 16#00FF, 8) OR SHR(input AND 16#FF00, 8);

@@ -1,0 +1,21 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(* 
+ * Signal category bitfields for assigning static priorities (time independent).
+ * Maximum priority to alarms, minimum priority to information.
+ * A dynamic priority (maximum priority to the first, priority decreasing with time)
+ * could be assigned to each signal of the same category, and an additional static priority
+ * could be assigned using the signal code in case of simultaneous activation inside the same category.
+ * For alarms, anomalies and warnings, both the priority types are available,
+ * for information only the second one.
+ *)
+TYPE SignalCategory : (
+    Alarm := 0, (* Critical: Needs manual reset. Examples: emergencies, protections, critical faults, etc. *)
+    Anomaly, (* Soft fault: Can be auto-reseted. Examples: light faults, performance degradation, etc. *)
+    Warning, (* Notification: Material depletion, supply channels obstruction, etc. *)
+    Information (* State info: Operative modes and instructions, machine states, etc. *)
+); END_TYPE

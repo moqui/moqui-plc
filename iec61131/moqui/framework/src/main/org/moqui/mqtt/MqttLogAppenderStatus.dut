@@ -1,0 +1,13 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MqttLogAppenderStatus : (
+    Idle,
+	BuildJson,
+	Serialize,
+	Publish,
+	WaitAck
+); END_TYPE

@@ -1,0 +1,161 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(*
+ * DeviceFacade implementation for managing devices and logical parameters.
+ *
+ * Naming rules:
+ *   deviceName + parameterName or parameterName → logical signal
+ *   deviceName + parameterName or parameterName + Min/Max → limits
+ *
+ * All digital signals (boolean) are active-high (positive logic).
+ * All durations are expressed in seconds TUnit.
+ *)
+TYPE DeviceFacade : STRUCT
+	(* HVAC process control parameters (setpoints, limits, etc.) and process sensor signals *)
+    (* Cell T+RH sensor  *)
+    (* Setpoints and limits - mapped from recipe *)
+    tempSetpoint : REAL; (* °C target process temperature *)
+    tempHysteresis : REAL; (* °C symmetric hysteresis band *)
+    tempMin : REAL;   (* °C absolute lower limit (alarm) *)
+    tempMax : REAL; (* °C absolute upper limit (alarm) *)
+    rhSetpoint : REAL; (* %  target relative humidity *)
+    rhHysteresis : REAL; (* %  symmetric hysteresis band *)
+    rhMin : REAL; (* % lower limit *)
+    rhMax : REAL; (* % upper limit *)
+    (* Core / surface probes - optional, used for thawing phases *)
+    tempCoreSetpoint : REAL;
+    tempCoreHysteresis : REAL;
+    tempSurfaceSetpoint : REAL;
+    tempSurfaceHysteresis : REAL;
+    tempSurfaceMax : REAL;
+
+    (* Feedback - wired from InputSignalUpdate each scan *)
+    tempFeedback : REAL; (* °C cell air temperature *)
+    rhFeedback : REAL; (* % cell relative humidity *)
+    tempCoreFeedback : REAL; (* °C product core temperature *)
+    tempSurfaceFeedback : REAL; (* °C product surface temperature *)
+
+    (* Duct T+RH sensor (probe in the pipes) *)
+    (* Limits - mapped from recipe or fixed commissioning values *)
+    ductTempMin : REAL; (* °C minimum safe supply-air temperature *)
+    ductTempMax : REAL; (* °C maximum safe supply-air temperature *)
+    ductRhMax : REAL; (* % maximum allowed supply-air humidity *)
+    (* Feedback - wired from InputSignalUpdate each scan *)
+    ductTempFeedback : REAL; (* °C supply-air temperature in duct *)
+    ductRhFeedback : REAL; (* % supply-air relative humidity in duct *)
+
+    (* Boolean predicates - computed each scan by DeviceRuleEngine *)
+    (* Cell sensor *)
+    tempInRange : BOOL; (* tempMin+hys ≤ T ≤ tempMax-hys *)
+    tempAtSetpoint : BOOL; (* |T - Tsp| ≤ hys *)
+    tempOverMax : BOOL; (* T > tempMax *)
+    tempOverMin : BOOL; (* T > tempMin *)
+    tempUnderMin : BOOL; (* T < tempMin *)
+    tempUnderMax : BOOL; (* T < tempMax *)
+    tempCoreAtSetpoint : BOOL;
+    tempSurfaceAtSetpoint : BOOL;
+    tempSurfaceOverMax : BOOL;
+    tempSurfaceUnderMax : BOOL;
+    rhAtSetpoint : BOOL;
+    rhOverMax  : BOOL; (* RH > rhMax - hys *)
+    rhUnderMin : BOOL; (* RH < rhMin + hys *)
+    rhOverMin : BOOL;
+    rhUnderMax : BOOL;
+    (* Duct sensor - safety predicates *)
+    ductTempOverMax : BOOL; (* Supply air too hot → product at risk  *)
+    ductTempUnderMin : BOOL; (* Supply air too cold → product at risk  *)
+    ductRhOverMax : BOOL; (* Supply air saturated → condensation risk *)
+
+    (* Operating-mode flags and process timing (mapped from recipe). *)
+    rhControlEnabled : BOOL; (* Cooling+Heating both active for RH ctrl *)
+    rhControlOnly : BOOL; (* Stop when RH ≤ rhMin regardless of time *)
+    tempCoreControlEnabled : BOOL; (* Use core probe for thawing end-of-phase *)
+    airMixingEnabled : BOOL;
+    (* Process cycle durations (seconds) *)
+    processEstimatedDuration : UDINT;
+    processMinDuration : UDINT;
+    processActualDuration : UDINT;
+    processRemainingDuration : UDINT;
+    (* Process time tracking *)
+    (* Run / break cycle - phase 4 *)
+    estimatedRuntime : UDINT;
+    minRuntime : UDINT;
+    actualRuntime : UDINT;
+    estimatedBreakDuration : UDINT;
+    minBreakDuration : UDINT;
+    actualBreakDuration : UDINT;
+    (* Air mixing sub-cycle *)
+    airMixingEstimatedDuration : UDINT;
+    airMixingMinDuration : UDINT;
+    airMixingActualDuration : UDINT;
+    airMixingEstimatedBreakDuration : UDINT;
+    airMixingMinBreakDuration : UDINT;
+    airMixingActualBreakDuration : UDINT;
+    (* Flags *)
+    (*
+     * For operations based on equalization phases, rest/recovery periods are used,
+     * during which moisture is evenly redistributed between the core
+     * and the surface of the product after an intense drying phase (pulling). 
+     *)
+    timeBreakEnabled : BOOL; (* TRUE while in break period *)
+    isCompleted : BOOL; (* TRUE when the work effort is finished *)
+
+    (* Main FSM state and transition request/acknowledge commands *)
+    status : MainStatus := MainStatus.Standby;
+    lastStatus : MainStatus := MainStatus.Standby;
+    (* 
+     * Internally generated transition requests (set by DeviceRuleEngine,
+     * consumed and cleared by Main.pou each scan)
+     *)
+    standbyRequest : BOOL;
+    ventilationRequest : BOOL;
+    coolingRequest : BOOL;
+    heatingRequest : BOOL;
+    dryingRequest : BOOL;
+    surfaceThawingRequest : BOOL;
+    coreThawingRequest : BOOL;
+    faultRequest : BOOL;
+    resetRequest : BOOL;
+
+    (* HVAC devices *)
+
+    (* Cold glycol group *)
+    (* Enable/disable requests: written by Main component, read by DeviceManager *)
+    coldGroupEnableRequest : BOOL;
+    coldGroupDisableRequest : BOOL;
+    (* Glycol circulating pump - on/off Actuator *)
+    coldGlycolPump : Actuator;
+    (* Modulating glycol valve - continuous PID control *)
+    coldGlycolValve : ProcessPid;
+
+    (* Hot glycol group *)
+    hotGroupEnableRequest : BOOL;
+    hotGroupDisableRequest : BOOL;
+    hotGlycolPump : Actuator;
+    hotGlycolValve : ProcessPid;
+
+    (* AHU fan *)
+    ahuFanEnableRequest : BOOL;
+    (* Speed setpoint (0.0 … 100.0 %) - from recipe *)
+    ahuFanSpeedSetpoint : REAL;
+    (* Speed feedback (0.0 … 100.0 %) - from InputSignalUpdate *)
+    ahuFanSpeedFeedback : REAL;
+    ahuFan : ProcessPid;
+
+    (* Air-flow distributor *)
+    (* Treated as Actuator with additional ref/feedback.
+     * The drive alternates air distribution between left and right ducts.
+     * ref = time-split setpoint (0-100 %, 0 = full left, 100 = full right).
+     * feedback = actual drive speed feedback.
+	 *)
+    airFlowEnableRequest : BOOL;
+    airFlowDisableRequest : BOOL;
+    airFlowRef : REAL; (* duty-cycle / distribution setpoint *)
+    airFlowSpeedFeedback : REAL; (* drive speed feedback *)
+    airFlow : Actuator;
+
+    (* Signal management - centralised fault / alarm / warning engine *)
+    signalMgmt : SignalMgmt;
+END_STRUCT END_TYPE

@@ -1,0 +1,28 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+(* Internal FSM state. Not exposed to callers. *)
+TYPE AxisGroupInternalStatus : (
+    NotPowered := 0,
+    Enabling, (* MC_GroupEnable called, waiting for Done *)
+    Standby, (* Group enabled, ready to dispatch commands *)
+    MoveLinearAbsoluteState, (* MC_MoveLinearAbsolute executing *)
+    CheckLinearAbsoluteState, (* Done - watching for target change or new command *)
+    MoveLinearRelativeState, (* MC_MoveLinearRelative executing *)
+    CheckLinearRelativeState,
+    MoveCircularAbsoluteState, (* MC_MoveCircularAbsolute executing *)
+    CheckCircularAbsoluteState,
+    MoveCircularRelativeState, (* MC_MoveCircularRelative executing *)
+    CheckCircularRelativeState,
+    MoveDirectAbsoluteState, (* MC_MoveDirectAbsolute executing (no vel/acc inputs) *)
+    CheckDirectAbsoluteState,
+    MoveDirectRelativeState, (* MC_MoveDirectRelative executing (no vel/acc inputs) *)
+    CheckDirectRelativeState,
+    HaltState, (* MC_GroupHalt executing - abortable by new motion command *)
+    StoppingState, (* MC_GroupStop executing - level-driven, NOT abortable *)
+    WaitReset, (* MC_GroupReset executing - exits GroupErrorStop *)
+    Error (* Group in error; waiting for reset rising edge *)
+); END_TYPE

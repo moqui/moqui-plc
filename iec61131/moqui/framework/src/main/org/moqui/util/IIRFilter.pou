@@ -1,0 +1,81 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+FUNCTION_BLOCK IIRFilter
+VAR_INPUT
+    execute : BOOL;
+    clock : BOOL;
+    reset : BOOL;
+    input : REAL;
+    T : REAL; (* Time constant in seconds *)
+    tickTime : TIME := T#10ms; (* Sampling period *)
+END_VAR
+VAR_OUTPUT
+    output : REAL;
+    done : BOOL;
+    busy : BOOL;
+    error : BOOL;
+    errorId : INT; (* 1 : InvalidTime *)
+    timeElapsed : REAL; (* Time elapsed in seconds *)
+END_VAR
+VAR
+    init : BOOL;
+    elapsedTicks : UDINT;
+    deltaTime : REAL;
+    alpha : REAL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Defaults *)
+done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
+
+(* Validate tickTime *)
+IF TO_DINT(tickTime) <= 0 THEN
+    error := execute;
+    errorId := 1;
+    busy := FALSE;
+    RETURN;
+END_IF;
+
+deltaTime := TO_REAL(TO_DINT(tickTime)) / 1000.0; (* seconds per tick *)
+
+IF reset THEN
+    init := FALSE;
+    elapsedTicks := 0;
+END_IF;
+
+IF execute THEN
+    busy := TRUE;
+
+    (* Initialize output to current input on first enable *)
+    IF NOT init THEN
+        output := input;
+        init := TRUE;
+        elapsedTicks := 0;
+    ELSE
+        (* Update only on external tick *)
+        IF clock THEN
+            (* alpha = 1 - exp(-dt/T) *)
+            IF T > 0.0 THEN
+                alpha := 1.0 - EXP(-deltaTime / T);
+                output := output + alpha * (input - output);
+            ELSE
+                output := input;
+            END_IF;
+
+            elapsedTicks := elapsedTicks + 1;
+        END_IF;
+    END_IF;
+
+    timeElapsed := TO_REAL(elapsedTicks) * deltaTime;
+
+    done := NOT error;
+ELSE
+    busy := FALSE;
+    done := FALSE;
+    timeElapsed := 0.0;
+END_IF;

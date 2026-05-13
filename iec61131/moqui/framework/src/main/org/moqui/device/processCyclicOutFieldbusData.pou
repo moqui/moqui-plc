@@ -1,0 +1,102 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Mapping of basic actuator outputs to bits of the fieldbus control word *) 
+FUNCTION processCyclicOutFieldbusData : BOOL
+VAR_INPUT
+	model : ActuatorModel;
+	fieldbus : FieldbusProtocol;
+	enable : BOOL;
+	disable : BOOL;
+	reset : BOOL;
+	(* 
+	 * Declare this enum only if you use finite set of levels for the speed setpoint or reference.
+	 * They could be mapped to the drive's control word user bits.
+	 * The same approach can be used for other drive parameters such as frequency,
+     * acceleration/deceleration, torque, estimated position, etc... based on available user bits.
+	 *)
+	(* speedSetpoint : SpeedSetpointLevel := SpeedSetpointLevel.ZeroSpeed; *)
+END_VAR
+VAR_OUTPUT
+	controlWord : WORD;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+processCyclicOutFieldbusData := FALSE;
+
+IF enable THEN
+	CASE model OF
+		ActuatorModel.ABBACH580 :
+			controlWord := TO_WORD(DriveControlWord.ABBACH580Start);
+		ActuatorModel.CTM700 :
+			controlWord := TO_WORD(DriveControlWord.CTM600Start);
+		ActuatorModel.DanfossFc102 :
+			controlWord := TO_WORD(DriveControlWord.DanfossFC102Start);
+		ELSE
+			RETURN;		
+	END_CASE;
+ELSE
+	CASE model OF
+		ActuatorModel.ABBACH580 :
+			controlWord := TO_WORD(DriveControlWord.ABBACH580Stop);
+		ActuatorModel.CTM700 :
+			controlWord := TO_WORD(DriveControlWord.CTM600Stop);
+		ActuatorModel.DanfossFc102 :
+			controlWord := TO_WORD(DriveControlWord.DanfossFC102Stop);
+		ELSE
+			RETURN;
+	END_CASE;
+END_IF;
+
+IF reset THEN
+	CASE model OF
+		ActuatorModel.ABBACH580 :
+			controlWord := TO_WORD(DriveControlWord.ABBACH580Reset);
+		ActuatorModel.CTM700 :
+			controlWord := TO_WORD(DriveControlWord.CTM600Reset);
+		ActuatorModel.DanfossFc102 :
+			controlWord := TO_WORD(DriveControlWord.DanfossFC102Reset);
+		ELSE
+			RETURN;	
+	END_CASE;
+END_IF;
+
+(*
+(*
+ * Example of speed selection for drive with finite set of levels for speed.
+ * Use index access to change the drive's control word user bits (see below).
+ * It is possible to apply the same logic to other variables such as:
+ *     frequency, acceleration/deceleration, torque, estimated position, etc.
+ *)
+CASE speedSetpoint OF
+	SpeedSetpointLevel.ZeroSpeed :
+		controlWord.12 := 0;
+		controlWord.13 := 0;
+		controlWord.14 := 0;
+	SpeedSetpointLevel.MinSpeed :
+		controlWord.12 := 1;
+		controlWord.13 := 0;
+		controlWord.14 := 0;
+	SpeedSetpointLevel.NominalSpeed :
+		controlWord.12 := 0;
+		controlWord.13 := 1;
+		controlWord.14 := 0;
+	SpeedSetpointLevel.MaxSpeed : 
+		controlWord.12 := 1;
+		controlWord.13 := 1;
+		controlWord.14 := 0;
+	SpeedSetpointLevel.JoggingSpeed :
+		controlWord.12 := 0;
+		controlWord.13 := 0;
+		controlWord.14 := 1;
+	SpeedSetpointLevel.SafelyLimitedSpeed :
+		controlWord.12 := 1;
+		controlWord.13 := 0;
+		controlWord.14 := 1;
+END_CASE;
+*)
+
+processCyclicOutFieldbusData := TRUE;

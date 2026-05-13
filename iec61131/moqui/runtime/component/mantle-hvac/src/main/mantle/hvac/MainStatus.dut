@@ -1,0 +1,16 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MainStatus : (
+	Standby := 0,
+    Ventilation,
+    Cooling,
+    Heating,
+	Drying,
+	SurfaceThawing,
+	CoreThawing,
+    Fault
+); END_TYPE

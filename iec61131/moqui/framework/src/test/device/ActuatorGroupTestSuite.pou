@@ -1,0 +1,673 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+PROGRAM ActuatorGroupTestSuite
+VAR CONSTANT
+    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
+    TIMEOUT : UINT := 2000;
+END_VAR
+VAR
+    grp : ActuatorGroup;
+
+    (* Shared handshake arrays - passed as VAR_IN_OUT to grp.
+     * grp writes TRUE to enReq[i] / disReq[i] to command a start or stop.
+     * The actuator simulator below clears the flag as its acknowledgement,
+     * mirroring the real Actuator FB handshake without requiring physical hardware.
+     * Faulted / interlocked actuators do not acknowledge - simulating a physical
+	 * trip where the device cannot respond.
+     *)
+    enReq : ARRAY[1..8] OF BOOL;
+    disReq : ARRAY[1..8] OF BOOL;
+
+    (* Simulated per-actuator state - wired to grp VAR_INPUT arrays *)
+    actEnabled : ARRAY[1..8] OF BOOL;
+    actFault : ARRAY[1..8] OF BOOL;
+    actInterlocked : ARRAY[1..8] OF BOOL;
+    actRunHours : ARRAY[1..8] OF REAL;
+
+    (* Group configuration inputs *)
+    cfgActNum : UINT  := 1;
+    cfgMinRun : UINT  := 1;
+    cfgMaxRun : UINT  := 1;
+    cfgDemand : REAL := 0.0;
+    (* startPoints[k]: demand threshold to add the (k+1)-th actuator while
+     * exactly k are running (k = 0 → startPoints[0] starts the first unit).
+     *)
+    cfgStartPts : ARRAY[0..7] OF REAL;
+    (*
+	 * stopPoints[k]:  demand threshold below which the (k+1)-th running
+     * actuator is stopped (k = 0 → stopPoints[0] removes the last unit).
+     *)
+    cfgStopPts : ARRAY[0..7] OF REAL;
+    cfgStartDly : TIME := T#0s;
+    cfgStopDly : TIME := T#0s;
+    cfgAutoChange : ActuatorGroupAutochange := ActuatorGroupAutochange.None;
+    cfgAutoChangeInt : TIME := T#1H;
+    cfgMaxWear : REAL := 72.0;
+    cfgAutoChangeLevel : REAL := 100.0;
+    cfgAutoChangeTrig   : BOOL;
+
+    (* Group command inputs *)
+    cmdEnable : BOOL;
+    cmdDisable : BOOL;
+
+    (* Test infrastructure *)
+    step : UINT := 0;
+    cycles : UINT;
+    testDone : BOOL;
+    testFailed : BOOL;
+    failStep : UINT;
+    (*
+     * testReset - write TRUE in the online monitor to restart the test from scratch.
+     * Clears all persistent state that would otherwise survive a warm PLC download.
+     * The flag self-clears after one cycle.
+     *)
+    testReset : BOOL;
+
+    (*
+     * Per-step pass flags.
+     * Inspect this array in the CODESYS online monitor to see which steps passed.
+     * pass[N] = TRUE means step N completed successfully.
+     *
+     * pass[1] : invalidConfig detected when actuatorNum = 0
+     * pass[2] : groupEnable refused when nAvailable < minRunning
+     * pass[3] : fault-recovery path starts first actuator (runningNum 0 → 1)
+     * pass[4] : groupDisable transitions Running → Stopping → Disabled
+     * pass[5] : demand-driven start via startPoints[0] (minRunning = 0)
+     * pass[6] : demand staging 1 → 2 actuators via startPoints[1]
+     * pass[7] : demand de-staging 2 → 1 actuators via stopPoints[1]
+     * pass[8] : AllStopped autochange rotates sortedIdx across a stop / re-enable
+     * pass[9] : FixedInterval autochange enters and exits Autochange state
+     * pass[10] : ExternalTrigger autochange on rising edge of autochangeTrigger
+     * pass[11] : EvenWear autochange triggers on run-hour imbalance
+     * pass[12] : fault recovery immediately starts a standby (no startDelay wait)
+     *)
+    pass : ARRAY[1..12] OF BOOL;
+
+    (* Diagnostic mirrors - inspect in online monitor after testFailed *)
+    grpStatus : ActuatorGroupStatus;
+    grpInvalidConfig : BOOL;
+    grpRunningNum : UINT;
+    grpAvailableNum : UINT;
+    grpUnderMinimum : BOOL;
+    grpDegraded : BOOL;
+    grpAutochangeActive : BOOL;
+
+    (* Autochange observation latches *)
+    (*
+     * acWasActive: set TRUE on the first cycle autochangeActive goes TRUE.
+     * acCompleted: set TRUE when autochangeActive returns to FALSE after
+     *              having been TRUE. Both are reset in each test-group setup
+     *              step to avoid false positives from earlier tests.
+     *)
+    acWasActive : BOOL;
+    acCompleted : BOOL;
+
+    i : UINT;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* 
+ * Actuator simulator.
+ * Runs BEFORE ActuatorGroup each cycle, mirroring the real Actuator FB handshake.
+ * When grp writes enableRequest or disableRequest for an actuator,
+ * the simulator acknowledges by updating actEnabled and clearing the request flag.
+ *
+ * Faulted or interlocked actuators are unresponsive: they neither start
+ * nor stop on request.  The caller is responsible for managing actFault
+ * and actInterlocked to simulate hardware trips and maintenance locks.
+ *
+ * IMPORTANT: call this BEFORE grp() so that actEnabled[] reflects the
+ * current cycle's acknowledged state when grp evaluates it.
+ *)
+FOR i := 1 TO 8 DO
+    IF NOT actFault[i] AND NOT actInterlocked[i] THEN
+        IF enReq[i]  THEN actEnabled[i] := TRUE; enReq[i] := FALSE; END_IF;
+        IF disReq[i] THEN actEnabled[i] := FALSE; disReq[i] := FALSE; END_IF;
+    END_IF;
+END_FOR;
+
+(* 
+ * ActuatorGroup call.
+ * All configuration and command inputs are held in cfg* / cmd* variables
+ * and updated in the test-sequence CASE block below.
+ *)
+grp(
+    actuatorGroupId := 'ActuatorGroupTest',
+    actuatorGroupName := 'ActuatorGroupTest',
+    enableRequests := enReq,
+    disableRequests := disReq,
+    actuatorNum := cfgActNum,
+    minRunning := cfgMinRun,
+    maxRunning := cfgMaxRun,
+    demandSetpoint := cfgDemand,
+    startPoints := cfgStartPts,
+    stopPoints := cfgStopPts,
+    startDelay := cfgStartDly,
+    stopDelay := cfgStopDly,
+    autochange := cfgAutoChange,
+    autochangeInterval := cfgAutoChangeInt,
+    maxWearImbalance := cfgMaxWear,
+    autochangeLevel := cfgAutoChangeLevel,
+    autochangeTrigger := cfgAutoChangeTrig,
+    actuatorEnabled := actEnabled,
+    actuatorFault := actFault,
+    actuatorInterlocked := actInterlocked,
+    runHours := actRunHours,
+    groupEnable := cmdEnable,
+    groupDisable := cmdDisable
+);
+
+(* Diagnostic mirrors *)
+grpStatus := grp.status;
+grpInvalidConfig := grp.invalidConfig;
+grpRunningNum := grp.runningNum;
+grpAvailableNum := grp.availableNum;
+grpUnderMinimum := grp.underMinimum;
+grpDegraded := grp.degraded;
+grpAutochangeActive := grp.autochangeActive;
+
+(* Autochange observation latches *)
+IF grpAutochangeActive THEN
+    acWasActive := TRUE;
+END_IF;
+IF acWasActive AND NOT grpAutochangeActive THEN
+    acCompleted := TRUE;
+END_IF;
+
+(* Watchdog *)
+IF NOT testDone AND NOT testFailed THEN
+    cycles := cycles + 1;
+    IF cycles > TIMEOUT THEN
+        testFailed := TRUE;
+        failStep   := step;
+    END_IF;
+END_IF;
+
+(* Manual reset *)
+IF testReset THEN
+    testReset := FALSE;
+    step := 0;
+    cycles := 0;
+    testDone := FALSE;
+    testFailed := FALSE;
+    failStep := 0;
+
+    FOR i := 1 TO 12 DO pass[i] := FALSE; END_FOR;
+
+    FOR i := 1 TO 8  DO
+        enReq[i] := FALSE; disReq[i] := FALSE;
+        actEnabled[i] := FALSE; actFault[i] := FALSE;
+        actInterlocked[i] := FALSE; actRunHours[i] := 0.0;
+    END_FOR;
+
+    cmdEnable := FALSE;
+    cmdDisable := FALSE;
+    acWasActive := FALSE;
+    acCompleted := FALSE;
+END_IF;
+
+(* Test sequence *)
+CASE step OF
+(* 
+ * Step 0 - Initialise all shared state and set configuration defaults.
+ *          Runs once at cold start; also reached via testReset.
+ *)
+0 :
+    FOR i := 1 TO 8 DO
+        enReq[i] := FALSE; disReq[i] := FALSE;
+        actEnabled[i] := FALSE; actFault[i] := FALSE;
+        actInterlocked[i] := FALSE; actRunHours[i] := 0.0;
+    END_FOR;	
+    cmdEnable := FALSE;
+    cmdDisable := FALSE;
+    cfgActNum := 1; cfgMinRun := 1; cfgMaxRun := 1;
+    cfgDemand := 0.0;
+    cfgStartDly := T#0s; cfgStopDly := T#0s;
+    cfgAutoChange := ActuatorGroupAutochange.None;
+    cfgAutoChangeInt := T#1H;
+    cfgMaxWear := 72.0; cfgAutoChangeLevel := 100.0;
+    cfgAutoChangeTrig := FALSE;
+    FOR i := 0 TO 7 DO cfgStartPts[i] := 0.0; cfgStopPts[i] := 0.0; END_FOR;
+    acWasActive := FALSE; acCompleted := FALSE;
+    step := 1; cycles := 0;
+
+(*
+ * Step 1 - invalidConfig: actuatorNum = 0 must assert invalidConfig
+ *          and keep status = Disabled regardless of groupEnable.
+ *)
+1 :
+    cfgActNum := 0;
+    cmdEnable := TRUE;
+    IF grpInvalidConfig AND grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdEnable := FALSE;
+        cfgActNum := 1; (* Restore valid configuration *)
+        pass[1] := TRUE;
+        step := 2; cycles := 0;
+    END_IF;
+
+(* ════════════════════════════════════════════════════════════════════
+ * Step 2 - groupEnable refused when availableNum < minRunning.
+ *          Both actuators are faulted → nAvailable = 0 < minRunning = 2.
+ *          The group must remain in Disabled after at least 3 cycles
+ *          with groupEnable held TRUE.
+ *)
+2 :
+    cfgActNum := 2; cfgMinRun := 2; cfgMaxRun := 2;
+    actFault[1] := TRUE; actFault[2] := TRUE;
+    cmdEnable := TRUE;
+    IF cycles >= 3 AND grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdEnable  := FALSE;
+        actFault[1] := FALSE; actFault[2] := FALSE;
+        pass[2] := TRUE;
+        step := 3; cycles := 0;
+    END_IF;
+
+(*
+ * Step 3 - Enable accepted; fault-recovery path starts the first
+ *          actuator immediately (runningNum = 0 < minRunning = 1, no
+ *           startDelay required for the fault-recovery branch).
+ *           pass[3] when runningNum = 1 with status = Running.
+ *)
+3 :
+    cfgActNum := 1; cfgMinRun := 1; cfgMaxRun := 1;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+    END_IF;
+    IF grpRunningNum = 1 AND grpStatus = ActuatorGroupStatus.Running THEN
+        pass[3] := TRUE;
+        step := 4; cycles := 0;
+    END_IF;
+
+(*
+ * Step 4 - groupDisable: Running → Stopping → Disabled.
+ *          pass[4] when status = Disabled and runningNum = 0.
+ *)
+4 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled AND grpRunningNum = 0 THEN
+        cmdDisable := FALSE;
+        pass[4] := TRUE;
+        step := 10; cycles := 0;
+    END_IF;
+
+(*
+ * Step 10 - Setup: demand-staging test with minRunning = 0.
+ *   startPoints[0] = 30.0 (threshold  0 → 1 actuator)
+ *   startPoints[1] = 60.0 (threshold  1 → 2 actuators)
+ *   stopPoints[0]  = 15.0 (threshold  1 → 0 actuators, unused here)
+ *   stopPoints[1]  = 25.0 (threshold  2 → 1 actuator)
+ *   startDelay = stopDelay = T#0s (instantaneous staging for the test)
+ *
+ * Enable the group; with minRunning = 0 no actuator starts automatically.
+ *)
+10 :
+    cfgActNum := 2; cfgMinRun := 0; cfgMaxRun := 2;
+    cfgDemand := 0.0;
+    cfgStartPts[0] := 30.0; cfgStartPts[1] := 60.0;
+    cfgStopPts[0] := 15.0; cfgStopPts[1] := 25.0;
+    cfgStartDly := T#0S; cfgStopDly := T#0S;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 11; cycles := 0;
+    END_IF;
+
+(*
+ * Step 11 - demand = 35.0 > startPoints[0] = 30.0.
+ *           startTimer fires immediately (startDelay = T#0s, 2 cycles).
+ *           Expects act[sortedIdx[1]] to start → runningNum = 1.
+ *           pass[5].
+ *)
+11 :
+    cfgDemand := 35.0;
+    IF grpRunningNum = 1 THEN
+        pass[5] := TRUE;
+        step := 12; cycles := 0;
+    END_IF;
+
+(*
+ * Step 12 - demand = 65.0 > startPoints[1] = 60.0.
+ *           Expects the next actuator to join → runningNum = 2.
+ *           pass[6].
+ *)
+12 :
+    cfgDemand := 65.0;
+    IF grpRunningNum = 2 THEN
+        pass[6] := TRUE;
+        step := 13; cycles := 0;
+    END_IF;
+
+(*
+ * Step 13 - demand = 10.0 < stopPoints[1] = 25.0.
+ *           stopTimer fires immediately → lowest-priority actuator
+ *           removed → runningNum = 1.
+ *           pass[7].
+ *)
+13 :
+    cfgDemand := 10.0;
+    IF grpRunningNum = 1 THEN
+        pass[7] := TRUE;
+        step := 14; cycles := 0;
+    END_IF;
+
+(* Step 14 - Clean up demand-staging test: disable the group. *)
+14 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgDemand := 0.0;
+        FOR i := 0 TO 7 DO cfgStartPts[i] := 0.0; cfgStopPts[i] := 0.0; END_FOR;
+        step := 20; cycles := 0;
+    END_IF;
+
+(*
+ * Step 20 - Setup: AllStopped autochange.
+ *           actuatorNum = 2, minRunning = maxRunning = 1.
+ *           autochange = AllStopped.
+ *
+ * Test plan:
+ *   Enable → act[1] starts (sortedIdx[1] = 1, fault-recovery).
+ *   Disable → Stopping → Disabled (AllStopped rotates sortedIdx: [2,1]).
+ *   Re-enable → fault-recovery must start act[2] (sortedIdx[1] = 2).
+ *   pass[8] when runningNum = 1 AND actEnabled[2] AND NOT actEnabled[1].
+ *)
+20 :
+    cfgActNum := 2; cfgMinRun := 1; cfgMaxRun := 1;
+    cfgAutoChange := ActuatorGroupAutochange.AllStopped;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 21; cycles := 0;
+    END_IF;
+
+(*
+ * Step 21 - Wait for act[1] to start; then issue groupDisable.
+ *           (AllStopped rotation happens in Stopping → Disabled.)
+ *)
+21 :
+    IF grpRunningNum = 1 THEN
+        cmdDisable := TRUE;
+    END_IF;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        step := 22; cycles := 0;
+    END_IF;
+
+(*
+ * Step 22 - Re-enable after AllStopped rotation.
+ *           sortedIdx[1] is now 2 → fault-recovery starts act[2].
+ *           pass[8] when actEnabled[2] = TRUE AND NOT actEnabled[1].
+ *)
+22 :
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+    END_IF;
+    IF grpRunningNum = 1 AND actEnabled[2] AND NOT actEnabled[1] THEN
+        pass[8] := TRUE;
+        step := 23; cycles := 0;
+    END_IF;
+
+(* Step 23 - Clean up AllStopped test: disable. *)
+23 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgAutoChange := ActuatorGroupAutochange.None;
+        acWasActive := FALSE; acCompleted := FALSE;
+        step := 30; cycles := 0;
+    END_IF;
+
+(*
+ * Step 30 - Setup: FixedInterval autochange.
+ *           autochangeInterval = T#0s → timer fires after 2 cycles in
+ *           Running (earliest possible: Q is read one cycle after the
+ *           timer is first called with IN = TRUE).
+ *           autochangeLevel = 100.0 → autochange always eligible.
+ *           actuatorNum = 2, minRunning = maxRunning = 1.
+ *
+ * Test plan:
+ *   Enable → act[1] starts (fault-recovery).
+ *   Interval timer fires → Autochange entered (acWasActive latches TRUE).
+ *   act[1] stops, sortedIdx rotates, act[2] starts.
+ *   Status returns to Running (acCompleted latches TRUE).
+ *   pass[9] when acCompleted AND status = Running.
+ *)
+30 :
+    cfgActNum := 2; cfgMinRun := 1; cfgMaxRun := 1;
+    cfgAutoChange := ActuatorGroupAutochange.FixedInterval;
+    cfgAutoChangeInt := T#0S;
+    cfgAutoChangeLevel := 100.0;
+    acWasActive := FALSE; acCompleted := FALSE;
+    cmdEnable  := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 31; cycles := 0;
+    END_IF;
+
+(*
+ * Step 31 - Wait for the autochange sequence to complete.
+ *           acCompleted is set by the global latch above when
+ *           autochangeActive returns to FALSE after having been TRUE.
+ *           pass[9] when acCompleted AND status = Running.
+ *)
+31 :
+    IF acCompleted AND grpStatus = ActuatorGroupStatus.Running THEN
+        pass[9] := TRUE;
+        step := 32; cycles := 0;
+    END_IF;
+
+(* Step 32 - Clean up FixedInterval test: disable. *)
+32 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgAutoChange := ActuatorGroupAutochange.None;
+        cfgAutoChangeInt := T#1H;
+        acWasActive := FALSE; acCompleted := FALSE;
+        step := 40; cycles := 0;
+    END_IF;
+
+(* 
+ * Step 40 - Setup: ExternalTrigger autochange.
+ *           autochangeLevel = 100.0, demand = 0.0.
+ *           actuatorNum = 2, minRunning = maxRunning = 1.
+ *
+ * Test plan:
+ *   Enable → act[1] starts (fault-recovery).
+ *   Pulse cfg_acTrig TRUE for one cycle → rising edge detected by grp.
+ *   Autochange entered → act[1] stops, act[2] starts.
+ *   Status returns to Running with runningNum = 1.
+ *   pass[10] when acWasActive AND status = Running AND runningNum = 1.
+ *)
+40 :
+    cfgActNum := 2; cfgMinRun := 1; cfgMaxRun := 1;
+    cfgAutoChange := ActuatorGroupAutochange.ExternalTrigger;
+    cfgAutoChangeLevel := 100.0;
+    cfgDemand := 0.0;
+    cfgAutoChangeTrig := FALSE;
+    FOR i := 1 TO 8 DO actEnabled[i] := FALSE; END_FOR;
+    acWasActive := FALSE; acCompleted := FALSE;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 41; cycles := 0;
+    END_IF;
+
+(*
+ * Step 41 - Wait for act[1] to start (fault-recovery), then issue a
+ *            one-cycle rising edge on cfg_acTrig.
+ *
+ * Trigger timing: cfg_acTrig is set TRUE in the CASE block, which runs
+ * AFTER grp() in the same scan. The rising edge is therefore detected
+ * by grp() on the NEXT scan cycle. cfg_acTrig is cleared when
+ * grpAutochangeActive goes TRUE so that only one edge is generated.
+ *)
+41 :
+    (* Issue trigger once act[1] is running and no autochange is in progress *)
+    IF grpRunningNum = 1 AND NOT grpAutochangeActive AND NOT acWasActive THEN
+        cfgAutoChangeTrig := TRUE;
+    ELSIF cfgAutoChangeTrig THEN
+        cfgAutoChangeTrig := FALSE; (* Clear after one cycle so only one edge is seen *)
+    END_IF;
+    IF acWasActive AND grpStatus = ActuatorGroupStatus.Running AND grpRunningNum = 1 THEN
+        pass[10] := TRUE;
+        step := 42; cycles := 0;
+    END_IF;
+
+(* Step 42 - Clean up ExternalTrigger test: disable. *)
+42 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgAutoChange := ActuatorGroupAutochange.None;
+        cfgAutoChangeTrig := FALSE;
+        acWasActive := FALSE; acCompleted := FALSE;
+        step := 50; cycles := 0;
+    END_IF;
+
+(*
+ * Step 50 - Setup: EvenWear autochange.
+ *           maxWearImbalance = 10.0 h.
+ *           autochangeLevel = 100.0 (always eligible).
+ *            demand = 0.0.
+ *            actuatorNum = 2, minRunning = maxRunning = 1.
+ *
+ * Test plan:
+ *   Enable → act[1] starts (fault-recovery, sortedIdx[1] = 1 initially).
+ *   Inject actRunHours[1] = 100.0, actRunHours[2] = 0.0:
+ *     imbalance = 100 h >> maxWearImbalance = 10 h.
+ *     act[1] running, act[2] standby → swap condition satisfied.
+ *   Autochange entered → act[1] stops, act[2] starts.
+ *   pass[11] when acWasActive AND status = Running AND
+ *             actEnabled[2] = TRUE AND NOT actEnabled[1].
+ *)
+50 :
+    cfgActNum := 2; cfgMinRun := 1; cfgMaxRun := 1;
+    cfgAutoChange := ActuatorGroupAutochange.EvenWear;
+    cfgMaxWear := 10.0; cfgAutoChangeLevel := 100.0;
+    cfgDemand := 0.0;
+    FOR i := 1 TO 8 DO actEnabled[i] := FALSE; actRunHours[i] := 0.0; END_FOR;
+    acWasActive := FALSE; acCompleted := FALSE;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 51; cycles := 0;
+    END_IF;
+
+(*
+ * Step 51 - Wait for act[1] to be running (fault-recovery), then inject
+ *           the run-hour imbalance.
+ *           With actRunHours[1] = 0 and [2] = 0, EvenWear is dormant.
+ *           Setting actRunHours[1] := 100.0 creates a 100 h gap, which
+ *           exceeds maxWearImbalance = 10 h and triggers the swap on
+ *           the next grp() call.
+ *)
+51 :
+    IF grpRunningNum = 1 AND actEnabled[1] THEN
+        actRunHours[1] := 100.0; (* act[1] most-used; act[2] standby → swap eligible *)
+        step := 52; cycles := 0;
+    END_IF;
+
+(*
+ * Step 52 - Wait for the EvenWear swap to complete:
+ *           Autochange state entered (acWasActive=TRUE) and exited.
+ *           After completion, act[2] must be running and act[1] stopped.
+ *           pass[11].
+ *)
+52 :
+    IF acWasActive
+            AND grpStatus = ActuatorGroupStatus.Running
+            AND actEnabled[2] AND NOT actEnabled[1] THEN
+        pass[11] := TRUE;
+        step := 53; cycles := 0;
+    END_IF;
+
+(* Step 53 - Clean up EvenWear test: disable. *)
+53 :
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgAutoChange := ActuatorGroupAutochange.None;
+        cfgMaxWear := 72.0;
+        actRunHours[1] := 0.0; actRunHours[2] := 0.0;
+        acWasActive := FALSE; acCompleted := FALSE;
+        step := 60; cycles := 0;
+    END_IF;
+
+(* 
+ * Step 60 - Setup: fault-recovery test.
+ *           actuatorNum = 3, minRunning = maxRunning = 2.
+ *           startDelay = T#5s  (deliberately long; fault-recovery must
+ *                               bypass the timer entirely).
+ *
+ * Test plan:
+ *   Enable → Running → fault-recovery starts act[1] (cycle 1) and
+ *            act[2] (cycle 2) until runningNum = 2 = minRunning.
+ *   Inject hardware trip on act[1]:
+ *     actEnabled[1] := FALSE (physical device offline)
+ *     actFault[1] := TRUE (fault signal)
+ *   → runningNum drops to 1 < minRunning = 2.
+ *   Fault-recovery starts act[3] immediately (no startDelay wait).
+ *   pass[12] when runningNum = 2 AND actEnabled[3].
+ *)
+60 :
+    cfgActNum := 3; cfgMinRun := 2; cfgMaxRun := 2;
+    cfgAutoChange := ActuatorGroupAutochange.None;
+    cfgStartDly := T#5S; (* Long delay - must be bypassed by fault-recovery *)
+    FOR i := 1 TO 8 DO actEnabled[i] := FALSE; actFault[i] := FALSE; END_FOR;
+    cmdEnable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Running THEN
+        cmdEnable := FALSE;
+        step := 61; cycles := 0;
+    END_IF;
+
+(*
+ * Step 61 - Wait for both act[1] and act[2] to be running (fault-
+ *           recovery starts one actuator per cycle).  Then simulate
+ *           act[1] tripping offline:
+ *             actEnabled[1] := FALSE  (physical device stopped)
+ *             actFault[1]   := TRUE   (drive/hardware fault signal)
+ *           The change is applied after grp() in this cycle; grp sees
+ *           it from the following cycle onward.
+ *)
+61 :
+    IF actEnabled[1] AND actEnabled[2] AND grpRunningNum = 2 THEN
+        actEnabled[1] := FALSE; (* Simulate physical trip - no disableRequest *)
+        actFault[1] := TRUE;
+        step := 62; cycles := 0;
+    END_IF;
+
+(*
+ * Step 62 - runningNum has dropped to 1 < minRunning = 2.
+ *           Fault-recovery branch must start act[3] on the next cycle,
+ *           without waiting for the T#5s startDelay.
+ *           pass[12] when runningNum = 2 AND actEnabled[3] = TRUE.
+ *)
+62 :
+    IF grpRunningNum = 2 AND actEnabled[3] THEN
+        pass[12] := TRUE;
+        step := 63; cycles := 0;
+    END_IF;
+
+(* Step 63 - Clean up fault-recovery test: clear the injected fault and disable the group. *)
+63 :
+    actFault[1] := FALSE;
+    cmdDisable := TRUE;
+    IF grpStatus = ActuatorGroupStatus.Disabled THEN
+        cmdDisable := FALSE;
+        cfgStartDly := T#0s;
+        testDone := TRUE;
+        step := 100; cycles := 0;
+    END_IF;
+
+(* Step 100 - All tests complete. *)
+100 :
+    testDone := TRUE;
+END_CASE;

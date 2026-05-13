@@ -1,0 +1,166 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+Edge triggered status manager.
+The PLCOpen standard presents “service/command” function block patterns
+that manage the execution of a request (edge-triggered)
+or the maintenance of a condition (level-controlled).
+The PLCopen patterns model the lifecycle of a command, not the state of the device.
+A command handler FB uses the PLCopen (Action) pattern.
+The device model maintains the bistable state (Reality/Feedback).
+The command requests a device transition, but does not define the device state.
+It makes sense to model triggers and levels for physical devices only as an interface contract
+between the caller and the device controller, not as the “physical truth” of the device.
+An example of edge-triggered functionality is a move-to-position command which,
+after being initialized via the input execute, runs till finalized.
+For the detection of a rising edge in a function block, two PLC cycles are necessary.
+Thus, if the requirement is to be able to process a new value in each cycle, an edge-triggered model cannot serve as a solution.
+See the PLCOpen standard document "Creating PLCopen compliant Function Block libraries" for details.
+
+Variant, abort used?, timeLimit, timeout, Behavior
+ETrig,       FALSE,       0,        0,    Base: activates on front, ends on readyCondition
+ETrigTo,     FALSE,       0,        > 0,  With timeout: if it doesn't finish within timeout, it goes to Error.
+ETrigTI,     FALSE,       > 0,      0,    With timeLimit: allows you to divide the work over multiple cycles.
+ETrigTITo,   FALSE,       > 0,      > 0,  Complete: both cyclical limit and total timeout management.
+ETrigA,      TRUE,        0,        0,    With Aborting: It can be stopped and switched to Aborted.
+ETrigATo,    TRUE,        0,        > 0,  With Aborting and timeout: if it doesn't finish within timeout, it goes to Error.
+ETrigATI,    TRUE,        > 0,      0,    With Aborting and timeLimit: allows you to divide the work over multiple cycles.
+ETrigATITo,  TRUE,        > 0,      > 0,  Complete: both Aborting, cyclical limit and total timeout management.
+
+*)
+FUNCTION_BLOCK EdgeTrigStatusMgr
+VAR_INPUT
+	(* Initialize and start operation on rising edge and stay active till finalized or aborted. *)
+    execute : BOOL;
+    readyCondition : BOOL; (* Operation completed feedback *)
+	(* Interrupt request (ETrigA Variants) to abort the process. *)
+    abortRequest : BOOL;
+    abortComplete : BOOL; (* Aborting feedback *)
+    resetRequest : BOOL; (* Manual reset request *)
+    resetComplete : BOOL; (* Reset feedback *)
+    errorCondition : BOOL; (* Functional error from external logic *)
+	(*
+	 * PLCOpen: timeLimit (Tl): here the time limit is set that
+	 * the operation stays within the cycle time.
+	 * In that way a longer operation can be divided over several cycles.
+	 *)
+    timeLimit : UINT; (* 0 = inactive *)
+	(* 
+     * PLCOpen: timeout (To): the overall operating time of the
+	 * defined operation should be lower than the time(in μs)
+     * as specified by the input value timeout.
+	 * The combination of them both (TlTo) is valid.
+     *)
+    timeout : UINT; (* 0 = inactive *)
+    clock : BOOL; (* Clock signal *)
+END_VAR
+VAR_OUTPUT
+    done : BOOL; (* Operation completed successfully *)
+    busy : BOOL; (* Operation in progress *)
+    error : BOOL; (* Active error *)
+    errorId : INT; (* PLCopen: Error ID. Example 1 = ExternalError, 2 = Timeout *)
+    aborted : BOOL; (* Operation aborted *)
+    activeCycle : BOOL; (* TRUE when the caller needs to execute the logic *)
+END_VAR
+VAR
+    status : EdgeTriggerStatus := EdgeTriggerStatus.Dormant; (* FSM internal status. States: 0- Dormant, 1 - Executing, 2 - Done, 3 - Aborting, 4 - Aborted, 5 - Resetting, 6 - Error *)
+    timeLimitTimer : UINT;
+    timeoutTimer : UINT;
+    prevExecute : BOOL; (* Memory for edge detection *)
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Time management *)
+IF clock THEN
+	(* TimeLimit (Tl): cyclic timeslice management *)
+	IF timeLimit > 0 AND status = EdgeTriggerStatus.Executing THEN
+		IF timeLimitTimer > 0 THEN
+			timeLimitTimer := timeLimitTimer - 1;
+		ELSE
+			(* New invocation timeslice *)
+			timeLimitTimer := timeLimit;
+		END_IF;
+	END_IF;
+
+	(* TimeOut (To): The total timeout only runs during execution *)
+	IF timeoutTimer > 0 AND status = EdgeTriggerStatus.Executing THEN
+		timeoutTimer := timeoutTimer - 1;
+	END_IF;
+END_IF;
+
+CASE status OF
+    EdgeTriggerStatus.Dormant :
+        done := FALSE; busy := FALSE; aborted := FALSE; error := FALSE; errorId := 0; activeCycle := FALSE;
+
+        (* Rising edge detection *)
+        IF execute AND NOT prevExecute THEN
+            timeoutTimer := timeout;
+			timeLimitTimer := timeLimit;
+            status := EdgeTriggerStatus.Executing;
+        END_IF;
+
+    EdgeTriggerStatus.Executing :
+        busy := TRUE;
+		(* Enable caller logic: active if there is no cycle limit or if the cycle time has not expired. *)
+        activeCycle := (timeLimit = 0) OR (timeLimitTimer > 0);
+
+        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            status := EdgeTriggerStatus.Error;
+        ELSIF abortRequest THEN
+            status := EdgeTriggerStatus.Aborting;
+        ELSIF readyCondition THEN
+            status := EdgeTriggerStatus.Done; (* Target achieved *)
+        END_IF;
+
+    EdgeTriggerStatus.Aborting :
+        activeCycle := FALSE;
+
+        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            status := EdgeTriggerStatus.Error;
+        ELSIF abortComplete THEN
+			status := EdgeTriggerStatus.Aborted;
+		END_IF;
+
+    EdgeTriggerStatus.Aborted :
+        busy := FALSE; aborted := TRUE;
+
+        (* Transition to resetting on the falling edge of execute *)
+        IF resetRequest OR NOT execute THEN
+			status := EdgeTriggerStatus.Resetting;
+		END_IF;
+
+    EdgeTriggerStatus.Done :
+        busy := FALSE; done := TRUE; activeCycle := FALSE;
+        
+		(* Transition to resetting on the falling edge of execute *)
+        IF resetRequest OR NOT execute THEN
+			status := EdgeTriggerStatus.Resetting;
+		END_IF;
+
+    EdgeTriggerStatus.Error :
+        busy := FALSE; activeCycle := FALSE; error := TRUE;
+
+        IF errorCondition THEN
+            errorId := 1; (* ExternalError *)
+        ELSE
+            errorId := 2; (* Total timeout expired *)
+        END_IF;
+
+        IF resetRequest OR NOT execute THEN
+			status := EdgeTriggerStatus.Resetting;
+		END_IF;
+
+    EdgeTriggerStatus.Resetting :
+        done := FALSE; aborted := FALSE; error := FALSE; errorId := 0; activeCycle := FALSE;
+        
+		IF resetComplete THEN
+			status := EdgeTriggerStatus.Dormant;
+		END_IF;
+END_CASE;
+
+prevExecute := execute;

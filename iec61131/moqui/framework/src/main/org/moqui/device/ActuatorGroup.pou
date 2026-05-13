@@ -1,0 +1,614 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(*
+ * ActuatorGroup - demand-driven staging controller for up to ACTUATOR_GROUP_MAX_SIZE on/off actuators.
+ *
+ * Inspired by ABB ACH580 PFC (Pump and Fan Control, group 76. See ABB ACH580 drive firmware manual).
+ * Progressively starts and stops Actuator FBs to match a varying process demand,
+ * with automatic priority rotation (autochange) to balance accumulated run hours.
+ *
+ * Interface with Actuator FBs
+ * The caller declares enableRequests and disableRequests arrays and wires them
+ * to the VAR_IN_OUT inputs of each Actuator FB:
+ *
+ *   pump[i](enableRequest := enReq[i], disableRequest := disReq[i], ...);
+ *   grp(enableRequests := enReq, disableRequests := disReq, ...);
+ *
+ * Both the Actuator and ActuatorGroup share the same array by reference (VAR_IN_OUT).
+ * ActuatorGroup writes TRUE to issue a command;
+ * the Actuator clears the flag to FALSE as its handshake acknowledgment.
+ *
+ * IMPORTANT: call each Actuator BEFORE ActuatorGroup in the PLC task so that
+ * the actuatorEnabled feedback is current when ActuatorGroup evaluates it.
+ *
+ * Start / stop staging
+ * startPoints[k] (k = 0..actuatorNum-1):
+ *   While k actuators are running, if demandSetpoint > startPoints[k] continuously
+ *   for startDelay, the next available actuator in the priority order is started (subject to runningNum < maxRunning).
+ *   startPoints[0] is the threshold to start the very first actuator (0 → 1).
+ *
+ * stopPoints[k] (k = 0..actuatorNum-2):
+ *   While k+1 actuators are running, if demandSetpoint < stopPoints[k] continuously
+ *   for stopDelay, the lowest-priority running actuator is stopped (subject to runningNum > minRunning).
+ *   stopPoints[0] is the threshold to stop the last remaining actuator (1 → 0).
+ *
+ * Demand must hold on one side of the threshold for the full delay before any action is taken.
+ * Crossing back resets the timer (anti-cycling hysteresis).
+ *
+ * Fault / interlock recovery:
+ *   Faulted or interlocked actuators are skipped during start selection.
+ *   If a running actuator faults and runningNum drops below minRunning, the next
+ *   available standby is started immediately (without waiting for startDelay).
+ *
+ * Autochange:
+ * EvenWear: Rotate when the run-hour gap between any two non-faulted
+ *           actuators exceeds maxWearImbalance AND demand ≤ autochangeLevel.
+ *           The priority array is re-sorted by ascending runHours every cycle;
+ *           a physical swap (stop most-used, start least-used) is
+ *           triggered only when the imbalance threshold is exceeded.
+ * FixedInterval: Rotate every autochangeInterval when demand ≤ autochangeLevel.
+ * ExternalTrigger: Rotate on a rising edge of autochangeTrigger when demand ≤ autochangeLevel.
+ * AllStopped: Rotate the index array whenever all actuators stop (group
+ *             transitions to Disabled). No physical swap is needed because
+ *             all are already stopped; the new order takes effect at the next group enable.
+ *
+ * Rotation sequence (EvenWear / FixedInterval / ExternalTrigger):
+ *   1. Stop the selected actuator (disableRequest).
+ *   2. Update the priority array (rotate or re-sort).
+ *   3. Start the new highest-priority standby actuator (enableRequest).
+ *   The group is in the Autochange FSM state for the duration of this sequence.
+ *   runningNum briefly drops by 1; set minRunning = 0 if a momentary reduction
+ *   is unacceptable and use process-side redundancy instead.
+ *)
+FUNCTION_BLOCK ActuatorGroup
+VAR_EXTERNAL CONSTANT
+    (* 
+	 * Maximum actuators supported. Array bounds in VAR_IN_OUT / VAR_INPUT
+     * must match this size exactly in the caller's declaration.
+	 *)
+    ACTUATOR_GROUP_MAX_SIZE : UINT;
+END_VAR
+VAR_IN_OUT
+    (*
+     * Handshake arrays shared with the individual Actuator FBs.
+     * ActuatorGroup writes TRUE to command a start or stop.
+     * Each Actuator FB clears the flag to FALSE when it accepts the command.
+     *)
+    enableRequests : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF BOOL;
+    disableRequests : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF BOOL;
+END_VAR
+VAR_INPUT
+	(* Actuator group metadata for logging purpose *)
+	actuatorGroupId : STRING;
+	actuatorGroupName : STRING;
+
+    (* Topology *)
+    (* Total actuators declared in the group. Must be 1..ACTUATOR_GROUP_MAX_SIZE. *)
+    actuatorNum : UINT := 1;
+    (* Minimum actuators to keep running simultaneously (0 = allow full stop). *)
+    minRunning : UINT := 1;
+    (* Maximum actuators allowed running simultaneously. *)
+    maxRunning : UINT := 1;
+
+    (* Process demand *)
+    (* Demand setpoint in percent (0.0 ... 100.0). Drives all start/stop decisions. *)
+    demandSetpoint : REAL;
+
+    (* 
+     * Start / stop thresholds.
+     * startPoints[k]: demand level that triggers starting the (k+1)-th
+     * actuator while exactly k are currently running (k = 0..actuatorNum-1).
+     * startPoints[0] = threshold to start the first actuator (0 → 1).
+	 *)
+    startPoints : ARRAY[0..7] OF REAL;
+    (* 
+     * stopPoints[k]: demand level below which the (k+1)-th running actuator is stopped (k = 0..actuatorNum-2).
+     * stopPoints[0] = threshold to stop the last actuator (1 → 0).
+     *)
+    stopPoints : ARRAY[0..7] OF REAL;
+    (* Demand must stay above startPoints[k] for this long before a start. *)
+    startDelay : TIME := T#10s;
+    (* Demand must stay below stopPoints[k] for this long before a stop. *)
+    stopDelay : TIME := T#10s;
+
+    (* Autochange *)
+    autochange : ActuatorGroupAutochange := ActuatorGroupAutochange.None;
+    (* Period for FixedInterval rotation. *)
+    autochangeInterval : TIME := T#1h;
+    (* 
+     * Max allowed run-hour gap between most-used and least-used actuator
+     * before EvenWear triggers a swap (hours, e.g. 72.0 for 3 days).
+     *)
+    maxWearImbalance : REAL := 72.0;
+    (* Autochange is only triggered when demandSignal ≤ autochangeLevel. *)
+    autochangeLevel : REAL := 100.0;
+    (* Rising edge triggers an immediate autochange (ExternalTrigger mode). *)
+    autochangeTrigger : BOOL;
+
+    (* Per-actuator feedback *)
+    (* 
+     * Map actuatorEnabled[i] from Actuator[i].enable (TRUE in EnablePhase
+     * AND Enabled states - i.e., the actuator is active or starting up).
+     *)
+    actuatorEnabled : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF BOOL;
+    (* Map actuatorFault[i] from Actuator[i].fault. *)
+    actuatorFault : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF BOOL;
+    (* External maintenance / hardware interlock flag per actuator. *)
+    actuatorInterlocked : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF BOOL;
+    (* Cumulative run time in hours, maintained by the caller (e.g., a REAL counter incremented by 1/3600 each second). *)
+    runHours : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF REAL;
+
+    (* Group commands *)
+    (* 
+      * Rising edge (FALSE→TRUE) starts the group (Disabled → Running).
+      * Cleared by the FB when the transition is accepted.
+     *)
+    groupEnable : BOOL;
+    (* 
+     * Rising edge (FALSE→TRUE) stops the group (Running → Stopping → Disabled).
+     * Cleared by the FB when the transition is accepted.
+     *)
+    groupDisable : BOOL;
+END_VAR
+VAR_OUTPUT
+    (* Current group FSM state. *)
+    status : ActuatorGroupStatus := ActuatorGroupStatus.Disabled;
+    (* Actuators neither faulted nor interlocked (available for use). *)
+    availableNum : UINT;
+    (* Actuators currently active (Enabled or EnablePhase). *)
+    runningNum : UINT;
+    (* TRUE when nAvailable < actuatorNum (one or more offline/faulted). *)
+    degraded : BOOL;
+    (* TRUE when a fault has left runningNum below minRunning. *)
+    underMinimum : BOOL;
+    (* TRUE when configuration inputs are invalid. *)
+    invalidConfig : BOOL;
+    (* TRUE while an autochange rotation is in progress. *)
+    autochangeActive : BOOL;
+	(* Logger name for centralized signal management *)
+	loggerName : STRING;
+END_VAR
+VAR
+    (* Internal FSM state *)
+    internalStatus : ActuatorGroupStatus := ActuatorGroupStatus.Disabled;
+
+    (* Priority order *)
+    (* 
+	 * sortedIdx[1] = first to start / last to stop.
+     * sortedIdx[actuatorNum] = last to start / first to stop.
+     * Initialised to [1, 2, … actuatorNum] on the first call.
+     *)
+    sortedIdx : ARRAY[1..ACTUATOR_GROUP_MAX_SIZE] OF UINT;
+
+    (* Autochange bookkeeping *)
+    autochangeStep : UINT; (* 0 = idle, 1 = stopping old, 2 = starting new *)
+    autochangeStopIdx : UINT; (* physical actuator slot being stopped *)
+    autochangeStartIdx : UINT; (* physical actuator slot being started *)
+    autochangeTrigOld : BOOL; (* previous cycle value for edge detection *)
+
+    (* Timer signals *)
+    (* Computed each cycle in the FSM; passed to TON FBs at the bottom. *)
+    startTimerTrig : BOOL;
+    stopTimerTrig : BOOL;
+    autochangeTimerTrig : BOOL;
+    startTimer : TON;
+    stopTimer : TON;
+    autochangeTimer : TON;
+
+    (* Loop temporaries *)
+    i, j, tempIdx : UINT;
+    swapped : BOOL;
+    minHoursIdx : UINT;
+    maxHoursIdx : UINT;
+	(* Logger facade *)
+	logger : LoggerFacade;
+	init : BOOL;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Init *)
+IF NOT init THEN
+	IF (actuatorGroupId = '' AND actuatorGroupName = '') THEN
+		invalidConfig := TRUE;
+		RETURN;
+	END_IF;
+	
+	(* Logger facade init *)
+	loggerName := concat(concat(concat(actuatorGroupName, '['), actuatorGroupId), ']');
+	logger.enable := TRUE; logger.loggerName := loggerName;
+	init := TRUE;
+END_IF;
+
+logger(message := 'Running actuator group.', level := LogLevel.DEBUG);
+
+(* Args validation *)
+invalidConfig := (actuatorNum < 1) OR (actuatorNum > ACTUATOR_GROUP_MAX_SIZE)
+	OR (minRunning < 0) OR (maxRunning < 1)
+    OR (minRunning > maxRunning)
+    OR (maxRunning > actuatorNum);
+IF invalidConfig THEN
+    status := ActuatorGroupStatus.Disabled;
+    RETURN;
+END_IF;
+
+(* Init priority index on first call or when actuatorNum grows.
+ * Valid slot indices are 1..actuatorNum; 0 is the zero-initialised
+ * default and is never a valid value, so a zero entry always means the slot
+ * has not been assigned yet. This allows the group to be reconfigured at
+ * run-time with a larger actuatorNum without re-setting existing order. *)
+FOR i := 1 TO actuatorNum DO
+    IF sortedIdx[i] = 0 THEN
+        sortedIdx[i] := i;
+    END_IF;
+END_FOR;
+
+(* Count available and active actuators (every cycle) *)
+availableNum := 0;
+runningNum   := 0;
+FOR i := 1 TO actuatorNum DO
+    IF NOT actuatorFault[i] AND NOT actuatorInterlocked[i] THEN
+        availableNum := availableNum + 1;
+    END_IF;
+    IF actuatorEnabled[i] THEN
+        runningNum := runningNum + 1;
+    END_IF;
+END_FOR;
+degraded := (availableNum < actuatorNum);
+underMinimum := (internalStatus = ActuatorGroupStatus.Running) AND (runningNum < minRunning);
+
+(* EvenWear priority re-sort (runs every cycle when EvenWear is active) *)
+(*
+ * Sort sortedIdx[1..actuatorNum] by ascending runHours so that the actuator
+ * with the fewest cumulative hours is always started first.
+ * Faulted / interlocked actuators are bubbled to the end of the array so they
+ * are naturally skipped when the start/stop logic scans the priority order.
+ *
+ * The sort runs every cycle in Running and Autochange states.  For other
+ * autochange modes the order is updated only by explicit rotation steps.
+ *)
+IF autochange = ActuatorGroupAutochange.EvenWear
+        AND (internalStatus = ActuatorGroupStatus.Running
+		OR internalStatus = ActuatorGroupStatus.Autochange) THEN
+    FOR i := 1 TO actuatorNum - 1 DO
+        swapped := FALSE;
+        FOR j := 1 TO actuatorNum - i DO
+            (* Push faulted / interlocked slots to the end *)
+            IF (actuatorFault[sortedIdx[j]] OR actuatorInterlocked[sortedIdx[j]])
+                    AND NOT (actuatorFault[sortedIdx[j + 1]] OR actuatorInterlocked[sortedIdx[j + 1]])
+               (* Among healthy slots: sort by ascending run hours *)
+               OR (NOT (actuatorFault[sortedIdx[j]] OR actuatorInterlocked[sortedIdx[j]])
+                   AND NOT (actuatorFault[sortedIdx[j + 1]] OR actuatorInterlocked[sortedIdx[j + 1]])
+                   AND runHours[sortedIdx[j]] > runHours[sortedIdx[j + 1]]) THEN
+                tempIdx := sortedIdx[j];
+                sortedIdx[j] := sortedIdx[j + 1];
+                sortedIdx[j + 1] := tempIdx;
+                swapped := TRUE;
+            END_IF;
+        END_FOR;
+
+        IF NOT swapped THEN EXIT; END_IF;
+    END_FOR;
+END_IF;
+
+(* Timer signal defaults (overridden by the Running state block) *)
+startTimerTrig := FALSE;
+stopTimerTrig := FALSE;
+(*
+ * AutochangeTimer only accumulates while Running - interval is operating time, not wall time.
+ * The Running state sets this FALSE for one cycle after .Q fires to reset the period.
+ *)
+autochangeTimerTrig := (autochange = ActuatorGroupAutochange.FixedInterval)
+	AND (internalStatus = ActuatorGroupStatus.Running);
+
+(* Main FSM *)
+CASE internalStatus OF
+    (* Disabled: no actuators running. Wait for groupEnable. *)
+    ActuatorGroupStatus.Disabled :
+        groupDisable := FALSE;
+        autochangeActive := FALSE;
+        autochangeStep := 0;
+
+        IF groupEnable AND availableNum >= minRunning THEN
+			logger(message := 'Actuator group running.', level := LogLevel.DEBUG);
+            groupEnable := FALSE;
+            internalStatus := ActuatorGroupStatus.Running;
+        ELSIF groupEnable AND availableNum < minRunning THEN
+            (* Not enough actuators available - refuse enable *)
+            groupEnable := FALSE;
+        END_IF;
+
+    (* Running: demand-driven start / stop of individual actuators. *)
+    ActuatorGroupStatus.Running :
+        groupEnable := FALSE;
+        autochangeActive := FALSE;
+
+        (* Disable command: transition to Stopping *)
+        IF groupDisable THEN
+            groupDisable := FALSE;
+            FOR i := 1 TO actuatorNum DO
+                IF actuatorEnabled[i] THEN
+                    disableRequests[i] := TRUE;
+                END_IF;
+                enableRequests[i] := FALSE; (* Cancel pending starts *)
+            END_FOR;
+			
+			internalStatus := ActuatorGroupStatus.Stopping;
+			logger(message := 'Actuator group stopping.', level := LogLevel.DEBUG);
+        ELSE
+            (* Fault recovery: restore minRunning immediately (no delay). *)
+            (*
+             * If a running actuator has faulted and runningNum < minRunning,
+             * start the next available standby without waiting for startDelay.
+             * Only one start per cycle to avoid over-driving the process.
+             *)
+            IF runningNum < minRunning THEN
+                FOR i := 1 TO actuatorNum DO
+                    IF NOT actuatorEnabled[sortedIdx[i]]
+							AND NOT actuatorFault[sortedIdx[i]]
+                            AND NOT actuatorInterlocked[sortedIdx[i]]
+                            AND NOT enableRequests[sortedIdx[i]] THEN
+                        enableRequests[sortedIdx[i]] := TRUE;
+                        EXIT;
+                    END_IF;
+                END_FOR;
+            END_IF;
+
+            (* Normal start: add the next unit when demand is high. *)
+            (*
+             * Check startPoints[runningNum]: the threshold to go from runningNum to runningNum+1 active actuators.
+			 * Array index matches the current running count (ABB 76.30: "velocity to start auxiliary k").
+             * The timer runs as long as the condition holds; it resets
+             * automatically if demand drops back below the threshold.
+             *)
+            IF runningNum >= minRunning AND runningNum < maxRunning
+                    AND runningNum <= actuatorNum - 1 THEN
+                startTimerTrig := (demandSetpoint > startPoints[runningNum]);
+                IF startTimer.Q THEN
+                    FOR i := 1 TO actuatorNum DO
+                        IF NOT actuatorEnabled[sortedIdx[i]]
+                                AND NOT actuatorFault[sortedIdx[i]]
+                                AND NOT actuatorInterlocked[sortedIdx[i]]
+                                AND NOT enableRequests[sortedIdx[i]] THEN
+                            enableRequests[sortedIdx[i]] := TRUE;
+                            EXIT;
+                        END_IF;
+                    END_FOR;
+
+                    startTimerTrig := FALSE; (* Reset timer after issuing start *)
+                END_IF;
+            END_IF;
+
+            (* Normal stop: remove the last unit when demand is low. *)
+            (*
+             * Check stopPoints[runningNum - 1]: the threshold to go from runningNum
+             * to runningNum-1 active actuators. Index runningNum-1 is always >= 0
+             * because runningNum > minRunning >= 0. The last actuator in the
+             * sorted order (highest index) is stopped first (LIFO principle).
+             *)
+            IF runningNum > minRunning
+                    AND runningNum - 1 <= actuatorNum - 1 THEN
+                stopTimerTrig := (demandSetpoint < stopPoints[runningNum - 1]);
+                IF stopTimer.Q THEN
+                    FOR i := actuatorNum TO 1 BY -1 DO
+                        IF actuatorEnabled[sortedIdx[i]]
+                                AND NOT disableRequests[sortedIdx[i]] THEN
+                            disableRequests[sortedIdx[i]] := TRUE;
+                            EXIT;
+                        END_IF;
+                    END_FOR;
+
+                    stopTimerTrig := FALSE; (* Reset timer after issuing stop *)
+                END_IF;
+            END_IF;
+
+            (* Autochange trigger evaluation *)
+            IF autochange <> ActuatorGroupAutochange.None
+                    AND autochange <> ActuatorGroupAutochange.AllStopped
+                    AND runningNum > 0
+                    AND demandSetpoint <= autochangeLevel THEN
+
+                CASE autochange OF
+                    (* EvenWear *)
+                    ActuatorGroupAutochange.EvenWear :
+                        (*
+                         * Find the running actuator with the most hours and the
+                         * standby actuator with the fewest hours.
+						 * Trigger a swap when the imbalance exceeds maxWearImbalance (hours).
+                         *)
+                        minHoursIdx := 0; maxHoursIdx := 0;
+                        FOR i := 1 TO actuatorNum DO
+                            IF NOT actuatorFault[i] AND NOT actuatorInterlocked[i] THEN
+                                IF minHoursIdx = 0 THEN
+                                    minHoursIdx := i;
+                                ELSIF runHours[i] < runHours[minHoursIdx] THEN
+                                    minHoursIdx := i;
+                                END_IF;
+                                IF maxHoursIdx = 0 THEN
+                                    maxHoursIdx := i;
+                                ELSIF runHours[i] > runHours[maxHoursIdx] THEN
+                                    maxHoursIdx := i;
+                                END_IF;
+                            END_IF;
+                        END_FOR;
+
+                        IF minHoursIdx > 0 AND maxHoursIdx > 0
+                                AND minHoursIdx <> maxHoursIdx
+                                AND (runHours[maxHoursIdx] - runHours[minHoursIdx]) > maxWearImbalance
+                                AND actuatorEnabled[maxHoursIdx]
+                                AND NOT actuatorEnabled[minHoursIdx]
+                                AND NOT actuatorFault[minHoursIdx]
+                                AND NOT actuatorInterlocked[minHoursIdx] THEN
+                            autochangeStopIdx := maxHoursIdx;
+                            autochangeStartIdx := 0; (* Resolved in Autochange step 1 *)
+                            autochangeStep := 1;
+                            disableRequests[autochangeStopIdx] := TRUE;
+                            internalStatus := ActuatorGroupStatus.Autochange;
+                        END_IF;
+
+                    (* FixedInterval *)
+                    ActuatorGroupAutochange.FixedInterval :
+                        IF autochangeTimer.Q THEN
+                            (* Select the lowest-priority running actuator to stop *)
+                            autochangeStopIdx := 0;
+                            FOR i := actuatorNum TO 1 BY -1 DO
+                                IF actuatorEnabled[sortedIdx[i]] THEN
+                                    autochangeStopIdx := sortedIdx[i];
+                                    EXIT;
+                                END_IF;
+                            END_FOR;
+
+                            IF autochangeStopIdx > 0 THEN
+                                autochangeStep := 1;
+                                disableRequests[autochangeStopIdx] := TRUE;
+                                internalStatus := ActuatorGroupStatus.Autochange;
+                            END_IF;
+
+                            (* Reset the interval timer regardless of whether we swapped *)
+                            autochangeTimerTrig := FALSE;
+                        END_IF;
+
+                    (* ExternalTrigger *)
+                    ActuatorGroupAutochange.ExternalTrigger :
+                        IF autochangeTrigger AND NOT autochangeTrigOld THEN
+                            autochangeStopIdx := 0;
+
+                            FOR i := actuatorNum TO 1 BY -1 DO
+                                IF actuatorEnabled[sortedIdx[i]] THEN
+                                    autochangeStopIdx := sortedIdx[i];
+                                    EXIT;
+                                END_IF;
+                            END_FOR;
+
+                            IF autochangeStopIdx > 0 THEN
+                                autochangeStep := 1;
+                                disableRequests[autochangeStopIdx] := TRUE;
+                                internalStatus := ActuatorGroupStatus.Autochange;
+                            END_IF;
+                        END_IF;
+                END_CASE;
+            END_IF;
+        END_IF; (* groupDisable / else *)
+
+    (* Stopping: wait for all actuators to reach disabled state. *)
+    ActuatorGroupStatus.Stopping :
+        IF runningNum = 0 THEN
+            (*
+             * AllStopped autochange: rotate the priority order now that all
+             * actuators are off.  The new order takes effect at the next
+             * groupEnable.  No physical swap is needed (all already stopped).
+             *)
+            IF autochange = ActuatorGroupAutochange.AllStopped THEN
+                tempIdx := sortedIdx[1];
+                FOR i := 1 TO actuatorNum - 1 DO
+                    sortedIdx[i] := sortedIdx[i + 1];
+                END_FOR;
+                sortedIdx[actuatorNum] := tempIdx;
+            END_IF;
+
+            internalStatus := ActuatorGroupStatus.Disabled;
+        END_IF;
+
+    (*
+     * Autochange: sequential stop / rotate / start.
+     *
+     * Step 1 - wait for the old actuator to stop.
+     * Step 2 - start the new highest-priority standby.
+     *)
+    ActuatorGroupStatus.Autochange :
+		logger(message := 'Actuator group autochange.', level := LogLevel.DEBUG);
+        autochangeActive := TRUE;
+        groupEnable := FALSE;
+
+        (* Disable command during autochange: abort and go to Stopping *)
+        IF groupDisable THEN
+            groupDisable := FALSE;
+
+            FOR i := 1 TO actuatorNum DO
+                IF actuatorEnabled[i] THEN disableRequests[i] := TRUE; END_IF;
+                enableRequests[i] := FALSE;
+            END_FOR;
+
+            internalStatus := ActuatorGroupStatus.Stopping;
+        ELSE
+            CASE autochangeStep OF
+                1 : (* Waiting for the old actuator to finish stopping *)
+                    IF NOT actuatorEnabled[autochangeStopIdx] THEN
+                        (*
+                         * Old actuator is now off.  Update the priority order:
+                         * - FixedInterval / ExternalTrigger: rotate the stopped
+                         *   actuator from its current position to the end of the
+                         *   array so it is the last to be started next time.
+                         * - EvenWear: the continuous sort (above) already
+                         *   maintains the correct order; no manual rotation needed.
+                         *)
+                        IF autochange = ActuatorGroupAutochange.FixedInterval
+                                OR autochange = ActuatorGroupAutochange.ExternalTrigger THEN
+                            FOR i := 1 TO actuatorNum DO
+                                IF sortedIdx[i] = autochangeStopIdx THEN
+                                    FOR j := i TO actuatorNum - 1 DO
+                                        sortedIdx[j] := sortedIdx[j + 1];
+                                    END_FOR;
+                                    sortedIdx[actuatorNum] := autochangeStopIdx;
+                                    EXIT;
+                                END_IF;
+                            END_FOR;
+                        END_IF;
+
+                        (* Find the highest-priority standby to start *)
+                        autochangeStartIdx := 0;
+                        FOR i := 1 TO actuatorNum DO
+                            IF NOT actuatorEnabled[sortedIdx[i]]
+                                    AND NOT actuatorFault[sortedIdx[i]]
+                                    AND NOT actuatorInterlocked[sortedIdx[i]] THEN
+                                autochangeStartIdx := sortedIdx[i];
+                                EXIT;
+                            END_IF;
+                        END_FOR;
+
+                        IF autochangeStartIdx > 0 THEN
+                            enableRequests[autochangeStartIdx] := TRUE;
+                            autochangeStep := 2;
+                        ELSE
+                            (* No standby available; return without starting a replacement *)
+                            autochangeStep := 0;
+                            internalStatus := ActuatorGroupStatus.Running;
+                        END_IF;
+                    END_IF;
+
+                2 : (* Waiting for the new actuator to reach enabled state *)
+                    IF actuatorEnabled[autochangeStartIdx] THEN
+                        autochangeStep := 0;
+                        internalStatus := ActuatorGroupStatus.Running;
+                    END_IF;
+            END_CASE;
+        END_IF;
+END_CASE; (* internalStatus *)
+
+(* Unconditional timer calls (once per cycle, after FSM) *)
+(*
+ * startTimer / stopTimer: anti-cycling guards for demand-driven start/stop.
+ *   IN is driven by the Running state logic above.
+ *   IN goes FALSE automatically when:
+ *     - demand reverses (anti-cycling, timer resets before Q fires), or
+ *     - the FSM exits Running state (timer.IN defaults to FALSE above), or
+ *     - a start/stop action is taken (timer.IN forced FALSE in the action).
+ *
+ * autochangeTimer: fixed-interval rotation period. Runs whenever
+ *   autochange = FixedInterval, regardless of FSM state.  The timer is
+ *   reset by setting autochangeTimer_IN := FALSE for one cycle (done in
+ *   the Running state when the timer fires).
+ *)
+startTimer(IN := startTimerTrig, PT := startDelay);
+stopTimer(IN := stopTimerTrig, PT := stopDelay);
+autochangeTimer(IN := autochangeTimerTrig, PT := autochangeInterval);
+
+(* Rising-edge latch - update after all logic that reads it *)
+autochangeTrigOld := autochangeTrigger;
+
+(* Status output *)
+status := internalStatus;

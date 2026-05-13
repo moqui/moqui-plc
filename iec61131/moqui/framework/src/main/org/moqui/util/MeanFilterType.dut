@@ -1,0 +1,15 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MeanFilterType : (
+    SMA, (* Simple Moving Average *)
+    WMA_Ramp, (* Weighted Moving Average, linear weights 1..N from oldest..newest (O(1)) *)
+    WMA_Triangular, (* Symmetric triangular weights, center-weighted (O(N)) *)
+    WMA_TriangularOddOnly, (* Symmetric triangular weights, requires odd windowSize (O(N)) *)
+    TRI_SMA2, (* Triangular approximation via two SMA in cascade (O(1) per tick, extra memory) *)
+    EMA (* Exponential Moving Average (alpha mandatory) *)
+); END_TYPE
+
