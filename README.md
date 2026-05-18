@@ -17,13 +17,16 @@ Main source areas:
 - `iec61131/moqui/framework/src/test`: motion, device, and pick-and-place test suites.
 - `iec61131/moqui/runtime/component/mantle-hvac`: example runtime component built on the framework.
 
-The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any compliant IDE (CODESYS, Siemens AX, etc.). `iec61131.zip` contains the same exports as a ready-to-import archive.
+The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any compliant IDE (CODESYS, Siemens AX, etc.). The repository also includes `moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used for demos, manual validation, and automated test execution.
 
 `MoquiStart` is the entry-point orchestrator: it initializes clocks, diagnostics, logging, input/output processing, configuration loading, and then dispatches the application `Main` POU.
 
 ### Prerequisites
 To open the Codesys project for testing, you need to download the Codesys IDE from the following link:
 * [Codesys Store](https://store.codesys.com/en/codesys.html)
+
+### Demo Project Archive
+Use `moqui.projectarchive` to open the full demo project directly in CODESYS. This archive is the recommended starting point when you want to explore the framework behavior, run the included test suites, or prepare a local demo environment without importing the source tree manually.
 
 ### Testing Setup
 To be able to carry out automatic tests or start the framework, it is necessary to connect the Codesys tasks to the appropriate PLC PROGRAM.
