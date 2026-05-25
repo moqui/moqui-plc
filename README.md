@@ -25,13 +25,13 @@ The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any c
 
 `DeviceConfigMgmt` uses `Recipe_Management.RecipeManCommands` to load device configurations at runtime. The CODESYS IDE Recipe Manager deploys recipe files to `PlcLogic/` (device root) with the naming `recipes<Name>.<Definition>.txtrecipe`, while `RecipeManCommands` searches relative to the application directory (`PlcLogic/<AppName>/`).
 
-To bridge this gap, `DeviceConfigCmds` calls `SetStoragePath` before every `ReloadRecipes`. The path is configured via `recipeStoragePath` in `MoquiConf.gvl` (default: `'recipes'`).
+To bridge this gap, `DeviceConfigCmds` calls `SetStoragePath` before every `ReloadRecipes`. The path is configured via `deviceConfigStoragePath` in `MoquiConf.gvl` (default: `'recipes'`).
 
 The default value is `'../'`, which points to `PlcLogic/` (one level above the application directory `PlcLogic/<AppName>/`). This matches where CODESYS IDE automatically deploys recipe files when the Recipe Manager Storage "File path" field is left empty. Recipe files are named `<RecipeName>.<Definition>.txtrecipe` (no prefix).
 
 Do not set a prefix in the Recipe Manager Storage "File path" field — leave it empty. A non-empty prefix (e.g. `recipes`) becomes part of the filename, which would require `SetStoragePath` to include that prefix as well and creates unnecessary complexity.
 
-After changing `recipeStoragePath`, rebuild and redeploy. The CODESYS File Manager (Tools → Files) can be used to inspect or move recipe files on the runtime.
+After changing `deviceConfigStoragePath`, rebuild and redeploy. The CODESYS File Manager (Tools → Files) can be used to inspect or move recipe files on the runtime.
 
 ### Prerequisites
 To open the Codesys project for testing, you need to download the Codesys IDE from the following link:

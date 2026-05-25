@@ -196,7 +196,7 @@ VAR_GLOBAL CONSTANT
 	 * so move them into PlcLogic/<AppName>/recipes/ to match this default,
 	 * or set to '../' to read directly from PlcLogic/ without moving files.
 	 *)
-	recipeStoragePath : STRING := '../';
+	deviceConfigStoragePath : STRING := '../';
 	ACTUATOR_GROUP_MAX_SIZE : UINT := 8;
     AXIS_IN_VELOCITY_TOLERANCE : LREAL := 0.02;
 END_VAR
