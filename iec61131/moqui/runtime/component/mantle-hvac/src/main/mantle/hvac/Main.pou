@@ -81,6 +81,13 @@ IF (operationType = operatingMode.Init) THEN
 	(* Reset signal manager *)
 	dev.signalMgmt(operationType := SignalMgmtOperatingMode.Reset, loggerName := componentName);
 	dev.status := MainStatus.Standby;
+	dev.actualRuntime            := 0;
+	dev.actualBreakDuration      := 0;
+	dev.processActualDuration    := 0;
+	dev.processRemainingDuration := 0;
+	dev.timeBreakEnabled         := FALSE;
+	dev.isCompleted              := FALSE;
+	done                         := FALSE;
 ELSE
 	(* FSM transition-condition rule engine *)
 	logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
@@ -310,6 +317,8 @@ CASE dev.status OF
 			dev.status := MainStatus.Standby;
 		END_IF;
 END_CASE;
+
+done := dev.isCompleted;
 
 (* Device orchestration (HAL) *)
 logger(message := 'Update HVAC devices.', level := LogLevel.DEBUG);

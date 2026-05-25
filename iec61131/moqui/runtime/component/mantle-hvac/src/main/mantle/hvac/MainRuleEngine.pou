@@ -110,22 +110,30 @@ IF clks.clock1s THEN
 		(* Break counting *)
 		dev.actualBreakDuration := dev.actualBreakDuration + 1;
 		IF dev.estimatedBreakDuration > 0 THEN
-			(* Break ends when both minimum and estimated durations are met *)
-			dev.timeBreakEnabled := NOT (
-				(dev.actualBreakDuration >= dev.estimatedBreakDuration)
-				AND (dev.actualBreakDuration >= dev.minBreakDuration));
+			(* Break ends when both minimum and estimated durations are met; reset counters for next run *)
+			IF (dev.actualBreakDuration >= dev.estimatedBreakDuration)
+					AND (dev.actualBreakDuration >= dev.minBreakDuration) THEN
+				dev.timeBreakEnabled   := FALSE;
+				dev.actualRuntime      := 0;
+				dev.actualBreakDuration := 0;
+			END_IF;
 		END_IF;
 	ELSE
 		(* Run counting *)
 		dev.actualRuntime := dev.actualRuntime + 1;
 		IF dev.estimatedRuntime > 0 THEN
 			dev.processRemainingDuration := dev.processEstimatedDuration - dev.processActualDuration;
-			dev.timeBreakEnabled :=
-				(dev.actualRuntime >= dev.estimatedRuntime)
-				AND (dev.actualRuntime >= dev.minRuntime);
-			dev.isCompleted :=
-				(dev.processActualDuration >= dev.processEstimatedDuration)
-				AND (dev.processActualDuration >= dev.processMinDuration);
+			IF NOT dev.timeBreakEnabled
+					AND (dev.actualRuntime >= dev.estimatedRuntime)
+					AND (dev.actualRuntime >= dev.minRuntime) THEN
+				dev.timeBreakEnabled    := TRUE;
+				dev.actualBreakDuration := 0;
+			END_IF;
+			IF dev.processEstimatedDuration > 0 THEN
+				dev.isCompleted :=
+					(dev.processActualDuration >= dev.processEstimatedDuration)
+					AND (dev.processActualDuration >= dev.processMinDuration);
+			END_IF;
 		END_IF;
 	END_IF;
 END_IF;
@@ -187,6 +195,13 @@ CASE dev.status OF
 		ELSIF dev.lastStatus = MainStatus.CoreThawing AND dev.tempUnderMin THEN
 			dev.standbyRequest := FALSE;
 			dev.coreThawingRequest := TRUE;
+
+		ELSIF dev.lastStatus = MainStatus.Standby
+				AND dev.tempInRange
+				AND dev.rhOverMax THEN
+			(* Fresh drying recipe loaded: autostart when T is in range and RH needs treatment *)
+			dev.standbyRequest := FALSE;
+			dev.dryingRequest  := TRUE;
 
 		(* No ELSE needed here: standbyRequest=TRUE default holds Standby *)
 		END_IF;
