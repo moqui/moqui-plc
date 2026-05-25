@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 (*
  * MainRuleEngine - transition-condition logic for the HVAC supervisor FSM.
@@ -54,10 +54,10 @@ VAR
 	(* Device diagnostics *)
 	deviceDiags : DeviceDiagnostics;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 (* Reset transition requests to safe defaults.
  *
  * standbyRequest = TRUE  → return to / stay in Standby (safe default).
@@ -151,16 +151,18 @@ CASE dev.status OF
      * Override when an external condition requires re-entering a phase.
      *)
 	MainStatus.Standby :
-		IF dev.isCompleted OR dev.tempCoreAtSetpoint THEN
+		IF dev.isCompleted OR (dev.tempCoreControlEnabled AND dev.tempCoreAtSetpoint) THEN
 			dev.standbyRequest := TRUE; (* Explicit - work done, hold here *)
 
-		ELSIF dev.lastStatus = MainStatus.Cooling AND dev.tempOverMax THEN
-			(* Temperature climbed above limit → resume cooling *)
+		ELSIF (dev.lastStatus = MainStatus.Cooling OR dev.lastStatus = MainStatus.Standby)
+				AND dev.tempOverMax THEN
+			(* Temperature above limit → start/resume cooling *)
 			dev.standbyRequest := FALSE;
 			dev.coolingRequest := TRUE;
 
-		ELSIF dev.lastStatus = MainStatus.Heating AND dev.tempUnderMin THEN
-			(* Temperature fell below limit → resume heating *)
+		ELSIF (dev.lastStatus = MainStatus.Heating OR dev.lastStatus = MainStatus.Standby)
+				AND dev.tempUnderMin THEN
+			(* Temperature below limit → start/resume heating *)
 			dev.standbyRequest := FALSE;
 			dev.heatingRequest := TRUE;
 

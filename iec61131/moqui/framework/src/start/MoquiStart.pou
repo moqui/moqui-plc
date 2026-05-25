@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 PROGRAM MoquiStart
 VAR_EXTERNAL CONSTANT
@@ -28,16 +28,24 @@ VAR
 	(* Application component *)
 	main : Main;
 	mainDone : BOOL;
+	mainDoneREdge : R_TRIG;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 (* Set the operating mode *)
 IF ec.init THEN
 	(* Logger facade init *)
 	logger.enable := TRUE; logger.loggerName := 'moqui';
 	operationType := OperatingMode.Init;
+	(*
+	 * Call main with Init on the very first scan so that all device FBs
+	 * (Actuator, ProcessPid) execute their Init block and set up internal state.
+	 * configMgmt.busy=TRUE on this scan, so the Run-path below never calls main —
+	 * without this explicit call, operationType=Init would never reach main.
+	 *)
+	main(operationType := OperatingMode.Init, enable := ec.enable, done => mainDone, error => ec.error);
 ELSE
 	operationType := OperatingMode.Run;
 END_IF;
@@ -95,7 +103,9 @@ CASE status OF
 				 * The Main component can act as a dispatcher for invoking
                  * the system's FSM and its subsystems.
                  *)
-                main(operationType := operationType, done => mainDone, error => ec.error);
+                mainDoneREdge(CLK := mainDone);
+                main(operationType := SEL(mainDoneREdge.Q, operationType, OperatingMode.Init),
+					enable := ec.enable, done => mainDone, error => ec.error);
 				IF main.error THEN status := MoquiStartStatus.Error; END_IF;
             END_IF;
         END_IF;

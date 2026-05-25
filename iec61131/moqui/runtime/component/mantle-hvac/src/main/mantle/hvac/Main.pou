@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 (* 
  * NOTE: In general, the Main component implements the control logic of automated industrial systems (Finite State Machine - FSM)
@@ -63,10 +63,10 @@ VAR
 	(* HAL manager *)
 	deviceManager : DeviceManager;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 (* Logger facade init *)
 logger.enable := TRUE; logger.loggerName := componentName;
 

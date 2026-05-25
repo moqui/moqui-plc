@@ -7,7 +7,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 VAR_EXTERNAL CONSTANT
 	DEVICE_CONFIG_LIST_MAX_SIZE : UINT;
 	defaultConfigType : STRING;
-	recipeStoragePath : STRING;
+	deviceConfigStoragePath : STRING;
 END_VAR
 VAR_INPUT
     configType : STRING := defaultConfigType; (* If empty, set default device config type *)
@@ -30,7 +30,8 @@ VAR
     configCmds : Recipe_Management.RecipeManCommands;
 	(* Logger facade *)
 	logger : LoggerFacade;
-    i : UINT;
+    i, j : UINT;
+	sortTemp : STRING; sortSwapped : BOOL;
 END_VAR
 
 
@@ -56,7 +57,9 @@ CASE cmd OF
 		FOR i := 0 TO DEVICE_CONFIG_LIST_MAX_SIZE DO configNameList[i] := ''; END_FOR;
 		configNameListSize := 0;
 
-		configCmds.SetStoragePath(sPath := recipeStoragePath);
+		IF deviceConfigStoragePath <> '' THEN
+			configCmds.SetStoragePath(stPath := deviceConfigStoragePath);
+		END_IF;
 		errorId := configCmds.ReloadRecipes(RecipeDefinitionName := configType);
 		error := (errorId <> 0);
 		IF error THEN logger(message := 'Error loading device config list from file system.', level := LogLevel.Error); RETURN; END_IF;
@@ -69,6 +72,22 @@ CASE cmd OF
 		(* Set the actual number of recipes/device configs found *)
 		configNameListSize := TO_UINT(MIN(configCmds.GetRecipeCount(RecipeDefinitionName := configType),
 			TO_DINT(DEVICE_CONFIG_LIST_MAX_SIZE) + 1));
+
+		(* Sort recipe names alphabetically (ascending bubble sort) *)
+		IF configNameListSize > 1 THEN
+			REPEAT
+				sortSwapped := FALSE;
+				FOR j := 0 TO configNameListSize - 2 DO
+					IF configNameList[j] > configNameList[j + 1] THEN
+						sortTemp := configNameList[j];
+						configNameList[j] := configNameList[j + 1];
+						configNameList[j + 1] := sortTemp;
+						sortSwapped := TRUE;
+					END_IF;
+				END_FOR;
+			UNTIL NOT sortSwapped
+			END_REPEAT;
+		END_IF;
 
     DeviceConfigCmdType.Create :
 		errorId := configCmds.CreateRecipe(RecipeDefinitionName := configType, RecipeName := configName);
