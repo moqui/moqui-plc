@@ -1,12 +1,13 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 FUNCTION_BLOCK DeviceConfigCmds
 VAR_EXTERNAL CONSTANT
 	DEVICE_CONFIG_LIST_MAX_SIZE : UINT;
 	defaultConfigType : STRING;
+	recipeStoragePath : STRING;
 END_VAR
 VAR_INPUT
     configType : STRING := defaultConfigType; (* If empty, set default device config type *)
@@ -31,10 +32,10 @@ VAR
 	logger : LoggerFacade;
     i : UINT;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 IF cmd = DeviceConfigCmdType.Init THEN
 	(* Logger facade init *)
 	logger.enable := TRUE; logger.loggerName := 'DeviceConfigCmds';
@@ -55,6 +56,7 @@ CASE cmd OF
 		FOR i := 0 TO DEVICE_CONFIG_LIST_MAX_SIZE DO configNameList[i] := ''; END_FOR;
 		configNameListSize := 0;
 
+		configCmds.SetStoragePath(sPath := recipeStoragePath);
 		errorId := configCmds.ReloadRecipes(RecipeDefinitionName := configType);
 		error := (errorId <> 0);
 		IF error THEN logger(message := 'Error loading device config list from file system.', level := LogLevel.Error); RETURN; END_IF;

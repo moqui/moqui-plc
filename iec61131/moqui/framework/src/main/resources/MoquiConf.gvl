@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 VAR_GLOBAL CONSTANT
 	(* ========== Framework ========== *)
 
@@ -21,10 +21,10 @@ VAR_GLOBAL CONSTANT
 	(* JSON payload size for log appender *)
 	LOG_JSON_PAYLOAD_MAX_SIZE : UINT := 32768;
 	(* MQTT topic used by the log appender *)
-	JSON_PAYLOAD_MAX_SIZE : UINT := 1024;
+	JSON_PAYLOAD_MAX_SIZE : UINT := 8192;
 	JSON_LINE_BREAK : WSTRING(2) := "$R$N";
 	JSON_ELEMENT_LIST_MAX_SIZE : UINT := 100;
-	LOG_APPENDER_BATCH_SIZE : UINT := 30;
+	LOG_APPENDER_BATCH_SIZE : UINT := 10;
 	logTopic : WSTRING(1024) := "moqui-plc";
 	logAppenderTimeout : UINT := 50000;
 	(* Topic for receiving commands from Moqui *)
@@ -57,7 +57,7 @@ VAR_GLOBAL CONSTANT
      * MQTT broker URL and port.
 	 * The input is only relevant for communicationMode = COMMUNICATION_MODE.TCP.
 	 *)
-	brokerUrl : STRING(255) := '192.168.1.172';
+	brokerUrl : STRING(255) := '192.168.101.62';
 	brokerPort : UINT := 1883;
 	(* 
      * The URL of the websocket server. 
@@ -186,9 +186,17 @@ VAR_GLOBAL CONSTANT
 	SIGNAL_LIST_MAX_SIZE : UINT := 200;
 	
 	(* ========== Device Config Management ========== *)
-	
+
 	DEVICE_CONFIG_LIST_MAX_SIZE : UINT := 100;
-	defaultConfigType : STRING := 'TestRecipes'; (* 'HvacDeviceConfig' *)
+	defaultConfigType : STRING := 'HvacDeviceConfig';  (* 'TestRecipes' *)
+	(*
+	 * Storage path for recipe files used by RecipeManCommands.SetStoragePath.
+	 * The path is relative to the application directory (PlcLogic/<AppName>/).
+	 * CODESYS IDE Recipe Manager deploys files to PlcLogic/ root with prefix "recipes",
+	 * so move them into PlcLogic/<AppName>/recipes/ to match this default,
+	 * or set to '../' to read directly from PlcLogic/ without moving files.
+	 *)
+	recipeStoragePath : STRING := '../';
 	ACTUATOR_GROUP_MAX_SIZE : UINT := 8;
     AXIS_IN_VELOCITY_TOLERANCE : LREAL := 0.02;
 END_VAR

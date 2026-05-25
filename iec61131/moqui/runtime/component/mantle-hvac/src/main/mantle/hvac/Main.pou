@@ -32,7 +32,7 @@
  *   CoreThawing        OFF         ON         ON        ON
  *   Fault              OFF         OFF        OFF       OFF
  *
- * DeviceRuleEngine generates transition requests; Main consumes them.
+ * MainRuleEngine generates transition requests; Main consumes them.
  * DeviceManager orchestrates the individual device FBs.
  *
  * Call order in the PLC task:
@@ -58,7 +58,7 @@ VAR
 	(* Logger facade *)
 	logger : LoggerFacade;
 	(* FSM transition logic *)
-	ruleEngine : DeviceRuleEngine;
+	ruleEngine : MainRuleEngine;
 	(* Optional: define one or more FSMs for managing subsystems, if needed *)
 	(* HAL manager *)
 	deviceManager : DeviceManager;
@@ -153,7 +153,7 @@ CASE dev.status OF
      * Cooling: cold group + AHU + air flow control.
      * Phase 0 (no RH ctrl) and Phase 1 (with RH ctrl, rhControlEnabled=TRUE).
      * In Phase 1 the hot group is also enabled to post-heat after dehumidification;
-     * that secondary enable is issued by DeviceRuleEngine via heatingRequest/dryingRequest
+     * that secondary enable is issued by MainRuleEngine via heatingRequest/dryingRequest
      * transitions rather than here, keeping output function clean.
      *)
 	MainStatus.Cooling :

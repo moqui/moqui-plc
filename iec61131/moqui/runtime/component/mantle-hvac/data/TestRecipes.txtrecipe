@@ -1,0 +1,5 @@
+﻿TestSuite.dev.coldGlycolPump.actuatorId:='100002'
+TestSuite.dev.coldGlycolPump.actuatorName:='AHU Fan 2'
+TestSuite.dev.coldGlycolPump.disableTime:=333
+TestSuite.dev.coldGlycolPump.enableTime:=555
+TestSuite.dev.coldGlycolPump.enablePreset:=FALSE

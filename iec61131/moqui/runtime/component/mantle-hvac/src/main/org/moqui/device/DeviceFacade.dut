@@ -46,7 +46,7 @@ TYPE DeviceFacade : STRUCT
     ductTempFeedback : REAL; (* °C supply-air temperature in duct *)
     ductRhFeedback : REAL; (* % supply-air relative humidity in duct *)
 
-    (* Boolean predicates - computed each scan by DeviceRuleEngine *)
+    (* Boolean predicates - computed each scan by MainRuleEngine *)
     (* Cell sensor *)
     tempInRange : BOOL; (* tempMin+hys ≤ T ≤ tempMax-hys *)
     tempAtSetpoint : BOOL; (* |T - Tsp| ≤ hys *)
@@ -106,7 +106,7 @@ TYPE DeviceFacade : STRUCT
     status : MainStatus := MainStatus.Standby;
     lastStatus : MainStatus := MainStatus.Standby;
     (* 
-     * Internally generated transition requests (set by DeviceRuleEngine,
+     * Internally generated transition requests (set by MainRuleEngine,
      * consumed and cleared by Main.pou each scan)
      *)
     standbyRequest : BOOL;

@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 (* 
  * Logger with local circular buffer and duplicate suppression. 
@@ -56,10 +56,10 @@ VAR
     timestamp : SysTimeRtc.SYSTIME;
     uuid : STRING(40);
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 (* Register once into the log appender source list *)
 IF NOT init THEN
     IF logSourceListSize < LOG_SOURCE_LIST_MAX_SIZE THEN
@@ -80,7 +80,7 @@ isDuplicate := FALSE;
 (* Compression logic (duplicate suppression) *)
 IF suppressDuplicates AND (payloadType = lastLogEvent.payloadType)
         AND (loggerName = lastLogEvent.loggerName)
-		AND (source = lastLogEvent.loggerName) THEN
+		AND (source = lastLogEvent.source) THEN
 	CASE payloadType OF
 		LogPayloadType.Text: isDuplicate := (message = lastLogEvent.payload.message);
 		LogPayloadType.Enum: isDuplicate := (enumValue = lastLogEvent.payload.enumValue);

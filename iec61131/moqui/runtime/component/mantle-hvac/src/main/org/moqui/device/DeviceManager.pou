@@ -1,0 +1,98 @@
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+{attribute 'no_assign'}
+(* Hardware Abstraction Layer (HAL) orchestrator.
+ *
+ * Drives all physical device FBs once per scan.
+ * Main component sets the enable/disable request flags; DeviceManager wires them
+ * to the individual Actuator / ProcessPid FBs.
+ *
+ * Call order within the PLC task:
+ *   InputSignalUpdate (updates feedback signals from field)
+ *   Main (FSM + MainRuleEngine → sets request flags)
+ *   DeviceManager (this block - drives device FBs)
+ *   OutputSignalUpdate (maps device outputs to physical terminals)
+ *
+ * Handshake note (Actuator FBs):
+ *   enableRequest / disableRequest are VAR_IN_OUT.  The Actuator FB clears
+ *   the flag as its acknowledgment.  Main.pou re-asserts the flag each scan
+ *   from dev.xxxEnableRequest, so the handshake is level-triggered.
+ *
+ * ProcessPid note (ahuFan):
+ *   ProcessPid uses a plain BOOL 'enable' input - no VAR_IN_OUT handshake.
+ *   Setting enable := FALSE ramps the output to 0 and disables the controller.
+ *)
+FUNCTION_BLOCK DeviceManager
+VAR_EXTERNAL
+	clks : Clocks;
+	dev : DeviceFacade;
+END_VAR
+VAR_INPUT
+	operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+(* Cold glycol group *)
+(*
+ * Pump is started first via the request/ack handshake.
+ * Valve enable follows the group request directly (no separate handshake
+ * needed for ProcessPid - enable := FALSE freezes the output at 0).
+ *)
+dev.coldGlycolPump(
+	operationType := operationType,
+	clock := clks.clock100ms,
+	enableRequest := dev.coldGroupEnableRequest,
+	disableRequest := dev.coldGroupDisableRequest);
+
+dev.coldGlycolValve(
+	enable := dev.coldGroupEnableRequest,
+	feedback := dev.tempFeedback,
+	setpoint := dev.tempSetpoint,
+	clock := clks.clock100ms);
+
+(* Hot glycol group *)
+dev.hotGlycolPump(
+	operationType := operationType,
+	clock := clks.clock100ms,
+	enableRequest := dev.hotGroupEnableRequest,
+	disableRequest := dev.hotGroupDisableRequest);
+
+dev.hotGlycolValve(
+	enable := dev.hotGroupEnableRequest,
+	feedback := dev.tempFeedback,
+	setpoint := dev.tempSetpoint,
+	clock := clks.clock100ms);
+
+(* AHU fan *)
+(*
+ * enable := FALSE ramps down the drive and disables the PID output.
+ * Speed setpoint (ahuFanSpeedSetpoint) and the PID tuning parameters
+ * (gain, integrationTime, etc.) are mapped from the device config (recipe).
+ * ahuFanSpeedFeedback is wired from InputSignalUpdate (drive feedback word).
+ *)
+dev.ahuFan(
+	enable := dev.ahuFanEnableRequest,
+	setpoint := dev.ahuFanSpeedSetpoint,
+	feedback := dev.ahuFanSpeedFeedback,
+	clock := clks.clock100ms);
+
+(* Air flow distributor (drive) *)
+(*
+ * Treated as Actuator with an additional speed reference.
+ * ref = distribution setpoint (0-100 %) from device config (recipe)/RuleEngine.
+ * feedback = drive speed feedback from InputSignalUpdate.
+ * The drive alternates supply air between left and right ducts
+ * according to the ref timing programmed on the drive itself;
+ * the PLC only starts / stops it and adjusts the reference level.
+ *)
+dev.airFlow(
+	operationType := operationType,
+	clock := clks.clock100ms,
+	enableRequest := dev.airFlowEnableRequest,
+	disableRequest := dev.airFlowDisableRequest,
+	ref := dev.airFlowRef,
+	feedback := dev.airFlowSpeedFeedback);

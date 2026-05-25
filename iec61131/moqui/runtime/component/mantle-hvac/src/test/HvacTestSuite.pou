@@ -8,7 +8,7 @@
  *
  * Tests cover:
  *   Main FSM state transitions (all 7 states)
- *   DeviceRuleEngine predicate computation and auto-transitions
+ *   MainRuleEngine predicate computation and auto-transitions
  *   Output function: which device-enable request flags are set per state
  *   Run / break cycle: Drying ↔ Standby break and resume
  *   Duct safety alarms: ImmediateStop on temperature limit violation
@@ -16,7 +16,7 @@
  *
  * Architecture
  * 
- * Main, DeviceRuleEngine and DeviceManager all use VAR_EXTERNAL to share the
+ * Main, MainRuleEngine, DeviceDiagnostics and DeviceManager all use VAR_EXTERNAL to share the
  * global 'dev : DeviceParameters' singleton.  The test suite controls the FSM
  * by writing sensor feedback and recipe flags into 'dev' before each call to
  * main(), then inspects 'dev.status' and the enable-request flags afterwards.
@@ -28,8 +28,9 @@
  * Call order each scan:
  *   (Test setup writes dev.* fields)
  *   main(operationType, enable)
- *     └─ DeviceRuleEngine: updates predicates, signal mgmt, sets *Request flags
+ *     └─ MainRuleEngine: updates predicates, signal mgmt, sets *Request flags
  *     └─ Main FSM: reads *Request → updates dev.status
+ *     └─ DeviceDiagnostics: signalMgmt for each device
  *     └─ DeviceManager: drives Actuator / ProcessPid FBs
  *
  * Watchdog
@@ -341,7 +342,7 @@ CASE step OF
 
     (* pass[4]: Ventilation output function - AHU=ON, groups=OFF *)
     (*
-     * Note: ventilationRequest is reset by DeviceRuleEngine at the start of every scan,
+     * Note: ventilationRequest is reset by MainRuleEngine at the start of every scan,
      * so it cannot be injected externally. Recipe/operator drives
      * this state by writing dev.status directly.  The test does the same and
      * verifies the output function (which group-enable flags are set).
@@ -492,7 +493,7 @@ CASE step OF
 
     (* pass[16]: Cooling → Drying when T back below tempMax *)
     (*
-     * After the Drying→Cooling emergency override (pass[15]), the DeviceRuleEngine
+     * After the Drying→Cooling emergency override (pass[15]), the MainRuleEngine
      * Cooling CASE checks lastStatus=Drying to decide to resume Drying.
      * We set lastStatus explicitly here - the same defensive pattern used in
      * pass[21] for the run/break resume - because the auto-save inside
@@ -521,7 +522,7 @@ CASE step OF
 
     (* pass[18]: Heating → Drying when T restored (lastStatus=Drying) *)
     (*
-     * After the Drying→Heating emergency override (pass[17]), the DeviceRuleEngine
+     * After the Drying→Heating emergency override (pass[17]), the MainRuleEngine
      * Heating CASE checks lastStatus=Drying + tempOverMin to resume Drying.
      * Set lastStatus explicitly - same defensive pattern as pass[16] and pass[21].
      * tempFeedback = T_NORMAL: tempOverMin=TRUE (4.0 > 2.0), tempOverMax=FALSE.
