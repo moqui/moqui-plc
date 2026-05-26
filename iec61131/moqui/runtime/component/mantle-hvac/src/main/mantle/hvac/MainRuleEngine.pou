@@ -113,8 +113,8 @@ IF clks.clock1s THEN
 			(* Break ends when both minimum and estimated durations are met; reset counters for next run *)
 			IF (dev.actualBreakDuration >= dev.estimatedBreakDuration)
 					AND (dev.actualBreakDuration >= dev.minBreakDuration) THEN
-				dev.timeBreakEnabled   := FALSE;
-				dev.actualRuntime      := 0;
+				dev.timeBreakEnabled := FALSE;
+				dev.actualRuntime := 0;
 				dev.actualBreakDuration := 0;
 			END_IF;
 		END_IF;
@@ -126,15 +126,18 @@ IF clks.clock1s THEN
 			IF NOT dev.timeBreakEnabled
 					AND (dev.actualRuntime >= dev.estimatedRuntime)
 					AND (dev.actualRuntime >= dev.minRuntime) THEN
-				dev.timeBreakEnabled    := TRUE;
+				dev.timeBreakEnabled := TRUE;
 				dev.actualBreakDuration := 0;
 			END_IF;
-			IF dev.processEstimatedDuration > 0 THEN
-				dev.isCompleted :=
-					(dev.processActualDuration >= dev.processEstimatedDuration)
-					AND (dev.processActualDuration >= dev.processMinDuration);
-			END_IF;
 		END_IF;
+	END_IF;
+
+	(* isCompleted is independent of the run/break cycle:
+	 * a phase with only processEstimatedDuration set (no run/break) must also complete. *)
+	IF dev.processEstimatedDuration > 0 THEN
+		dev.isCompleted :=
+			(dev.processActualDuration >= dev.processEstimatedDuration)
+			AND (dev.processActualDuration >= dev.processMinDuration);
 	END_IF;
 END_IF;
 
@@ -201,7 +204,7 @@ CASE dev.status OF
 				AND dev.rhOverMax THEN
 			(* Fresh drying recipe loaded: autostart when T is in range and RH needs treatment *)
 			dev.standbyRequest := FALSE;
-			dev.dryingRequest  := TRUE;
+			dev.dryingRequest := TRUE;
 
 		(* No ELSE needed here: standbyRequest=TRUE default holds Standby *)
 		END_IF;

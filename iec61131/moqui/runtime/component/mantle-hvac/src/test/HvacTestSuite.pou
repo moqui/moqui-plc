@@ -1,7 +1,7 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 {attribute 'no_assign'}
 (*
  * HvacTestSuite - integration test suite for the HVAC curing-room component.
@@ -71,6 +71,8 @@
  * pass[28] : Fault → Standby after Init (signalMgmt reset)
  * pass[29] : Duct alarm: ductTempUnderMin → Fault
  * pass[30] : Fault state - all groups disabled (safe state)
+ * pass[31] : Cooling → Standby on processEstimatedDuration elapsed with estimatedRuntime=0
+ *            (verifies isCompleted is independent of the run/break cycle)
  *)
 PROGRAM HvacTestSuite
 VAR_EXTERNAL
@@ -119,7 +121,7 @@ VAR
 	 * from scratch (clears all persistent state after a warm download).
 	 *)
 	testReset : BOOL;
-	pass : ARRAY[1..30] OF BOOL;
+	pass : ARRAY[1..31] OF BOOL;
 
 	(*  Diagnostic mirrors.
 	 *
@@ -152,10 +154,10 @@ VAR
 	mirAirFlowFault : BOOL;
 	i : UINT;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
 (* Watchdog *)
 cycles := cycles + 1;
 IF (cycles > TIMEOUT) AND NOT testDone THEN
@@ -171,14 +173,18 @@ IF testReset THEN
 	testDone := FALSE;
 	testFailed := FALSE;
 	failStep := 0;
-	FOR i := 1 TO 30 DO pass[i] := FALSE; END_FOR;
+	FOR i := 1 TO 31 DO pass[i] := FALSE; END_FOR;
 	dev.status := MainStatus.Standby;
 	dev.lastStatus := MainStatus.Standby;
 	dev.isCompleted := FALSE;
 	dev.timeBreakEnabled := FALSE;
 	dev.actualRuntime := 0;
 	dev.actualBreakDuration := 0;
+	dev.processActualDuration := 0;
+	dev.processEstimatedDuration := 0;
+	dev.processMinDuration := 0;
 	dev.faultRequest := FALSE;
+	clks.clock1s := FALSE;
 	testReset := FALSE;
 END_IF;
 
@@ -720,6 +726,42 @@ CASE step OF
             pass[30] := TRUE;
             (* Clean up *)
             dev.ductTempFeedback := DUCT_NORMAL;
+            main(operationType := OperatingMode.Init, enable := TRUE);
+            cycles := 0;
+            step := 31;
+        END_IF;
+
+    (* pass[31]: Cooling → Standby on processEstimatedDuration elapsed with estimatedRuntime=0.
+     *
+     * This verifies that isCompleted is independent of the run/break cycle:
+     * a recipe that sets only processEstimatedDuration (no estimatedRuntime, no run/break)
+     * must still exit the active state when the total process duration is reached.
+     *
+     * clock1s is injected manually because ClockGeneration is not part of this test task.
+     * Three clock1s pulses are issued inline; on the third pulse processActualDuration=3
+     * satisfies both processEstimatedDuration=3 and processMinDuration=1, setting
+     * isCompleted=TRUE which causes the Cooling CASE to exit to Standby on the same scan.
+     *)
+    31 :
+        main(operationType := OperatingMode.Init, enable := TRUE); (* Reset device FBs *)
+        dev.status := MainStatus.Cooling;
+        dev.lastStatus := MainStatus.Cooling;
+        dev.tempFeedback := T_HOT; (* T > tempMax: prevents tempUnderMin exit, stays in ELSE branch *)
+        dev.processActualDuration := 0;
+        dev.processEstimatedDuration := 3;
+        dev.processMinDuration := 1;
+        dev.estimatedRuntime := 0; (* No run/break cycle - the case under test *)
+        clks.clock1s := TRUE;  main(operationType := OperatingMode.Run, enable := TRUE);  (* pulse 1: processActualDuration=1 *)
+        clks.clock1s := FALSE; main(operationType := OperatingMode.Run, enable := TRUE);  (* between pulses: no increment *)
+        clks.clock1s := TRUE;  main(operationType := OperatingMode.Run, enable := TRUE);  (* pulse 2: processActualDuration=2 *)
+        clks.clock1s := FALSE; main(operationType := OperatingMode.Run, enable := TRUE);  (* between pulses: no increment *)
+        clks.clock1s := TRUE;  main(operationType := OperatingMode.Run, enable := TRUE);  (* pulse 3: processActualDuration=3 → isCompleted=TRUE → Standby *)
+        clks.clock1s := FALSE;
+        IF dev.status = MainStatus.Standby AND dev.isCompleted THEN
+            pass[31] := TRUE;
+            dev.processEstimatedDuration := 0;
+            dev.processMinDuration := 0;
+            dev.processActualDuration := 0;
             main(operationType := OperatingMode.Init, enable := TRUE);
             cycles := 0;
             step := 100;
