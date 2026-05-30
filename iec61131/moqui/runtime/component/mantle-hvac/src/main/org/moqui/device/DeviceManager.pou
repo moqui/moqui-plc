@@ -1,13 +1,17 @@
-
-
-(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+
+
+(*#-#-#-#-#-#-#-#-#-#---Declaration---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+
+
 {attribute 'no_assign'}
 (* Hardware Abstraction Layer (HAL) orchestrator.
  *
  * Drives all physical device FBs once per scan.
  * Main component sets the enable/disable request flags; DeviceManager wires them
- * to the individual Actuator / ProcessPid FBs.
+ * to the individual Actuator / ActuatorGroup / ProcessPid / Axis / AxisGroup FBs.
  *
  * Call order within the PLC task:
  *   InputSignalUpdate (updates feedback signals from field)
@@ -32,10 +36,14 @@ END_VAR
 VAR_INPUT
 	operationType : OperatingMode := OperatingMode.Run;
 END_VAR
-
-
-(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
-
+
+
+
+
+(*#-#-#-#-#-#-#-#-#-#---Implementation---#-#-#-#-#-#-#-#-#-#-#-#-#*)
+
+
+
 (* Cold glycol group *)
 (*
  * Pump is started first via the request/ack handshake.
