@@ -1,0 +1,94 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ESP32 GDB Debug",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set print object on",
+          "text": "set print object on",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set print demangle on",
+          "text": "set print demangle on",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build:esp32",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "miDebuggerArgs": "--args",
+      "launchCompleteCommand": "exec-continue"
+    },
+    {
+      "name": "ESP32 LLDB Debug",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "launchCompleteCommand": "exec-continue"
+    },
+    {
+      "name": "Build & Debug ESP32",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "args": [],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/opt/esp/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32-elf-gdb",
+      "setupCommands": [
+        {
+          "description": "Load debug info",
+          "text": "file ${workspaceFolder}/build/moqui_iot_firmware.elf",
+          "ignoreFailures": false
+        }
+      ],
+      "preLaunchTask": "build:esp32-docker"
+    },
+    {
+      "name": "QEMU Docker Debug",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "args": [],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "${workspaceFolder}/.vscode/gdb-docker.sh",
+      "miDebuggerServerAddress": "localhost:3333",
+      "setupCommands": [
+        {
+          "description": "Load debug info",
+          "text": "file ${workspaceFolder}/build/moqui_iot_firmware.elf",
+          "ignoreFailures": false
+        }
+      ],
+      "preLaunchTask": "Start QEMU (Docker)"
+    }
+  ]
+}

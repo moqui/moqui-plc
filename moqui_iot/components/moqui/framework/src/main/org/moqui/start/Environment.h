@@ -1,0 +1,11 @@
+#ifndef ENVIRONMENT_H
+#define ENVIRONMENT_H
+
+typedef enum {
+    ENVIRONMENT_LOCAL = 0,
+    ENVIRONMENT_TEST = 1,
+    ENVIRONMENT_STAGING = 2,
+    ENVIRONMENT_PRODUCTION = 3
+} Environment;
+
+#endif /* ENVIRONMENT_H */

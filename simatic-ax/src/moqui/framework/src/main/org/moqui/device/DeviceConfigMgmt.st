@@ -1,0 +1,119 @@
+(*
+ * Pure recipe sequencing logic. Implement complex logic, including micro-recipe composition,
+ * alternative recipes, condition-based recipes, etc., if needed.
+ *)
+FUNCTION_BLOCK DeviceConfigMgmt
+	VAR_EXTERNAL CONSTANT
+		defaultConfigType : STRING;
+	END_VAR
+	VAR_INPUT
+		enable : BOOL;
+		continueAfterError : BOOL;
+		configCompleted : BOOL; (* Config processed feedback *)
+	END_VAR
+	VAR_OUTPUT
+	    done, allConfigLoaded, busy, error : BOOL;
+		errorId : DWORD;
+	END_VAR
+	VAR
+	    status : DeviceConfigMgmtStatus := DeviceConfigMgmtStatus#Idle;
+	    configCmds : DeviceConfigCmds;
+	    currentConfigIndex : UINT := UINT#0;
+		(* Logger facade *)
+	    logger : LoggerFacade;
+		init : BOOL;
+		configCompletedREdge : R_TRIG;
+		configCmdsBusy : BOOL;
+	END_VAR
+
+	IF NOT init THEN
+		(* Logger facade init *)
+		logger.enable := TRUE; logger.loggerName := 'DeviceConfigMgmt';
+		init := TRUE;
+	END_IF;
+
+	configCompletedREdge(CLK := configCompleted);
+	configCmdsBusy := (configCmds.errorId = DWORD#16#7001) OR (configCmds.errorId = DWORD#16#7002);
+
+	CASE status OF
+	    DeviceConfigMgmtStatus#Idle :
+			done := FALSE; busy := FALSE;
+
+	        IF enable THEN
+				busy := TRUE;
+				(* Setup the default config type *)
+	            configCmds.configType := defaultConfigType;
+	            status := DeviceConfigMgmtStatus#Init;
+	        END_IF;
+
+	    DeviceConfigMgmtStatus#Init :
+			allConfigLoaded := FALSE;
+			busy := TRUE;
+			configCmds(cmd := DeviceConfigCmdType#Init, error => error, errorId => errorId);
+
+	        IF configCmds.error THEN
+				status := DeviceConfigMgmtStatus#Resetting;
+			ELSIF configCmdsBusy THEN
+				status := DeviceConfigMgmtStatus#Init;
+			ELSE
+	            status := DeviceConfigMgmtStatus#Load;
+	        END_IF;
+
+	    DeviceConfigMgmtStatus#Load :
+			busy := TRUE;
+	        IF currentConfigIndex >= configCmds.configNameListSize THEN
+	            status := DeviceConfigMgmtStatus#Completed;
+	        ELSE
+	            configCmds.configName := configCmds.configNameList[currentConfigIndex];
+	            configCmds(cmd := DeviceConfigCmdType#Load, error => error, errorId => errorId);
+	            IF configCmds.error THEN
+	                status := DeviceConfigMgmtStatus#Resetting;
+	            ELSIF configCmdsBusy THEN
+	                status := DeviceConfigMgmtStatus#WaitLoad;
+	            ELSE
+	                status := DeviceConfigMgmtStatus#WaitProcessing;
+	            END_IF;
+	        END_IF;
+
+	    DeviceConfigMgmtStatus#WaitLoad :
+			done := FALSE;
+			busy := TRUE;
+	        configCmds.configName := configCmds.configNameList[currentConfigIndex];
+	        configCmds(cmd := DeviceConfigCmdType#Load, error => error, errorId => errorId);
+	        IF configCmds.error THEN
+	            status := DeviceConfigMgmtStatus#Resetting;
+	        ELSIF configCmdsBusy THEN
+	            status := DeviceConfigMgmtStatus#WaitLoad;
+	        ELSE
+	            status := DeviceConfigMgmtStatus#WaitProcessing;
+	        END_IF;
+
+	    DeviceConfigMgmtStatus#WaitProcessing :
+			done := TRUE;
+			busy := FALSE;
+
+	        IF configCompletedREdge.Q THEN
+	            done := FALSE;
+	            logger(message := configCmds.configName);
+	            currentConfigIndex := currentConfigIndex + UINT#1;
+	            status := DeviceConfigMgmtStatus#Load;
+	        END_IF;
+
+	    DeviceConfigMgmtStatus#Completed :
+	        allConfigLoaded := TRUE;
+			done := TRUE;
+			busy := FALSE;
+			error := FALSE;
+			currentConfigIndex := UINT#0;
+	        logger(message := 'All device configs loaded.');
+	        status := DeviceConfigMgmtStatus#Idle;
+
+	    DeviceConfigMgmtStatus#Resetting :
+	        configCmds(cmd := DeviceConfigCmdType#Reset, error => error, errorId => errorId);
+			IF NOT continueAfterError THEN
+	        	currentConfigIndex := UINT#0;
+	        END_IF;
+		
+	        status := DeviceConfigMgmtStatus#Init;
+	END_CASE;
+	END_FUNCTION_BLOCK

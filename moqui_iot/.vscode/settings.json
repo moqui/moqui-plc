@@ -1,0 +1,32 @@
+{
+  "C_Cpp.default.compilerPath": "/opt/esp/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc",
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/components/moqui/framework/src/main/org/moqui/device",
+    "${workspaceFolder}/components/moqui/framework/src/main/org/moqui/context",
+    "${workspaceFolder}/components/moqui/runtime/component/mantle-hvac/src/main/org/moqui/util/json",
+    "${workspaceFolder}/components/moqui/framework/src/main/org/moqui/mqtt",
+    "${workspaceFolder}/components/moqui/runtime/component/mantle-hvac/src/main/org/moqui/device",
+    "${workspaceFolder}/components/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac",
+    "${workspaceFolder}/components/moqui/framework/src/main/org/moqui/test",
+    "${workspaceFolder}/components/moqui/framework/src/main/org/moqui/util",
+    "/opt/esp/idf/components/*/include",
+    "/opt/esp/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/lib/gcc/xtensa-esp-elf/15.2.0/include"
+  ],
+  "C_Cpp.default.defines": [
+    "ESP32",
+    "IDF_TARGET=esp32",
+    "__ELF__",
+    "ESP_PLATFORM=1"
+  ],
+  "C_Cpp.default.intelliSenseMode": "gcc-x64",
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/.git/**": true,
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/build/**": true,
+    "**/components/**": true
+  },
+  "editor.formatOnSave": false
+}

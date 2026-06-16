@@ -1,0 +1,9 @@
+TYPE EdgeTriggerStatus : (
+	Dormant := 0,
+	Executing,
+	Done,
+	Aborting,
+	Aborted,
+	Resetting,
+	Error
+); END_TYPE

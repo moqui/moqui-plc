@@ -1,0 +1,44 @@
+# IDE / editor
+*.opt
+*.precompilecache
+*.project
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.bak
+
+# Compiled binaries and build artifacts
+*.obj
+*.bin
+*.elf
+*.map
+*.o
+*.a
+*.so
+*.out
+
+# SIMATIC AX generated/build output
+simatic-ax/bin/
+simatic-ax/obj/
+simatic-ax/_c-preview/
+
+# Codesys export artifacts
+iec61131/**/TaskConfiguration/
+**/TaskConfiguration/
+codesys-prj/
+
+# SIMATIC AX generated docs and transient work files
+simatic-ax/docs/
+simatic-ax/motion-errors-full.txt
+CODEX-CLOSEOUT-PLAN-corrected.md
+
+# moqui_iot ESP-IDF build (also covered by moqui_iot/.gitignore)
+moqui_iot/build/
+moqui_iot/managed_components/
+moqui_iot/sdkconfig
+moqui_iot/sdkconfig.old
+moqui_iot/sdkconfig.defaults.esp32
+moqui_iot/dependencies.lock

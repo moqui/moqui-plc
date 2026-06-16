@@ -1,0 +1,23 @@
+(* Mapping inputs of a manual motor starter, motor protection circuit breakers (MPCBs)
+ * and contactors, to the basic actuator inputs. *)
+FUNCTION processMotorStarterInData : BOOL
+	VAR_INPUT
+		contactorAuxiliaryContact : BOOL;
+		motorStarterSignallingContact : BOOL;
+		motorStarterShuntTrip : BOOL;
+	END_VAR
+	VAR_OUTPUT
+		enabledSensor : BOOL := FALSE;
+		disabledSensor : BOOL := FALSE;
+		externalFault : BOOL := FALSE;
+	END_VAR
+
+	processMotorStarterInData := FALSE;
+
+	(* Set parameters based on the motor starter signals interpretation *)
+	enabledSensor := contactorAuxiliaryContact;
+	disabledSensor := NOT contactorAuxiliaryContact;
+	externalFault := NOT contactorAuxiliaryContact OR motorStarterShuntTrip;
+
+	processMotorStarterInData := TRUE;
+	END_FUNCTION

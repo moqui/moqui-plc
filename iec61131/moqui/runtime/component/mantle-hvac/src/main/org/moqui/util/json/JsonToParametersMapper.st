@@ -1,0 +1,24 @@
+FUNCTION_BLOCK JsonToParametersMapper
+	VAR_EXTERNAL
+		dev : DeviceFacade;
+	END_VAR
+	VAR_INPUT
+	    jsonKey : WSTRING(255) := "";
+	    jsonValue : JSON.JSONElement;
+	END_VAR
+
+	(* Args validation *)
+	IF (jsonKey = "") THEN RETURN; END_IF;
+
+	(* Mapping JSON elements to parameters, ignoring nknown keys and errors (non-blocking). *)
+	IF jsonKey = "tempSetpoint" THEN
+	    dev.tempSetpoint := TO_REAL(jsonValue.value.lrValue);
+	ELSIF jsonKey = "tempHysteresis" THEN
+	    dev.tempHysteresis := TO_REAL(jsonValue.value.lrValue);
+	ELSIF jsonKey = "coldGlycolEnableRequest" THEN
+	    dev.coldGroupEnableRequest := jsonValue.value.xValue;
+	ELSIF jsonKey = "workEffort.workEffortName" THEN
+	    workEffort.workEffortName := LEFT(TO_STRING(jsonValue.value.wsValue), 255);
+		(* etc. *)
+	END_IF;
+	END_FUNCTION_BLOCK

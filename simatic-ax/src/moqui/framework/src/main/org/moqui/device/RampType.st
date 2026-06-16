@@ -1,0 +1,6 @@
+TYPE RampType : (
+    Linear, // Linear ramp.
+    SShaped, // S-Shaped ramp.
+    Exponential, // Exponential ramp
+    Custom // Custom-defined ramp function
+); END_TYPE

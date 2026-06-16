@@ -1,0 +1,27 @@
+# Configuration for debugging on Linux target
+# This is a minimal build that excludes hardware-specific components
+# To use locally without Docker:
+#   export IDF_PATH=/path/to/esp-idf
+#   idf.py --preview set-target linux
+#   idf.py build
+
+idf_build_get_property(target IDF_TARGET)
+
+idf_component_register(
+    SRCS "framework/src/main/org/moqui/device/ProcessPid.c"
+         "runtime/component/mantle-hvac/src/main/org/moqui/util/json/ParametersToJsonMapper.c"
+         "framework/src/main/org/moqui/mqtt/IotMqttClient.c"
+         "runtime/component/mantle-hvac/src/main/mantle/hvac/MainRuleEngine.c"
+         "runtime/component/mantle-hvac/src/main/org/moqui/device/DeviceManager.c"
+         "runtime/component/mantle-hvac/src/main/mantle/hvac/Main.c"
+         "framework/src/main/org/moqui/test/HvacTestSuite.c"
+    INCLUDE_DIRS "framework/src/main/org/moqui/device"
+                 "framework/src/main/org/moqui/context"
+                 "runtime/component/mantle-hvac/src/main/org/moqui/util/json"
+                 "framework/src/main/org/moqui/mqtt"
+                 "runtime/component/mantle-hvac/src/main/org/moqui/device"
+                 "runtime/component/mantle-hvac/src/main/mantle/hvac"
+                 "framework/src/main/org/moqui/test"
+                 "framework/src/main/org/moqui/util"
+    REQUIRES "mqtt"
+)

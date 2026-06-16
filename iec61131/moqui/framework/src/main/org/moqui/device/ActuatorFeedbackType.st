@@ -1,0 +1,6 @@
+TYPE ActuatorFeedbackType : (
+	WithoutFeedback := 0, (* No feedback *)
+    SingleDisableFeedback, (* Single Deactivation Feedback: Only disabledSensor *)
+    SingleEnableFeedback, (* Single Activation Feedback: Only enabledSensor *)
+	DoubleFeedback (* Double Feedback: Both sensors *)
+); END_TYPE

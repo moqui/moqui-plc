@@ -1,0 +1,7 @@
+TYPE AxisGroupStatus : (
+    Disabled, (* Group not powered or not enabled *)
+    Standby, (* Group enabled and ready to accept commands *)
+    Moving, (* Group executing a coordinated motion *)
+    Stopping, (* MC_GroupHalt or MC_GroupStop in progress *)
+    ErrorStop (* Group in error state - inspect groupErrorId *)
+); END_TYPE

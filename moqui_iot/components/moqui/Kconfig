@@ -1,0 +1,40 @@
+menu "Moqui IoT Framework"
+
+    config MOQUI_MQTT_BROKER_URI
+        string "MQTT broker URI"
+        default "mqtt://moqui-device-gateway:1883"
+        help
+            URI of the MQTT broker.
+            Use "mqtt://host:1883" for plain, "mqtts://host:8883" for TLS.
+
+    config MOQUI_MQTT_DEVICE_TOPIC_PREFIX
+        string "MQTT device topic prefix"
+        default "moqui/device"
+        help
+            Prefix for device telemetry topics. The MAC address suffix is
+            appended automatically at runtime, e.g.
+            "moqui/device/a1b2c3d4e5f6/actuator".
+
+    config MOQUI_CONTROL_TASK_STACK
+        int "Control task stack size (bytes)"
+        default 8192
+        range 4096 32768
+        help
+            Stack size for the main PLC control task (runs on Core 1).
+
+    config MOQUI_IOT_TASK_STACK
+        int "IoT/MQTT task stack size (bytes)"
+        default 4096
+        range 2048 16384
+        help
+            Stack size for the MQTT telemetry task (runs on Core 0).
+
+    config MOQUI_ENABLE_TEST_SUITE
+        bool "Enable HvacTestSuite in build"
+        default y
+        help
+            When enabled, HvacTestSuite is compiled and the control task runs
+            the automated test scenarios instead of the production HVAC loop.
+            Disable for production firmware to exclude test code from the binary.
+
+endmenu

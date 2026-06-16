@@ -1,0 +1,119 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build:esp32",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd ${workspaceFolder} && docker run --rm -v \"$PWD\":/project -w /project espressif/idf:latest bash -lc 'idf.py build'"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      },
+      "isBackground": false
+    },
+    {
+      "label": "build:esp32-docker",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-v",
+        "${workspaceFolder}:/project",
+        "-w",
+        "/project",
+        "espressif/idf:latest",
+        "bash",
+        "-lc",
+        "idf.py build"
+      ],
+      "group": {
+        "kind": "build"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "clean",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd ${workspaceFolder} && docker run --rm -v \"$PWD\":/project -w /project espressif/idf:latest bash -lc 'idf.py fullclean'"
+      ],
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "label": "set-target:esp32",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd ${workspaceFolder} && docker run --rm -v \"$PWD\":/project -w /project espressif/idf:latest bash -lc 'idf.py set-target esp32'"
+      ]
+    },
+    {
+      "label": "set-target:linux",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd ${workspaceFolder} && docker run --rm -v \"$PWD\":/project -w /project espressif/idf:latest bash -lc 'idf.py --preview set-target linux'"
+      ]
+    },
+    {
+      "label": "Start QEMU (Docker)",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--network", "host",
+        "-v", "${workspaceFolder}:${workspaceFolder}",
+        "-w", "${workspaceFolder}",
+        "espressif/idf:latest",
+        "bash",
+        "-lc",
+        "idf.py qemu --gdb"
+      ],
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": {
+            "regexp": "^(.*?):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Running qemu",
+            "endsPattern": "Adding SPI flash device"
+          }
+        }
+      ]
+    }
+  ]
+}
