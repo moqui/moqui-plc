@@ -1,0 +1,47 @@
+# General information
+name: "moqui-plc-simatic-ax"
+version: 0.0.1
+type: app
+description: SIMATIC AX porting workspace for moqui-plc process-industry components
+
+# Targets to be compiled with 'apax build'
+targets:
+  - s7
+  - llvm
+
+# Catalog
+catalogs:
+  "@ax/simatic-ax": ^2510.0.0
+
+# Dependencies
+devDependencies:
+  "@ax/sdk": ^2510.13.1
+dependencies:
+  "@ax/simatic-1500-clocks": ^10.0.6
+  "@ax/simatic-1500-fileaccess": ^9.0.3
+  "@ax/system-strings": ^10.4.16
+
+# Project variables
+variables:
+  APAX_BUILD_ARGS:
+    - --debug
+  BIN_FOLDER: "./bin/s7"
+  IP_ADDRESS: "192.168.0.1"
+
+# Apax scripts
+scripts:
+  prepare-process-build: python ../scripts/prepare-ax-process-build.py
+  prepare-motion-build: python ../scripts/prepare-ax-process-build.py --profile motion
+  audit-fidelity: python ../scripts/audit-ax-fidelity.py
+  check-motion-overrides: python ../scripts/check-motion-overrides.py
+  test-port-scripts: python -m unittest discover -s ../scripts/tests -p "test_*.py"
+  build-motion:
+    - python ../scripts/prepare-ax-process-build.py --profile motion
+    - apax build --target s7
+  build-process:
+    - python ../scripts/prepare-ax-process-build.py
+    - apax build
+  load: apax sld load --input $BIN_FOLDER --target $IP_ADDRESS --restart --accept-security-disclaimer --log debug
+  dlplc:
+    - apax build
+    - apax load

@@ -1,0 +1,10 @@
+#ifndef MOQUI_START_STATUS_H
+#define MOQUI_START_STATUS_H
+
+typedef enum {
+    MOQUI_START_STATUS_IDLE = 0,
+    MOQUI_START_STATUS_RUN = 1,
+    MOQUI_START_STATUS_ERROR = 2
+} MoquiStartStatus;
+
+#endif /* MOQUI_START_STATUS_H */

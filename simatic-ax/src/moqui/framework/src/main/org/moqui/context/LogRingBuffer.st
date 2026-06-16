@@ -1,0 +1,102 @@
+FUNCTION_BLOCK LogRingBuffer
+	VAR_EXTERNAL CONSTANT
+	    LOG_MAX_SIZE : UINT;
+	END_VAR
+	VAR_INPUT
+	    cmd : LogCmd := LogCmd#Idle;
+	    logEntry : LogEvent;
+	END_VAR
+	VAR_OUTPUT
+	    done, error, isFull, isEmpty : BOOL;
+	    head : UINT := UINT#1;
+	    tail : UINT := UINT#1;
+	    (* Peek/Pop result: set on LogCmd#Peek and LogCmd#Pop *)
+	    headEntry : LogEvent;
+	    (* Exposed so that it can be cloned by the log appender (memcpy one-cycle operation). *)
+	    logBuffer : ARRAY[1..LOG_MAX_SIZE] OF LogEvent;
+	    logSize : UINT;
+	    overflowCount : UDINT;
+	END_VAR
+	VAR CONSTANT
+		MAX_UDINT : UDINT := UDINT#16#FFFFFFFF;
+	END_VAR
+	VAR
+	    lastCommand : LogCmd := LogCmd#Idle;
+	    i : UINT;
+	END_VAR
+
+	(* Reset instant outputs *)
+	done := FALSE;
+	error := FALSE;
+
+	(* Invariants guard *)
+	IF (head < UINT#1) OR (head > LOG_MAX_SIZE) OR (tail < UINT#1) OR (tail > LOG_MAX_SIZE) OR (logSize > LOG_MAX_SIZE) THEN
+	    head := UINT#1; tail := UINT#1; logSize := UINT#0;
+	    error := TRUE;
+	    RETURN;
+	END_IF;
+
+	IF (overflowCount = MAX_UDINT) THEN overflowCount := UDINT#1; END_IF;
+
+	IF (cmd <> LogCmd#Idle) THEN
+	    CASE cmd OF
+	        LogCmd#Push :
+	            logBuffer[tail] := logEntry;
+
+	            IF (logSize >= LOG_MAX_SIZE) THEN
+	                (* Buffer full, overwrite oldest entries *)
+	                head := (head MOD LOG_MAX_SIZE) + UINT#1;
+	                overflowCount := overflowCount + UDINT#1;
+	            ELSE
+	                logSize := logSize + UINT#1;
+	            END_IF;
+
+	            tail := (tail MOD LOG_MAX_SIZE) + UINT#1;
+	            done := TRUE;
+
+	        (* Increment repeat counter instead of storing new log entry *)
+	        LogCmd#IncrementLast :
+	            IF logSize = UINT#0 THEN
+					error := TRUE;
+				ELSE
+	                i := tail - UINT#1;
+	                IF i < UINT#1 THEN i := LOG_MAX_SIZE; END_IF;
+
+	                (* Saturate repeatCount *)
+	                IF logBuffer[i].repeatCount < UINT#65535 THEN
+	                    logBuffer[i].repeatCount := logBuffer[i].repeatCount + UINT#1;
+	                END_IF;
+				
+					done := TRUE;
+	            END_IF;
+
+	        (* Returns head entry without removing it. Error if empty (Java Queue.peek semantics). *)
+	        LogCmd#Peek :
+	            IF logSize = UINT#0 THEN
+	                error := TRUE;
+	            ELSE
+	                headEntry := logBuffer[head];
+	                done := TRUE;
+	            END_IF;
+
+	        (* Returns and removes head entry. Error if empty (Java Deque.pop semantics). *)
+	        LogCmd#Pop :
+	            IF logSize = UINT#0 THEN
+	                error := TRUE;
+	            ELSE
+	                headEntry := logBuffer[head];
+	                head := (head MOD LOG_MAX_SIZE) + UINT#1;
+	                logSize := logSize - UINT#1;
+	                done := TRUE;
+	            END_IF;
+
+	        LogCmd#Clear :
+	            head := UINT#1; tail := UINT#1; logSize := UINT#0; overflowCount := UDINT#0;
+	            done := TRUE;
+	    END_CASE;
+	END_IF;
+
+	lastCommand := cmd;
+	isEmpty := (logSize = UINT#0);
+	isFull := (logSize = LOG_MAX_SIZE);
+	END_FUNCTION_BLOCK

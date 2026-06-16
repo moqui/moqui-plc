@@ -1,0 +1,3 @@
+TYPE MqttConnectionRef : STRUCT
+	ref : REFERENCE TO MQTT.MQTTClient;
+END_STRUCT END_TYPE

@@ -1,0 +1,4 @@
+name,configType,fileName
+CivilCooling,HvacDeviceConfig,CivilCooling.axrecipe
+CivilDehumidifying,HvacDeviceConfig,CivilDehumidifying.axrecipe
+CivilHeating,HvacDeviceConfig,CivilHeating.axrecipe

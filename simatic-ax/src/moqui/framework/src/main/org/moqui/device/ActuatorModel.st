@@ -1,0 +1,7 @@
+TYPE ActuatorModel : (
+	ABBACH580, (* ABB ACH580 *)
+	CTM700, (* Control Techniques CM700 *)
+	DanfossFC102, (* Danfoss FC102 *)
+	ABBPSTX (* ABB PSTX SoftStarter *)
+	(* etc. *)
+); END_TYPE

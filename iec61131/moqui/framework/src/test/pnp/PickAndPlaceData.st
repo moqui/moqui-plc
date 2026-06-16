@@ -1,0 +1,4 @@
+VAR_GLOBAL
+    (* Test suite fixture *)
+    pnp : PickAndPlaceFixture;
+END_VAR

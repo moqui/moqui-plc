@@ -1,0 +1,11 @@
+{
+  "testSuite": {
+    "coldGlycolPump": {
+      "actuatorId": "100002",
+      "actuatorName": "AHU Fan 2",
+      "disableTime": 333,
+      "enableTime": 555,
+      "enablePreset": false
+    }
+  }
+}

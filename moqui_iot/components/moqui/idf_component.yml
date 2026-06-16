@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: "Moqui IoT Framework — ESP32 port of the IEC 61131-3 Moqui PLC framework"
+dependencies:
+  mqtt:
+    version: "*"

@@ -1,0 +1,5 @@
+TYPE LogPayload : UNION
+	message : STRING;
+    enumValue : UINT;
+    numericValue : LREAL;
+END_UNION END_TYPE
