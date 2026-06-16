@@ -2,6 +2,8 @@
 
 This directory contains the Siemens SIMATIC AX port of `moqui-plc`.
 
+**Disclaimer:** this port produces a semi-finished build artifact for Siemens PLCs, not a deployment-ready application. It must be adapted and validated on a real physical PLC before any production use. This requirement is especially critical for the Motion profile, where Technology Objects (axes, kinematics groups) must be defined and configured in TIA Portal — a compile-only result on `s7generic`/`llvm` does **not** constitute functional validation of motion behavior.
+
 The canonical, vendor-neutral source remains the IEC 61131-3 tree under:
 
 ```text

@@ -6,7 +6,7 @@ set(HVAC_TEST  "runtime/component/mantle-hvac/src/test")
 set(UDM_ENTITY "runtime/component/mantle-udm/src/main/org/moqui/entity")
 
 if(NOT ${target} STREQUAL "linux")
-    set(_platform_requires "mqtt" "esp_netif" "esp_hw_support" "esp_timer")
+    set(_platform_requires "mqtt" "esp_netif" "esp_hw_support" "esp_timer" "nvs_flash")
     set(_platform_srcs
         "platform/esp32/mqtt_platform.c"
         "platform/esp32/net_platform.c"
