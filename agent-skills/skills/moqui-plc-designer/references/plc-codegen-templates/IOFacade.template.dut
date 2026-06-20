@@ -1,0 +1,34 @@
+(* 
+ * IOFacade implementation for managing physical devices and input/output signals/terminals.
+ * Input/Output physical terminals naming rules.
+ * From each value of the Parameter entity 3 signals will be generated, according to the following naming convention:
+ *     deviceName + parameterName or parameterName + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ *     deviceName + parameterName or parameterName + Min/Max + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ * 
+ * The physicalAdddress suffix will have the following syntax:
+ *    %<memory area prefix> ( <size prefix> )? <memory position>
+ * where
+ *    <memory area prefix> : I | Q | M
+ *    <size prefix> : X | B | W | D
+ *    <memory position> : <number> ( .<number> )* (* Depends on the target system *)
+ *    
+ * An alternative is to use semantic signal naming rules.
+ *)
+TYPE IOFacade : STRUCT
+    (* ========== Phyisical Input Terminals/Signals ========== *)
+${PHYSICAL_INPUT_DECLARATIONS}
+
+    (* ========== Phyisical Output Terminals/Signals ========== *)
+${PHYSICAL_OUTPUT_DECLARATIONS}
+END_STRUCT END_TYPE
+
+(* Generation notes:
+ * - This file is auto-generable from DeviceRequestItem metadata or from naming conventions.
+ * - The logical-to-physical mapping remains outside this template and stays manual in V1.
+ *
+ * Questions for the skill/user:
+ * 1. Should names come from DeviceRequestItem.requestItemName or from naming conventions?
+ * 2. Which physical signals are inputs and which are outputs?
+ * 3. What IEC type should be used for each signal?
+ * 4. Are there address-based names, semantic names, or both?
+ *)

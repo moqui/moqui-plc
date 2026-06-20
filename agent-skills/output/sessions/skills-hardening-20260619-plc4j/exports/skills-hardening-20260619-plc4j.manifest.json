@@ -1,0 +1,62 @@
+{
+  "sessionId": "skills-hardening-20260619-plc4j",
+  "exportedAt": "2026-06-19T07:30:38Z",
+  "zipFile": "skills-hardening-20260619-plc4j.zip",
+  "files": [
+    {
+      "path": "notes/resume-summary.md",
+      "size": 2386,
+      "sha256": "1a2ba0deb0e1e9975509c463086ac92edcaed2f97da752cde3fe2728e41aa810"
+    },
+    {
+      "path": "session.json",
+      "size": 2928,
+      "sha256": "2de090702de8b2506b4475a61f635baef2574518ea6144ff2d9f5c9f34f3248f"
+    },
+    {
+      "path": "survey-answers/elementary-device-classification-survey.yaml",
+      "size": 329,
+      "sha256": "d8f55f19bdc4bcc5399517ea22f80a22362a02bee8c5e4b269e02b3ede0f7d11"
+    },
+    {
+      "path": "survey-answers/gateway-topology-survey.yaml",
+      "size": 255,
+      "sha256": "6847a3d32731ec34932cbde6244c3acde6bfa7d94a4bd4ec4ff940aca82dbe43"
+    },
+    {
+      "path": "survey-answers/live-parameters-survey.yaml",
+      "size": 152,
+      "sha256": "720966ed1caf9e9e8ca40b1c91721ca68bea15e006f3ea43c31d986354f4d0d4"
+    },
+    {
+      "path": "survey-answers/main-fsm-survey.yaml",
+      "size": 338,
+      "sha256": "6ff5983b9f2fbbd044182576fe4e948eee90a282d00cd2dc1ea8949636b43ed9"
+    },
+    {
+      "path": "survey-answers/main-rule-engine-survey.yaml",
+      "size": 252,
+      "sha256": "7fa594ce0c53926f07651e10e3604c024677f75c577b491951bb03107833ec04"
+    },
+    {
+      "path": "survey-answers/sampling-domains-survey.yaml",
+      "size": 222,
+      "sha256": "f882df94878834b3c9b458c4ef8578d674615089b72012dff44bb202db6c8517"
+    },
+    {
+      "path": "survey-answers/signal-catalog-survey.yaml",
+      "size": 360,
+      "sha256": "fdfc876458c14cbcd475f8164e8be52a93b1a852ff7b9c37c082e5417f14c04c"
+    },
+    {
+      "path": "survey-answers/system-decomposition-survey.yaml",
+      "size": 320,
+      "sha256": "b0ebe834a738040d298c7c0957059baf2a69ae6257bc1d5d38f31254e1c9c46f"
+    },
+    {
+      "path": "survey-answers/transport-architecture-survey.yaml",
+      "size": 505,
+      "sha256": "3419dea27a2fb7d5ad72888512265af26b651abaeacae6fa8097e4883bcce63c"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+project_scope:
+  machine_name: Cure Cell
+  process_description: UV curing cell with conveyor and lamp bank
+  control_objective: Coordinate conveyor movement and UV lamp actuation
+  safety_scope: Cell enclosure
+  notes: ""
+system_tree:
+  - subsystem_id: SS_TRANSPORT
+    parent_subsystem_id: ""
+    subsystem_name: Transport
+    subsystem_type: Subsystem
+    control_responsibility: Conveyor transport
+    candidate_fsm: TransportMain
+    notes: ""
+  - subsystem_id: SS_CURE
+    parent_subsystem_id: ""
+    subsystem_name: Cure
+    subsystem_type: Subsystem
+    control_responsibility: UV curing
+    candidate_fsm: CureMain
+    notes: ""

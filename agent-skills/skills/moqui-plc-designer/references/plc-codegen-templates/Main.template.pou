@@ -1,0 +1,84 @@
+{attribute 'no_assign'}
+(* 
+ * NOTE: In general, the Main component implements the control logic of automated industrial systems (Finite State Machine - FSM)
+ * using hierarchical control architectures. It separates control policies from implementation mechanisms,
+ * and diagnostic mechanisms from failure/error reaction and system reset policies.
+ *
+ * MainRuleEngine generates transition requests; Main consumes them.
+ * DeviceManager orchestrates the individual device FBs.
+ *
+ * Call order in the PLC task:
+ *   InputSignalUpdate -> Main -> DeviceManager -> OutputSignalUpdate
+ *)
+FUNCTION_BLOCK Main
+VAR_EXTERNAL
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode;
+    enable : BOOL;
+END_VAR
+VAR_OUTPUT
+    done : BOOL;
+    error : BOOL;
+END_VAR
+VAR CONSTANT
+    componentName : STRING := '${COMPONENT_NAME}';
+END_VAR
+VAR
+    (* Logger facade *)
+    logger : LoggerFacade;
+    (* FSM transition logic *)
+    ruleEngine : MainRuleEngine;
+    (* Optional: define one or more FSMs for managing subsystems, if needed *)
+    (* HAL manager *)
+    deviceManager : DeviceManager;
+END_VAR
+
+(* Logger facade init *)
+logger.enable := TRUE; logger.loggerName := componentName;
+
+IF NOT enable THEN RETURN; END_IF
+
+(* Init: device setup and configuration *)
+IF (operationType = OperatingMode.Init) THEN
+    logger(message := 'Setup and configuration of all devices.', level := LogLevel.DEBUG);
+    (* The static device configuration parameters are mapped directly by the device config manager (recipe manager),
+     * while only the dynamic parameters are mapped below in the standby status.
+     *)
+    (* Reset signal manager *)
+    dev.signalMgmt(operationType := SignalMgmtOperatingMode.Reset, loggerName := componentName);
+    dev.status := ${INITIAL_STATUS};
+    dev.lastStatus := ${INITIAL_STATUS};
+    done := FALSE;
+${INIT_ASSIGNMENTS}
+ELSE
+    (* FSM transition-condition rule engine *)
+    logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
+    ruleEngine(operationType := operationType);
+END_IF;
+
+dev.lastStatus := dev.status;
+
+(* Fault overrides any other state *)
+IF dev.faultRequest THEN dev.status := ${FAULT_STATUS}; END_IF;
+
+(* Main FSM - Output function + State-update function *)
+logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
+CASE dev.status OF
+${MAIN_FSM_CASE_BLOCKS}
+END_CASE;
+
+done := dev.isCompleted;
+
+(* Device orchestration (HAL) *)
+logger(message := 'Update devices.', level := LogLevel.DEBUG);
+deviceManager(operationType := operationType);
+
+(* Questions for the skill/user:
+ * 1. Which StatusFlow drives this Main FSM?
+ * 2. What is the initial state and what is the fault state?
+ * 3. For each state, which output requests must be asserted or cleared?
+ * 4. For each state, which next-state requests may be consumed here?
+ *)

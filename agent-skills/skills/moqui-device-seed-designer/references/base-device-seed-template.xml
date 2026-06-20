@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Base device seed derived from moqui-device-gateway test fixtures -->
+
+    <moqui.device.Device
+            deviceId="${DEVICE_ID}"
+            deviceTypeEnumId="${DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${DEVICE_PURPOSE_ENUM_ID}"
+            controlMethodEnumId="${DEVICE_CONTROL_METHOD_ENUM_ID}"
+            operatingModeEnumId="${DEVICE_OPERATING_MODE_ENUM_ID}"
+            statusTypeId="${DEVICE_STATUS_TYPE_ID}"
+            statusFlowId="${STATUS_FLOW_ID}"
+            statusId="${INITIAL_STATUS_ID}"
+            description="${DEVICE_DESCRIPTION}"
+            location="${DEVICE_LOCATION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${DEVICE_ID}"
+            deviceName="${DEVICE_NAME}"
+            version="${PHYSICAL_DEVICE_VERSION}"
+            hardwareVersion="${PHYSICAL_DEVICE_HARDWARE_VERSION}"
+            firmwareVersion="${PHYSICAL_DEVICE_FIRMWARE_VERSION}"
+            operatingSystem="${PHYSICAL_DEVICE_OPERATING_SYSTEM}"
+            softwareApplication="${PHYSICAL_DEVICE_SOFTWARE_APPLICATION}"
+            cycleTime="${PHYSICAL_DEVICE_CYCLE_TIME}"
+            isMulticore="${PHYSICAL_DEVICE_IS_MULTICORE}"/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="${PARAMETER_DEF_ID_1}"
+            parameterTypeEnumId="${PARAMETER_TYPE_ENUM_ID_1}"
+            purposeEnumId="${PURPOSE_ENUM_ID_1}"
+            parameterCode="${PARAMETER_CODE_1}"
+            parameterName="${PARAMETER_NAME_1}"
+            description="${PARAMETER_DESCRIPTION_1}"/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="${PARAMETER_DEF_ID_2}"
+            parameterTypeEnumId="${PARAMETER_TYPE_ENUM_ID_2}"
+            purposeEnumId="${PURPOSE_ENUM_ID_2}"
+            parameterCode="${PARAMETER_CODE_2}"
+            parameterName="${PARAMETER_NAME_2}"
+            description="${PARAMETER_DESCRIPTION_2}"/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="${PARAMETER_DEF_ID_3}"
+            parameterTypeEnumId="${PARAMETER_TYPE_ENUM_ID_3}"
+            purposeEnumId="${PURPOSE_ENUM_ID_3}"
+            parameterCode="${PARAMETER_CODE_3}"
+            parameterName="${PARAMETER_NAME_3}"
+            description="${PARAMETER_DESCRIPTION_3}"/>
+
+    <moqui.math.Parameter
+            parameterId="${PARAMETER_ID_1}"
+            parameterDefId="${PARAMETER_DEF_ID_1}"
+            deviceId="${DEVICE_ID}"
+            numericValue="${NUMERIC_VALUE_1}"/>
+
+    <moqui.math.Parameter
+            parameterId="${PARAMETER_ID_2}"
+            parameterDefId="${PARAMETER_DEF_ID_2}"
+            deviceId="${DEVICE_ID}"
+            symbolicValue="${SYMBOLIC_VALUE_2}"/>
+
+    <moqui.math.Parameter
+            parameterId="${PARAMETER_ID_3}"
+            parameterDefId="${PARAMETER_DEF_ID_3}"
+            deviceId="${DEVICE_ID}"
+            parameterEnumId="${PARAMETER_ENUM_ID_3}"/>
+
+</entity-facade-xml>

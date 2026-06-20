@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Compose this fragment with device-config-template.xml. -->
+
+    <moqui.math.Parameter parameterId="${CFG_P_CMD}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_CMD}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_POSITION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_POSITION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DISTANCE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DISTANCE}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_VELOCITY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_VELOCITY}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_VELOCITY_DIFF}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_VELOCITY_DIFF}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACCELERATION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACCELERATION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DECELERATION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DECELERATION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JERK}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JERK}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_BUFFER_MODE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_BUFFER_MODE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DIRECTION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DIRECTION}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_HOME_POSITION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_HOME_POSITION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_RATIO_NUMERATOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_RATIO_NUMERATOR}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${CFG_P_RATIO_DENOMINATOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_RATIO_DENOMINATOR}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MASTER_SYNC_POS}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MASTER_SYNC_POS}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLAVE_SYNC_POS}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLAVE_SYNC_POS}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_CAM_VERSION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_CAM_VERSION}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MASTER_OFFSET}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MASTER_OFFSET}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLAVE_OFFSET}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLAVE_OFFSET}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_PHASE_SHIFT}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_PHASE_SHIFT}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SET_POSITION_MODE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SET_POSITION_MODE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OVERRIDE_ENABLE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OVERRIDE_ENABLE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_VEL_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_VEL_FACTOR}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACC_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACC_FACTOR}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JERK_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JERK_FACTOR}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JOG_FORWARD}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JOG_FORWARD}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JOG_BACKWARD}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JOG_BACKWARD}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TOUCH_PROBE_WINDOW}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TOUCH_PROBE_WINDOW}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TOUCH_PROBE_FIRST}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TOUCH_PROBE_FIRST}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TOUCH_PROBE_LAST}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TOUCH_PROBE_LAST}" numericValue="0.0"/>
+
+</entity-facade-xml>

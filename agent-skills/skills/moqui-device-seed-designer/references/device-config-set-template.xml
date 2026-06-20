@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- First reusable TEMPLATE config set for one device group. -->
+
+    <moqui.device.DeviceConfig
+            deviceConfigId="${CONFIG_SET_DEVICE_CONFIG_ID}"
+            parentConfigId="${CONFIG_SET_PARENT_CONFIG_ID}"
+            configTypeEnumId="DctApplyConfigSet"
+            purposeEnumId="DcpPrototypeConfig"
+            deviceTypeEnumId="${DEVICE_GROUP_DEVICE_TYPE_ENUM_ID}"
+            configName="${CONFIG_SET_NAME_TEMPLATE}"
+            controlMethodEnumId="${CONFIG_SET_CONTROL_METHOD_ENUM_ID}"
+            approximatedFunctionId="${CONFIG_SET_APPROXIMATED_FUNCTION_ID}"
+            description="${CONFIG_SET_DESCRIPTION}"/>
+
+    <moqui.device.DeviceConfigSet
+            deviceConfigId="${CONFIG_SET_DEVICE_CONFIG_ID}"
+            configSetName="${CONFIG_SET_GROUP_NAME}"/>
+
+    <moqui.device.DeviceConfigSetMember
+            deviceConfigId="${CONFIG_SET_DEVICE_CONFIG_ID}"
+            memberConfigId="${CONFIG_SET_MEMBER_CONFIG_ID_1}"
+            sequenceNum="1"
+            description="${CONFIG_SET_MEMBER_DESCRIPTION_1}"/>
+
+    <moqui.device.DeviceConfigSetMember
+            deviceConfigId="${CONFIG_SET_DEVICE_CONFIG_ID}"
+            memberConfigId="${CONFIG_SET_MEMBER_CONFIG_ID_2}"
+            sequenceNum="2"
+            description="${CONFIG_SET_MEMBER_DESCRIPTION_2}"/>
+
+</entity-facade-xml>

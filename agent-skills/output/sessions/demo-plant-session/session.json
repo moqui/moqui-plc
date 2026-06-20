@@ -1,0 +1,61 @@
+{
+  "sessionId": "demo-plant-session",
+  "projectName": "Demo Plant Session",
+  "customerName": "Example Customer",
+  "createdAt": "2026-05-29T06:19:12Z",
+  "updatedAt": "2026-06-19T05:07:44Z",
+  "status": "in_progress",
+  "currentStage": "plc_framework_config",
+  "currentSkill": "moqui-device-gateway-startup",
+  "workflowOrder": [
+    "moqui-device-seed-designer",
+    "moqui-plc-designer",
+    "moqui-device-config-designer",
+    "moqui-plc-config"
+  ],
+  "paths": {
+    "surveyAnswersDir": "survey-answers",
+    "seedDataDir": "seed-data",
+    "generatedPlcDir": "generated-plc",
+    "generatedRecipesDir": "generated-recipes",
+    "generatedConfigDir": "generated-config",
+    "attachmentsDir": "attachments",
+    "notesDir": "notes",
+    "exportsDir": "exports"
+  },
+  "artifacts": {
+    "seedData": [
+      "seed-data/reviewed-seed.xml"
+    ],
+    "generatedPlc": [
+      "generated-plc/demo-hvac",
+      "generated-plc/demo-virtual-plc"
+    ],
+    "generatedRecipes": [
+      "generated-recipes/demo-virtual-plc.txtrecipe"
+    ],
+    "generatedConfig": [
+      "generated-config/moqui-conf-checklist.md",
+      "generated-config/gateway-startup-guide.md"
+    ],
+    "attachments": []
+  },
+  "steps": {
+    "seed_design": {
+      "status": "completed",
+      "notes": "Generated seed bundle from seed-bundle-spec.mqtt-framework.example.json"
+    },
+    "plc_design": {
+      "status": "completed",
+      "notes": "Generated device catalogs for component demo-virtual-plc"
+    },
+    "config_recipe": {
+      "status": "completed",
+      "notes": "Generated recipe template demo-virtual-plc.txtrecipe"
+    },
+    "plc_framework_config": {
+      "status": "completed",
+      "notes": "Generated MoquiConf checklist moqui-conf-checklist.md"
+    }
+  }
+}

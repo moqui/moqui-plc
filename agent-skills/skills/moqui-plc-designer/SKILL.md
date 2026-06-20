@@ -1,0 +1,230 @@
+---
+name: moqui-plc-designer
+description: Use when generating or refining PLC code from Moqui automation data. This skill reads devices, parameters, device requests, status flows, and related metadata, then fills reusable templates for IOFacade, DeviceFacade, DeviceManager, DeviceDiagnostics, MainStatus, Main, and MainRuleEngine.
+compatibility: Requires Python 3.14+
+license: ../../LICENSE.md
+metadata:
+  author: moqui-induatrial
+  version: "1.0"
+---
+
+# Moqui PLC Designer
+
+Use this skill when the task is to define or generate a data-driven automation model based on:
+
+- Moqui XML seed data produced by `moqui-device-seed-designer`
+- `moqui-device/entity/DeviceEntities.xml`
+- `moqui-device/entity/DeviceViewEntities.xml`
+- `moqui-device/data/DeviceData.xml`
+- `moqui-math` parameter entities
+- PLC skeleton patterns derived from `moqui-plc`
+
+## What This Skill Produces
+
+- seed-data planning for:
+  - `Device`
+  - `PhysicalDevice`
+  - `DeviceGroup` when simple
+  - `ParameterDef`
+  - `Parameter`
+  - `DeviceConnection`
+  - `DeviceRequest`
+  - `DeviceRequestItem`
+  - `StatusType`
+  - `StatusItem`
+  - `StatusFlow`
+  - `StatusFlowItem`
+  - `StatusFlowTransition`
+- PLC code skeletons for:
+  - `MainStatus`
+  - `IOFacade`
+  - `DeviceFacade`
+  - `DeviceManager`
+  - `DeviceDiagnostics`
+  - `Main`
+  - `MainRuleEngine`
+
+## Output Layout
+
+Generated PLC files should be written into an `output/<component-name>/` tree that mirrors the `mantle-hvac` structure in [moqui/moqui-plc](https://github.com/moqui/moqui-plc).
+
+In a saved parent session, prefer:
+
+- `output/sessions/<session-id>/generated-plc/<component-name>/...`
+
+Preferred layout:
+
+- `output/<component-name>/data/`
+- `output/<component-name>/src/main/<namespace>/<component-name>/`
+  - `MainStatus.dut`
+  - `Main.pou`
+  - `MainRuleEngine.pou`
+- `output/<component-name>/src/main/org/moqui/device/`
+  - `IOFacade.dut`
+  - `DeviceFacade.dut`
+  - `DeviceManager.pou`
+  - `DeviceDiagnostics.pou`
+
+`InputSignalUpdate.pou` and `OutputSignalUpdate.pou` remain manual and should be added later by the field engineer in `src/main/org/moqui/device/`.
+
+CODESYS device-tree objects remain external to the Moqui seed model:
+
+- axis references
+- axis-group references
+- trigger references
+- motion profiles
+- robotics structures
+
+## Current V1 Scope
+
+- seed-first via Moqui XML seed data
+- `IOFacade` is auto-generable from naming conventions or `DeviceRequestItem`
+- `DeviceFacade` is deterministically generable from the root `Device` plus child `Device` rows for the supported atomic moqui-plc FB types
+- `DeviceManager` is deterministically generable for the supported atomic moqui-plc FB types using full-signature calls every scan
+- `DeviceDiagnostics` is deterministically generable as a first blocking-device scaffold for supported atomic moqui-plc FB types
+- explicit `DtMoquiPlc*` device types are preferred when present in seed data because they identify the target moqui-plc FB directly
+- target convention for `DeviceManager`: always emit full-signature FB calls every scan
+- for `Axis` / `AxisGroup`, placeholders in generated code are acceptable for device-tree-backed references such as `master`, `slave`, `group`, `triggerInput`, `positionProfile`, `velocityProfile`, and robotics structures
+- `InputSignalUpdate` and `OutputSignalUpdate` stay manual
+- `DeviceManager` and `DeviceDiagnostics` are auto-generable only when every listed device is blocking for the machine
+- complex redundancy, backup, standby, or non-blocking `DeviceGroup` roles are out of scope
+- `Main.pou` and `MainRuleEngine.pou` intentionally remain in standby until real project test cases are available to validate the final generation rules
+- the repository should currently be treated as a semilavorato/base framework that each development team may further specialize
+
+## Workflow
+
+1. Read the seed XML and related Moqui model files.
+2. Decompose the machine into subsystems and levels.
+3. Identify the main orchestration FSM and the atomic devices at the last level.
+4. Collect or derive the physical signal catalog for `IOFacade`.
+5. Collect or derive the logical parameter and device catalog for `DeviceFacade`.
+6. Select or derive the `StatusFlow`.
+7. Run a guided survey for each FSM state to collect the output function of `Main`.
+8. Run a guided survey for each `StatusFlowTransition` to collect predicates, boolean conditions, and precedence for `MainRuleEngine`.
+9. Fill the PLC code templates.
+10. Write the generated files into the component output tree instead of a flat scratch directory.
+11. Cross-check the generated PLC artifacts back against the seed-derived catalog before treating them as reviewable output.
+
+Useful helper scripts:
+
+- `scripts/render_statusflow_templates.py`
+  - generates `MainStatus`, `Main`, `MainRuleEngine`, plus base device files, from `StatusFlow`
+- `scripts/render_device_catalog_from_seed.py`
+  - generates `DeviceFacade`, `IOFacade`, `DeviceManager`, and `DeviceDiagnostics` from Moqui seed XML data for the supported atomic moqui-plc FB types
+  - both helpers support `--session-dir` for session-aware output and status updates
+- `scripts/validate_generated_plc_against_seed.py`
+  - verifies that the generated PLC declarations still match the seed-derived device, parameter, request, and status-flow catalog
+
+Important distinction:
+
+- `MainStatus` can be derived from `StatusFlowItem`
+- `MainRuleEngine` transition topology can be derived from `StatusFlowTransition`
+- the `CASE dev.status OF` body in `Main.pou` cannot be derived from `StatusFlow` alone
+- for `Main.pou`, the skill must ask the user, state by state, which `PhysicalDevice` or `DeviceGroup` rows must be activated or deactivated
+- for `Main.pou`, the skill must also ask which consumed transition requests may change `dev.status` in each state
+- `${SENSOR_PREDICATES}` cannot be derived from `StatusFlow`; they come from process knowledge, parameter naming, thresholds, hysteresis, and safety rules collected during the workflow
+- `${STATE_TRANSITION_CASES}` comes from `StatusFlowTransition` plus user-specified boolean conditions and precedence gathered during the workflow
+- the output function of `Main` is the per-state block that decides which device or device-group requests are asserted while `dev.status` is in that state
+- this output function can be specified in two equivalent ways:
+  - direct device-level control (`enableRequest`, `disableRequest`, `enable`, `axisEnable`, `groupEnable`, ...)
+  - group-level control through `DeviceGroup` / `DeviceGroupMember` when several `PhysicalDevice` rows are coordinated as one logical unit
+- default request-field convention: `StatusName -> statusNameRequest`
+- example: `Standstill -> standstillRequest`, `Run -> runRequest`, `ErrorStop -> errorStopRequest`
+- `request-map` is only an optional override for exceptional cases
+- these `Main`/`MainRuleEngine` semantics are workflow-owned and code-owned; they are not expected to be stored in Moqui entities by default
+
+## Input Boundary
+
+The primary input is:
+
+- seed XML files
+- XML model files
+- user answers collected by the workflow
+
+## Manual Boundary
+
+The following work remains manual and belongs to the field engineer / PLC engineer:
+
+- physical wiring review
+- device-tree creation in CODESYS / Siemens AX / equivalent engineering tool
+- network / fieldbus specific mapping
+- `InputSignalUpdate`
+- `OutputSignalUpdate`
+- final binding of CODESYS device-tree objects such as axis references, axis-group references, trigger refs, motion profiles, and robotics structures
+- validation against electrical schematics
+
+## Questions To Ask
+
+### 1. Physical catalog
+
+- Should `IOFacade` names come from `DeviceRequestItem.requestItemName` or from naming conventions?
+- Which physical signals are inputs?
+- Which physical signals are outputs?
+- What IEC type should be used for each physical signal?
+
+### 2. Logical catalog
+
+- Which analog input parameters and setpoints exist?
+- Which digital parameters and boolean flags exist?
+- Which atomic devices exist:
+  - `Actuator`
+  - `ActuatorGroup`
+  - `Axis`
+  - `AxisGroup`
+  - `ProcessPid`
+  - `SignalMgmt`
+- If available, are they already typed with:
+  - `DtMoquiPlcActuator`
+  - `DtMoquiPlcActuatorGroup`
+  - `DtMoquiPlcProcessPID`
+  - `DtMoquiPlcAxis`
+  - `DtMoquiPlcAxisGroup`
+  - `DtMoquiPlcSignalMgmt`
+
+### 3. FSM structure
+
+- Which `StatusFlow` is used for the main machine?
+- What is the initial state?
+- Which request flags are needed for each state?
+- For each state, which device/subsystem requests must be enabled or disabled?
+- For each state, which incoming transition requests may change `dev.status`?
+- Ask this as a survey, one state at a time.
+- Example:
+  - starting from `MainStatus.Standby`, which devices or device groups must activate?
+  - starting from `MainStatus.Standby`, which devices or device groups must deactivate?
+  - starting from `MainStatus.Standby`, which previously defined predicates allow a transition out of the state?
+
+### 4. Predicates and transitions
+
+- Which process/environment/safety predicates must be computed?
+- Which predicates come directly from thresholds, min/max, setpoints, hysteresis, or previous-state logic?
+- For each `StatusFlowTransition`, what is the boolean condition from current state to next state?
+- Which transition has precedence if multiple conditions are true?
+- Ask these as a guided survey, transition by transition, instead of trying to read them from the DB.
+
+## References
+
+Read these files when generating code or collecting inputs:
+
+- `references/plc-codegen-templates.md`
+- `references/plc-codegen-templates/MainStatus.template.dut`
+- `references/plc-codegen-templates/IOFacade.template.dut`
+- `references/plc-codegen-templates/DeviceFacade.template.dut`
+- `references/plc-codegen-templates/DeviceManager.template.pou`
+- `references/plc-codegen-templates/DeviceDiagnostics.template.pou`
+- `references/plc-codegen-templates/Main.template.pou`
+- `references/plc-codegen-templates/MainRuleEngine.template.pou`
+- `references/main-rule-engine-input-schema.md`
+- `references/main-rule-engine-input-schema.yaml`
+- `references/device-manager-full-call-signatures.md`
+- `references/moqui-seed-xml-workflow.md`
+- `references/moqui-seed-template.xml`
+- `scripts/README.txt`
+
+## Output Style
+
+- Prefer placeholder-driven generation over guessing
+- Keep names aligned with Moqui entity names and PLC naming conventions
+- If predicates or transitions are underspecified, stop and ask targeted questions instead of inventing logic
+- Treat seed/model data as the declaration layer and generated PLC files as projections that must remain cross-checkable
+- Prefer Moqui seed data in XML format when the workflow must create or update data

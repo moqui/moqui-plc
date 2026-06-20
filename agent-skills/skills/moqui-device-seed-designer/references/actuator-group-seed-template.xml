@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${ACTUATOR_GROUP_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${ACTUATOR_GROUP_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${ACTUATOR_GROUP_PURPOSE_ENUM_ID}"
+            description="${ACTUATOR_GROUP_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${ACTUATOR_GROUP_DEVICE_ID}"
+            deviceName="${ACTUATOR_GROUP_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_GROUP_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.01" parameterName="Group Enable" description="Enable command for the group."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_GROUP_DISABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.02" parameterName="Group Disable" description="Disable command for the group."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_GROUP_ID}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.03" parameterName="Actuator Group Id" description="Actuator-group metadata id."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_GROUP_NAME}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.04" parameterName="Actuator Group Name" description="Actuator-group metadata name."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DEMAND_SETPOINT}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.05" parameterName="Demand Setpoint" description="Process demand in percent."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_NUM}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.06" parameterName="Actuator Num" description="Number of actuators in the group."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MIN_RUNNING}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.07" parameterName="Min Running" description="Minimum actuators running."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MAX_RUNNING}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.08" parameterName="Max Running" description="Maximum actuators running."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_START_DELAY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.09" parameterName="Start Delay" description="Delay before staging start."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_STOP_DELAY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.10" parameterName="Stop Delay" description="Delay before staging stop."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTOCHANGE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.11" parameterName="Autochange Mode" description="Autochange mode selector."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTOCHANGE_INTERVAL}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.12" parameterName="Autochange Interval" description="Fixed-interval autochange period."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MAX_WEAR_IMBALANCE}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.13" parameterName="Max Wear Imbalance" description="Max run-hour imbalance."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTOCHANGE_LEVEL}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.14" parameterName="Autochange Level" description="Demand threshold for autochange."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTOCHANGE_TRIGGER}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.15" parameterName="Autochange Trigger" description="External autochange trigger."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AVAILABLE_NUM}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.13" parameterName="Available Num" description="Available actuators count."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RUNNING_NUM}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.14" parameterName="Running Num" description="Running actuators count."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DEGRADED}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.15" parameterName="Degraded" description="Group degraded status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_UNDER_MINIMUM}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.16" parameterName="Under Minimum" description="Running count below minimum."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_INVALID_CONFIG}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.17" parameterName="Invalid Config" description="Configuration invalid."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTOCHANGE_ACTIVE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_GROUP_PARAMETER_CODE_PREFIX}.18" parameterName="Autochange Active" description="Autochange in progress."/>
+
+    <moqui.math.Parameter parameterId="${P_GROUP_ENABLE}" parameterDefId="${PD_GROUP_ENABLE}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_GROUP_DISABLE}" parameterDefId="${PD_GROUP_DISABLE}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_GROUP_ID}" parameterDefId="${PD_ACTUATOR_GROUP_ID}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="${ACTUATOR_GROUP_DEVICE_ID}"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_GROUP_NAME}" parameterDefId="${PD_ACTUATOR_GROUP_NAME}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="${ACTUATOR_GROUP_NAME}"/>
+    <moqui.math.Parameter parameterId="${P_DEMAND_SETPOINT}" parameterDefId="${PD_DEMAND_SETPOINT}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_NUM}" parameterDefId="${PD_ACTUATOR_NUM}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="2"/>
+    <moqui.math.Parameter parameterId="${P_MIN_RUNNING}" parameterDefId="${PD_MIN_RUNNING}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${P_MAX_RUNNING}" parameterDefId="${PD_MAX_RUNNING}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="2"/>
+    <moqui.math.Parameter parameterId="${P_START_DELAY}" parameterDefId="${PD_START_DELAY}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${P_STOP_DELAY}" parameterDefId="${PD_STOP_DELAY}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${P_AUTOCHANGE}" parameterDefId="${PD_AUTOCHANGE}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_AUTOCHANGE_INTERVAL}" parameterDefId="${PD_AUTOCHANGE_INTERVAL}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="3600"/>
+    <moqui.math.Parameter parameterId="${P_MAX_WEAR_IMBALANCE}" parameterDefId="${PD_MAX_WEAR_IMBALANCE}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="72.0"/>
+    <moqui.math.Parameter parameterId="${P_AUTOCHANGE_LEVEL}" parameterDefId="${PD_AUTOCHANGE_LEVEL}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${P_AUTOCHANGE_TRIGGER}" parameterDefId="${PD_AUTOCHANGE_TRIGGER}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AVAILABLE_NUM}" parameterDefId="${PD_AVAILABLE_NUM}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_RUNNING_NUM}" parameterDefId="${PD_RUNNING_NUM}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_DEGRADED}" parameterDefId="${PD_DEGRADED}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_UNDER_MINIMUM}" parameterDefId="${PD_UNDER_MINIMUM}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_INVALID_CONFIG}" parameterDefId="${PD_INVALID_CONFIG}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AUTOCHANGE_ACTIVE}" parameterDefId="${PD_AUTOCHANGE_ACTIVE}" deviceId="${ACTUATOR_GROUP_DEVICE_ID}" symbolicValue="N"/>
+
+</entity-facade-xml>

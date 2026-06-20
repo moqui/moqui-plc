@@ -1,0 +1,48 @@
+(* 
+ * IOFacade implementation for managing physical devices and input/output signals/terminals.
+ * Input/Output physical terminals naming rules.
+ * From each value of the Parameter entity 3 signals will be generated, according to the following naming convention:
+ *     deviceName + parameterName or parameterName + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ *     deviceName + parameterName or parameterName + Min/Max + physicalAddress (e.g.: Channel + PhysicalAddress for Modbus)
+ * 
+ * The physicalAdddress suffix will have the following syntax:
+ *    %<memory area prefix> ( <size prefix> )? <memory position>
+ * where
+ *    <memory area prefix> : I | Q | M
+ *    <size prefix> : X | B | W | D
+ *    <memory position> : <number> ( .<number> )* (* Depends on the target system *)
+ *    
+ * An alternative is to use semantic signal naming rules.
+ *)
+TYPE IOFacade : STRUCT
+    (* ========== Phyisical Input Terminals/Signals ========== *)
+    fault : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | fault *)
+    error : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | error *)
+    commError : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | commError *)
+    allConfigLoaded : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | allConfigLoaded *)
+    isPrimary : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | isPrimary *)
+    heartbeat : WORD; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | heartbeat *)
+    retryCount : UINT; (* VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead | retryCount *)
+    virtualPlcFault : BOOL; (* VIRTUAL_PLC_MQTT_S001_LiveParametersMqttSub | virtual_plc_fault *)
+
+    (* ========== Phyisical Output Terminals/Signals ========== *)
+    enable : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | enable *)
+    init : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | init *)
+    reset : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | reset *)
+    autoReset : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | autoReset *)
+    logAppenderEnable : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | logAppenderEnable *)
+    paramsPubEnable : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | paramsPubEnable *)
+    paramsSubEnable : BOOL; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | paramsSubEnable *)
+    retryTime : UINT; (* VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite | retryTime *)
+END_STRUCT END_TYPE
+
+(* Generation notes:
+ * - This file is auto-generable from DeviceRequestItem metadata or from naming conventions.
+ * - The logical-to-physical mapping remains outside this template and stays manual in V1.
+ *
+ * Questions for the skill/user:
+ * 1. Should names come from DeviceRequestItem.requestItemName or from naming conventions?
+ * 2. Which physical signals are inputs and which are outputs?
+ * 3. What IEC type should be used for each signal?
+ * 4. Are there address-based names, semantic names, or both?
+ *)

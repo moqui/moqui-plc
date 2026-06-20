@@ -1,0 +1,24 @@
+devices:
+  - device_id: CONVEYOR_MOTOR
+    parent_subsystem_id: SS_TRANSPORT
+    physical_device_name: Conveyor Motor
+    logical_model: Actuator
+    actuation_feedback_class: SA-NO
+    control_method_enum_id: ""
+    positive_logic_required: true
+    expected_actuation_signals:
+      - CMD_CONVEYOR_ENABLE
+    expected_feedback_signals: []
+    notes: ""
+  - device_id: UV_LAMP_BANK
+    parent_subsystem_id: SS_CURE
+    physical_device_name: UV Lamp Bank
+    logical_model: ActuatorGroup
+    actuation_feedback_class: SA-NO
+    control_method_enum_id: ""
+    positive_logic_required: true
+    expected_actuation_signals:
+      - CMD_LAMP_ENABLE
+    expected_feedback_signals:
+      - FB_LAMP_READY
+    notes: ""

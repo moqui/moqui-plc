@@ -1,0 +1,11 @@
+devices:
+  - device_id: UV_LAMP_01
+    parent_subsystem_id: SS_CURE
+    physical_device_name: UV Lamp 01
+    logical_model: Actuator
+    actuation_feedback_class: SA-DF
+    control_method_enum_id: ""
+    positive_logic_required: true
+    expected_actuation_signals: [LAMP_ENABLE]
+    expected_feedback_signals: [LAMP_READY]
+    notes: ""

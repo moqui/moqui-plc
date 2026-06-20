@@ -1,0 +1,11 @@
+domains:
+  - domain_id: FAST
+    domain_name: Fast
+    natural_frequency_class: fast
+    scan_time: T#100ms
+    transport_scope: control
+    devices:
+      - LAMP_01
+    signals:
+      - SIG_LAMP_01_CMD
+    notes: ""

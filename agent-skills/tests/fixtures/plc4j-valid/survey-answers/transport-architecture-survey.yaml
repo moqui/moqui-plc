@@ -1,0 +1,20 @@
+transport_architecture:
+  primary_transport_mode: plc4j
+  allows_hybrid_projection: false
+  notes: Direct PLC4J projection based on canonical moqui-plc4j test data patterns.
+gateway_projection:
+  required: false
+  rationale: ""
+plc4j_projection:
+  required: true
+  default_run_service_name: moqui.plc4j.Plc4jServices.run#Plc4jRequest
+  connection_strategy: single-shared-connection
+  notes: One Modbus TCP connection serves the sampled I/O domain.
+plc4j_connections:
+  - connection_name: ModbusUvConnection
+    driver_enum_id: DcdModbusTCP
+    transport_enum_id: DctrTcp
+    transport_config: 127.0.0.1:1508
+    options: unit-identifier=1
+    scoped_domain_ids: [FAST_IO]
+    notes: Mirrors the moqui-plc4j Modbus TCP test fixture shape.

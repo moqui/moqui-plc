@@ -1,0 +1,14 @@
+# MainRuleEngine survey
+component_name: ""
+status_flow_id: ""
+predicates: []
+transitions:
+  - from_status: ""
+    to_status: ""
+    condition: ""
+    precedence: 0
+    notes: ""
+global_overrides:
+  fault_condition: ""
+  reset_condition: ""
+  notes: ""

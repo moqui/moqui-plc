@@ -1,0 +1,16 @@
+{
+  "includes": [
+    "analog_sensor"
+  ],
+  "variables": {
+    "PARENT_DEVICE_ID": "MACHINE_01",
+    "ANALOG_SENSOR_DEVICE_ID": "S_PROCESS_TEMP",
+    "ANALOG_SENSOR_DEVICE_TYPE_ENUM_ID": "DtInputAnalogSensor",
+    "ANALOG_SENSOR_PURPOSE_ENUM_ID": "DepMonitoring",
+    "ANALOG_SENSOR_DESCRIPTION": "Process temperature sensor.",
+    "ANALOG_SENSOR_NAME": "processTemperature",
+    "ANALOG_SENSOR_PARAMETER_CODE_PREFIX": "SENS.AI.TEMP",
+    "PD_SENSOR_VALUE": "PD_PROCESS_TEMP",
+    "P_SENSOR_VALUE": "P_PROCESS_TEMP"
+  }
+}

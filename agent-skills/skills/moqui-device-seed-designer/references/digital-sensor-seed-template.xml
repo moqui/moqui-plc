@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${DIGITAL_SENSOR_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${DIGITAL_SENSOR_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${DIGITAL_SENSOR_PURPOSE_ENUM_ID}"
+            description="${DIGITAL_SENSOR_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${DIGITAL_SENSOR_DEVICE_ID}"
+            deviceName="${DIGITAL_SENSOR_NAME}"/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="${PD_SENSOR_VALUE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpFeedback"
+            parameterCode="${DIGITAL_SENSOR_PARAMETER_CODE_PREFIX}.01"
+            parameterName="Sensor Value"
+            description="Current measured boolean value of the digital sensor."
+            />
+
+    <moqui.math.Parameter
+            parameterId="${P_SENSOR_VALUE}"
+            parameterDefId="${PD_SENSOR_VALUE}"
+            deviceId="${DIGITAL_SENSOR_DEVICE_ID}"
+            symbolicValue="N"/>
+
+</entity-facade-xml>

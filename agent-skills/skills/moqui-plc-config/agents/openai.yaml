@@ -1,0 +1,3 @@
+display_name: Moqui PLC Config
+short_description: Guide section-by-section configuration of MoquiConf.gvl and skip irrelevant protocol questions.
+default_prompt: Configure moqui-plc by walking through the sections of MoquiConf.gvl, asking only the relevant questions for the chosen architecture and communication protocols.

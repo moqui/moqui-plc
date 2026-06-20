@@ -1,0 +1,41 @@
+{
+  "includes": [
+    "device_config",
+    "actuator_config"
+  ],
+  "variables": {
+    "DEVICE_CONFIG_ID": "CFG_ACT_COLD_PUMP_TEMPLATE",
+    "PARENT_DEVICE_CONFIG_ID": "",
+    "DEVICE_TYPE_ENUM_ID": "DtSmartActuator",
+    "CONFIG_NAME_TEMPLATE": "Cold Pump Actuator TEMPLATE",
+    "CONTROL_METHOD_ENUM_ID": "DcmSingleActuationEnableFeedback",
+    "APPROXIMATED_FUNCTION_ID": "",
+    "DEVICE_CONFIG_DESCRIPTION": "Prototype config for cold glycol pump actuator.",
+
+    "DEVICE_RULE_SET_ID": "RULESET_ACT_COLD_PUMP_TEMPLATE",
+    "PARENT_DEVICE_RULE_SET_ID": "",
+    "RULE_SET_SEQUENCE_NUM": "1",
+    "RULE_SET_NAME": "Cold Pump Template Rule Set",
+    "RULE_SET_DESCRIPTION": "Applies the cold pump actuator template.",
+
+    "DEVICE_RULE_ID": "RULE_ACT_COLD_PUMP_TEMPLATE",
+    "PARENT_DEVICE_RULE_ID": "",
+    "DEVICE_ID": "HVAC_COLD_GLYCOL_PUMP",
+    "RULE_STATUS_ID": "",
+    "RULE_STATUS_FLOW_ID": "",
+    "RULE_NAME": "Apply Cold Pump Actuator Template",
+    "RULE_DESCRIPTION": "Apply prototype actuator config to cold glycol pump.",
+    "RULE_SERVICE_NAME": "",
+    "RULE_FLOATING_POINT_TOLERANCE": "0.0",
+    "RULE_TIME_TOLERANCE": "0",
+
+    "CFG_P_ENABLE_TIME": "CFG_P_ENABLE_TIME",
+    "PD_ENABLE_TIME": "PD_ACT_ENABLE_TIME",
+    "CFG_P_DISABLE_TIME": "CFG_P_DISABLE_TIME",
+    "PD_DISABLE_TIME": "PD_ACT_DISABLE_TIME",
+    "CFG_P_ENABLE_PRESET": "CFG_P_ENABLE_PRESET",
+    "PD_ENABLE_PRESET": "PD_ACT_ENABLE_PRESET",
+    "CFG_P_DIAGNOSTICS_ENABLE": "CFG_P_DIAGNOSTICS_ENABLE",
+    "PD_DIAGNOSTICS_ENABLE": "PD_ACT_DIAGNOSTICS_ENABLE"
+  }
+}

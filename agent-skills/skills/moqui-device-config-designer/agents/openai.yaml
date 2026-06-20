@@ -1,0 +1,3 @@
+display_name: Moqui Device Config Designer
+short_description: Generate or validate PLC-side config and txtrecipe templates from DeviceFacade declarations.
+default_prompt: Generate or validate a PLC config or txtrecipe template from a DeviceFacade model and its instantiated PLC blocks.

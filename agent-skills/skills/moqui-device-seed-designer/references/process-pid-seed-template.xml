@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${PROCESS_PID_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${PROCESS_PID_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${PROCESS_PID_PURPOSE_ENUM_ID}"
+            controlMethodEnumId="${PROCESS_PID_CONTROL_METHOD_ENUM_ID}"
+            description="${PROCESS_PID_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${PROCESS_PID_DEVICE_ID}"
+            deviceName="${PROCESS_PID_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.01" parameterName="Enable" description="Master enable."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RESET}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.02" parameterName="Reset" description="Reset command."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CONTROL_SYSTEM_ID}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.03" parameterName="Control System Id" description="Control-system metadata id."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CONTROL_SYSTEM_NAME}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.04" parameterName="Control System Name" description="Control-system metadata name."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_FEEDBACK}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.05" parameterName="Feedback" description="Process feedback."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_FEEDBACK_MULTIPLIER}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.06" parameterName="Feedback Multiplier" description="Feedback multiplier."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.07" parameterName="Setpoint" description="Process setpoint."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AT_SETPOINT_HYSTERESIS}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.08" parameterName="At Setpoint Hysteresis" description="At-setpoint hysteresis."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_MULTIPLIER}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.09" parameterName="Setpoint Multiplier" description="Setpoint multiplier."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_MIN}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.10" parameterName="Setpoint Min" description="Setpoint minimum."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_MAX}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.11" parameterName="Setpoint Max" description="Setpoint maximum."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_RAMP_TYPE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.12" parameterName="Setpoint Ramp Type" description="Numeric enum value for RampType."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_INCREASE_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.13" parameterName="Setpoint Increase Time" description="Setpoint increase time in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_DECREASE_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.14" parameterName="Setpoint Decrease Time" description="Setpoint decrease time in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_FREEZE_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.15" parameterName="Setpoint Freeze Enable" description="Freeze setpoint."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DEVIATION_INVERSION}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.16" parameterName="Deviation Inversion" description="Invert deviation sign."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OUTPUT_MIN}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.17" parameterName="Output Min" description="Output minimum."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OUTPUT_MAX}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.18" parameterName="Output Max" description="Output maximum."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OUTPUT_FREEZE_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.19" parameterName="Output Freeze Enable" description="Freeze output."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_GAIN}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.20" parameterName="Gain" description="PID gain."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_INTEGRATION_TIME}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.21" parameterName="Integration Time" description="PID integration time."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DERIVATION_TIME}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.22" parameterName="Derivation Time" description="PID derivation time."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OFFSET}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.23" parameterName="Offset" description="Output offset."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DEADBAND_RANGE}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.24" parameterName="Deadband Range" description="Deadband range."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DEADBAND_DELAY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.25" parameterName="Deadband Delay" description="Deadband delay in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLEEP_LEVEL}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.26" parameterName="Sleep Level" description="Sleep threshold."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLEEP_DELAY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.27" parameterName="Sleep Delay" description="Sleep delay in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_WAKEUP_DEVIATION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.28" parameterName="Wakeup Deviation" description="Wakeup deviation."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_WAKEUP_DELAY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.29" parameterName="Wakeup Delay" description="Wakeup delay in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLEEP_BOOST_LEVEL}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.30" parameterName="Sleep Boost Level" description="Sleep boost output level."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLEEP_BOOST_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.31" parameterName="Sleep Boost Time" description="Sleep boost time in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TICK_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.32" parameterName="Tick Time" description="Tick time in milliseconds."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OUTPUT_ACTUAL}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpStatus" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.33" parameterName="Output Actual" description="Current controller output."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTIVE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.34" parameterName="Active" description="PID active status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AT_SETPOINT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.35" parameterName="At Setpoint" description="At setpoint status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLEEP_MODE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.36" parameterName="Sleep Mode" description="Sleep mode active."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TRACKING_MODE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.37" parameterName="Tracking Mode" description="Tracking mode enable."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TRACKING_REF}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.38" parameterName="Tracking Ref" description="Tracking reference."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SETPOINT_EPSILON}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${PROCESS_PID_PARAMETER_CODE_PREFIX}.39" parameterName="Setpoint Epsilon" description="Optional setpoint-change epsilon."/>
+
+    <moqui.math.Parameter parameterId="${P_ENABLE}" parameterDefId="${PD_ENABLE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_RESET}" parameterDefId="${PD_RESET}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_CONTROL_SYSTEM_ID}" parameterDefId="${PD_CONTROL_SYSTEM_ID}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="${CONTROL_SYSTEM_ID_VALUE}"/>
+    <moqui.math.Parameter parameterId="${P_CONTROL_SYSTEM_NAME}" parameterDefId="${PD_CONTROL_SYSTEM_NAME}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="${CONTROL_SYSTEM_NAME_VALUE}"/>
+    <moqui.math.Parameter parameterId="${P_FEEDBACK}" parameterDefId="${PD_FEEDBACK}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_FEEDBACK_MULTIPLIER}" parameterDefId="${PD_FEEDBACK_MULTIPLIER}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT}" parameterDefId="${PD_SETPOINT}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_AT_SETPOINT_HYSTERESIS}" parameterDefId="${PD_AT_SETPOINT_HYSTERESIS}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.5"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_MULTIPLIER}" parameterDefId="${PD_SETPOINT_MULTIPLIER}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_MIN}" parameterDefId="${PD_SETPOINT_MIN}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_MAX}" parameterDefId="${PD_SETPOINT_MAX}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_RAMP_TYPE}" parameterDefId="${PD_SETPOINT_RAMP_TYPE}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_INCREASE_TIME}" parameterDefId="${PD_SETPOINT_INCREASE_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_DECREASE_TIME}" parameterDefId="${PD_SETPOINT_DECREASE_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_FREEZE_ENABLE}" parameterDefId="${PD_SETPOINT_FREEZE_ENABLE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DEVIATION_INVERSION}" parameterDefId="${PD_DEVIATION_INVERSION}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_OUTPUT_MIN}" parameterDefId="${PD_OUTPUT_MIN}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_OUTPUT_MAX}" parameterDefId="${PD_OUTPUT_MAX}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${P_OUTPUT_FREEZE_ENABLE}" parameterDefId="${PD_OUTPUT_FREEZE_ENABLE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_GAIN}" parameterDefId="${PD_GAIN}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_INTEGRATION_TIME}" parameterDefId="${PD_INTEGRATION_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DERIVATION_TIME}" parameterDefId="${PD_DERIVATION_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_OFFSET}" parameterDefId="${PD_OFFSET}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DEADBAND_RANGE}" parameterDefId="${PD_DEADBAND_RANGE}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DEADBAND_DELAY}" parameterDefId="${PD_DEADBAND_DELAY}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_SLEEP_LEVEL}" parameterDefId="${PD_SLEEP_LEVEL}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SLEEP_DELAY}" parameterDefId="${PD_SLEEP_DELAY}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_WAKEUP_DEVIATION}" parameterDefId="${PD_WAKEUP_DEVIATION}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_WAKEUP_DELAY}" parameterDefId="${PD_WAKEUP_DELAY}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_SLEEP_BOOST_LEVEL}" parameterDefId="${PD_SLEEP_BOOST_LEVEL}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SLEEP_BOOST_TIME}" parameterDefId="${PD_SLEEP_BOOST_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_TICK_TIME}" parameterDefId="${PD_TICK_TIME}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${P_OUTPUT_ACTUAL}" parameterDefId="${PD_OUTPUT_ACTUAL}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACTIVE}" parameterDefId="${PD_ACTIVE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AT_SETPOINT}" parameterDefId="${PD_AT_SETPOINT}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_SLEEP_MODE}" parameterDefId="${PD_SLEEP_MODE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_TRACKING_MODE}" parameterDefId="${PD_TRACKING_MODE}" deviceId="${PROCESS_PID_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_TRACKING_REF}" parameterDefId="${PD_TRACKING_REF}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SETPOINT_EPSILON}" parameterDefId="${PD_SETPOINT_EPSILON}" deviceId="${PROCESS_PID_DEVICE_ID}" numericValue="0.000001"/>
+
+</entity-facade-xml>

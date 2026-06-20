@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- First reusable TEMPLATE config for one device type. -->
+
+    <moqui.device.DeviceConfig
+            deviceConfigId="${DEVICE_CONFIG_ID}"
+            parentConfigId="${PARENT_DEVICE_CONFIG_ID}"
+            configTypeEnumId="DctApplyConfig"
+            purposeEnumId="DcpPrototypeConfig"
+            deviceTypeEnumId="${DEVICE_TYPE_ENUM_ID}"
+            configName="${CONFIG_NAME_TEMPLATE}"
+            controlMethodEnumId="${CONTROL_METHOD_ENUM_ID}"
+            approximatedFunctionId="${APPROXIMATED_FUNCTION_ID}"
+            description="${DEVICE_CONFIG_DESCRIPTION}"/>
+
+    <!-- Parameter rows are supplied by the specialized *-device-config-template fragments. -->
+
+    <moqui.device.DeviceRuleSet
+            deviceRuleSetId="${DEVICE_RULE_SET_ID}"
+            parentRuleSetId="${PARENT_DEVICE_RULE_SET_ID}"
+            purposeEnumId="DrspConfiguration"
+            sequenceNum="${RULE_SET_SEQUENCE_NUM}"
+            ruleSetName="${RULE_SET_NAME}"
+            description="${RULE_SET_DESCRIPTION}"/>
+
+    <moqui.device.DeviceRule
+            deviceRuleId="${DEVICE_RULE_ID}"
+            parentRuleId="${PARENT_DEVICE_RULE_ID}"
+            ruleTypeEnumId="DrtApplyConfig"
+            deviceRuleSetId="${DEVICE_RULE_SET_ID}"
+            deviceConfigId="${DEVICE_CONFIG_ID}"
+            deviceId="${DEVICE_ID}"
+            statusId="${RULE_STATUS_ID}"
+            statusFlowId="${RULE_STATUS_FLOW_ID}"
+            ruleName="${RULE_NAME}"
+            priority="1"
+            description="${RULE_DESCRIPTION}"
+            serviceName="${RULE_SERVICE_NAME}"
+            runDevice="Y"
+            isEnabled="Y"
+            floatingPointTolerance="${RULE_FLOATING_POINT_TOLERANCE}"
+            timeTolerance="${RULE_TIME_TOLERANCE}"/>
+
+</entity-facade-xml>

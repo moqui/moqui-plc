@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Compose this fragment with device-config-template.xml. -->
+
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATOR_ID}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATOR_ID}" symbolicValue="${ACTUATOR_ID_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATOR_NAME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATOR_NAME}" symbolicValue="${ACTUATOR_NAME_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATION_TYPE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATION_TYPE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_FEEDBACK_TYPE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_FEEDBACK_TYPE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MODEL}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MODEL}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OPERATION_TYPE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OPERATION_TYPE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ENABLE_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ENABLE_TIME}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DISABLE_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DISABLE_TIME}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ENABLE_PRESET}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ENABLE_PRESET}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DIAGNOSTICS_ENABLE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DIAGNOSTICS_ENABLE}" symbolicValue="Y"/>
+
+</entity-facade-xml>

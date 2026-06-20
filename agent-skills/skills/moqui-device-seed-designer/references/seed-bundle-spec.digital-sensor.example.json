@@ -1,0 +1,16 @@
+{
+  "includes": [
+    "digital_sensor"
+  ],
+  "variables": {
+    "PARENT_DEVICE_ID": "MACHINE_01",
+    "DIGITAL_SENSOR_DEVICE_ID": "S_GUARD_DOOR",
+    "DIGITAL_SENSOR_DEVICE_TYPE_ENUM_ID": "DtInputDigitalSensor",
+    "DIGITAL_SENSOR_PURPOSE_ENUM_ID": "DepMonitoring",
+    "DIGITAL_SENSOR_DESCRIPTION": "Guard door closed sensor.",
+    "DIGITAL_SENSOR_NAME": "guardDoorClosed",
+    "DIGITAL_SENSOR_PARAMETER_CODE_PREFIX": "SENS.DI.GUARD",
+    "PD_SENSOR_VALUE": "PD_GUARD_DOOR_CLOSED",
+    "P_SENSOR_VALUE": "P_GUARD_DOOR_CLOSED"
+  }
+}

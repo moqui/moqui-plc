@@ -1,0 +1,24 @@
+Representative HVAC-style example:
+
+`Phase1HvacCooling.HvacDeviceConfig.txtrecipe`
+
+Canonical source repository:
+
+- [moqui/moqui-plc](https://github.com/moqui/moqui-plc)
+
+Representative lines:
+
+```text
+dev.tempSetpoint:=4.0
+dev.tempHysteresis:=0.5
+dev.tempMin:=2.0
+dev.tempMax:=6.0
+dev.rhSetpoint:=75.0
+dev.rhHysteresis:=2.0
+dev.coldGlycolPump.actuatorId:='coldGlycolPump'
+dev.coldGlycolPump.enableTime:=1
+dev.coldGlycolValve.controlSystemId:='coldGlycolValve'
+dev.coldGlycolValve.gain:=1.0
+dev.ahuFan.controlSystemId:='ahuFan'
+dev.ahuFanSpeedSetpoint:=50.0
+```

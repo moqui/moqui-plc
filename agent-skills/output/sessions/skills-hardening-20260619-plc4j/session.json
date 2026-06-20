@@ -1,0 +1,81 @@
+{
+  "sessionId": "skills-hardening-20260619-plc4j",
+  "projectName": "agent-skills hardening",
+  "customerName": "internal",
+  "createdAt": "2026-06-19T07:18:09Z",
+  "updatedAt": "2026-06-19T07:30:00Z",
+  "status": "needs_review",
+  "currentStage": "plc_design",
+  "currentSkill": "moqui-plant-designer",
+  "workflowOrder": [
+    "moqui-device-seed-designer",
+    "moqui-plc-designer",
+    "moqui-device-config-designer",
+    "moqui-plc-config"
+  ],
+  "paths": {
+    "surveyAnswersDir": "survey-answers",
+    "seedDataDir": "seed-data",
+    "generatedPlcDir": "generated-plc",
+    "generatedRecipesDir": "generated-recipes",
+    "generatedConfigDir": "generated-config",
+    "attachmentsDir": "attachments",
+    "notesDir": "notes",
+    "exportsDir": "exports"
+  },
+  "artifacts": {
+    "seedData": [],
+    "generatedPlc": [],
+    "generatedRecipes": [],
+    "generatedConfig": [],
+    "attachments": [],
+    "surveys": [
+      "survey-answers/system-decomposition-survey.yaml",
+      "survey-answers/elementary-device-classification-survey.yaml",
+      "survey-answers/signal-catalog-survey.yaml",
+      "survey-answers/sampling-domains-survey.yaml",
+      "survey-answers/live-parameters-survey.yaml",
+      "survey-answers/gateway-topology-survey.yaml",
+      "survey-answers/transport-architecture-survey.yaml",
+      "survey-answers/main-fsm-survey.yaml",
+      "survey-answers/main-rule-engine-survey.yaml"
+    ],
+    "generatedConfig": [
+      "notes/resume-summary.md"
+    ]
+  },
+  "steps": {
+    "system_decomposition": {
+      "status": "reviewed",
+      "notes": "Skill hardening session only; upstream decomposition workflow already modeled in code."
+    },
+    "device_classification": {
+      "status": "reviewed",
+      "notes": "Classification constraints enforced in survey_validation.py."
+    },
+    "signal_catalog": {
+      "status": "reviewed",
+      "notes": "Signal validation now includes plc4j_query completeness for plc4j-scoped domains, and guided questions ask only for contextual signal cabling that is still missing."
+    },
+    "sampling_design": {
+      "status": "reviewed",
+      "notes": "Sampling domains now separate legacy transport_scope from transport_projection."
+    },
+    "seed_design": {
+      "status": "generated",
+      "notes": "Seed generator now materializes gateway and plc4j transport projections from survey data and instantiates canonical logical parameters from the atomic-component library."
+    },
+    "plc_design": {
+      "status": "pending",
+      "notes": "Next likely area: cross-check generated Main/MainRuleEngine artifacts against reviewed seed data and the atomic-component library."
+    },
+    "config_recipe": {
+      "status": "pending",
+      "notes": "Transport-aware recipe/config projection not revisited yet in this hardening session."
+    },
+    "plc_framework_config": {
+      "status": "pending",
+      "notes": "Optional follow-up."
+    }
+  }
+}

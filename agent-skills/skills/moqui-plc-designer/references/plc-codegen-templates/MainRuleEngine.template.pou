@@ -1,0 +1,109 @@
+{attribute 'no_assign'}
+(* 
+ * MainRuleEngine - transition-condition logic for the supervisor FSM.
+ *
+ * Responsibilities:
+ *   1. Reset transition requests to safe defaults.
+ *   2. Run the signal management engine (fault / alarm / warning detection).
+ *   3. Compute boolean predicates from sensor feedback and recipe setpoints.
+ *   4. Implement the per-state transition-condition rules.
+ *
+ * Default / persistence convention
+ * At the top of every scan standbyRequest is set TRUE (safe default).
+ * Each ACTIVE-state CASE block MUST:
+ *   - Set standbyRequest := FALSE (keep current state) in the ELSE branch.
+ *   - Set standbyRequest := TRUE (or leave as-is) when an EXIT condition is met.
+ *   - Set standbyRequest := FALSE and another*Request := TRUE to switch phase.
+ *
+ * Without the ELSE branch the system would exit any active state to Standby
+ * on the very first scan - a single-scan flash rather than a persistent phase.
+ *)
+FUNCTION_BLOCK MainRuleEngine
+VAR_EXTERNAL
+    clks : Clocks;
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+VAR_OUTPUT
+    error : BOOL;
+END_VAR
+VAR
+    (* Device diagnostics *)
+    deviceDiags : DeviceDiagnostics;
+END_VAR
+
+(* Reset transition requests to safe defaults.
+ *
+ * standbyRequest = TRUE  -> return to / stay in Standby (safe default).
+ * Active-state CASE blocks override to FALSE to keep the current phase alive,
+ * or set another *Request to switch phases.
+ *)
+${REQUEST_RESET_BLOCK}
+
+deviceDiags(operationType := operationType, error => error);
+
+(* Compute sensor predicates *)
+${SENSOR_PREDICATES}
+
+(* Process timing - generic run / break cycle *)
+IF clks.clock1s THEN
+    dev.processActualDuration := dev.processActualDuration + 1;
+
+    IF dev.timeBreakEnabled AND dev.status = ${BREAK_STATUS} THEN
+        dev.actualBreakDuration := dev.actualBreakDuration + 1;
+        IF dev.estimatedBreakDuration > 0 THEN
+            IF (dev.actualBreakDuration >= dev.estimatedBreakDuration)
+                    AND (dev.actualBreakDuration >= dev.minBreakDuration) THEN
+                dev.timeBreakEnabled := FALSE;
+                dev.actualRuntime := 0;
+                dev.actualBreakDuration := 0;
+            END_IF;
+        END_IF;
+    ELSE
+        dev.actualRuntime := dev.actualRuntime + 1;
+        IF dev.estimatedRuntime > 0 THEN
+            dev.processRemainingDuration := dev.processEstimatedDuration - dev.processActualDuration;
+            IF NOT dev.timeBreakEnabled
+                    AND (dev.actualRuntime >= dev.estimatedRuntime)
+                    AND (dev.actualRuntime >= dev.minRuntime) THEN
+                dev.timeBreakEnabled := TRUE;
+                dev.actualBreakDuration := 0;
+            END_IF;
+        END_IF;
+    END_IF;
+
+    IF dev.processEstimatedDuration > 0 THEN
+        dev.isCompleted :=
+            (dev.processActualDuration >= dev.processEstimatedDuration)
+            AND (dev.processActualDuration >= dev.processMinDuration);
+    END_IF;
+END_IF;
+
+(* Fault gate *)
+IF error OR ((dev.signalMgmt.cumulativeOutputAction AND SignalOutputAction.ImmediateStop) <> 0) THEN
+    dev.faultRequest := TRUE;
+    RETURN;
+END_IF;
+
+(* Transition-condition rule engine
+ *
+ * Persistence rule: every active-state CASE MUST end with
+ *   ELSE dev.standbyRequest := FALSE; (* keep current state alive *)
+ * to prevent the scan-level default (standbyRequest=TRUE) from immediately
+ * bouncing the FSM back to Standby before the exit condition is reached.
+ *)
+CASE dev.status OF
+${STATE_TRANSITION_CASES}
+END_CASE;
+
+(* Questions for the skill/user:
+ * 1. Which predicates must be computed from analog/digital signals?
+ * 2. Which predicates are process predicates and which are safety predicates?
+ * 3. Which predicates can be inferred from existing parameter names, thresholds, hysteresis values, or seed-data rows?
+ * 4. For each StatusFlowTransition, what is the boolean condition from current state to next state?
+ * 5. Which transition has precedence if multiple conditions are true?
+ * 6. Is the generic run/break timing block valid as-is, or does it require extension?
+ *)

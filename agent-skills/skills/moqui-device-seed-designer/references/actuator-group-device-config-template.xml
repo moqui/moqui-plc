@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Compose this fragment with device-config-template.xml or device-config-set-template.xml. -->
+
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATOR_GROUP_ID}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATOR_GROUP_ID}" symbolicValue="${ACTUATOR_GROUP_ID_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATOR_GROUP_NAME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATOR_GROUP_NAME}" symbolicValue="${ACTUATOR_GROUP_NAME_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACTUATOR_NUM}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACTUATOR_NUM}" numericValue="2"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MIN_RUNNING}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MIN_RUNNING}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MAX_RUNNING}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MAX_RUNNING}" numericValue="2"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DEMAND_SETPOINT}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DEMAND_SETPOINT}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_START_DELAY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_START_DELAY}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${CFG_P_STOP_DELAY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_STOP_DELAY}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AUTOCHANGE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AUTOCHANGE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AUTOCHANGE_INTERVAL}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AUTOCHANGE_INTERVAL}" numericValue="3600"/>
+    <moqui.math.Parameter parameterId="${CFG_P_MAX_WEAR_IMBALANCE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_MAX_WEAR_IMBALANCE}" numericValue="72.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AUTOCHANGE_LEVEL}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AUTOCHANGE_LEVEL}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AUTOCHANGE_TRIGGER}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AUTOCHANGE_TRIGGER}" symbolicValue="N"/>
+
+</entity-facade-xml>

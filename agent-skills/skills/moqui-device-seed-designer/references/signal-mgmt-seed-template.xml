@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${SIGNAL_MGMT_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${SIGNAL_MGMT_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${SIGNAL_MGMT_PURPOSE_ENUM_ID}"
+            description="${SIGNAL_MGMT_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${SIGNAL_MGMT_DEVICE_ID}"
+            deviceName="${SIGNAL_MGMT_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_OPERATION_TYPE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpControl" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.01" parameterName="Operation Type" description="SignalMgmt operating mode."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CODE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.02" parameterName="Code" description="Signal code identifier."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CATEGORY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.03" parameterName="Category" description="Signal category."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RESET_POLICY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.04" parameterName="Reset Policy" description="Signal reset policy."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OUTPUT_ACTION}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.05" parameterName="Output Action" description="Output action or stop policy."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTIVATION_CONDITION}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpCondition" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.06" parameterName="Activation Condition" description="Signal activation condition."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUTO_RESET_CONDITION}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpCondition" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.07" parameterName="Auto Reset Condition" description="Auto-reset condition."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RESET}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.08" parameterName="Reset" description="Manual reset command."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUX_RESET}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.09" parameterName="Aux Reset" description="Auxiliary reset command."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SELECTIVE_RESET_TRIGGER}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.10" parameterName="Selective Reset Trigger" description="Selective reset trigger."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SELECTIVE_RESET_CODE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpControl" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.11" parameterName="Selective Reset Code" description="Selective reset code."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CUMULATIVE_OUTPUT_ACTION}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.12" parameterName="Cumulative Output Action" description="Combined output action."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTIVE_CATEGORY}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.13" parameterName="Active Category" description="Most severe active category."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RESET_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.14" parameterName="Reset Enable" description="Manual reset available."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AUX_RESET_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.15" parameterName="Aux Reset Enable" description="Aux reset available."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ERROR}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${SIGNAL_MGMT_PARAMETER_CODE_PREFIX}.16" parameterName="Error" description="SignalMgmt error status."/>
+
+    <moqui.math.Parameter parameterId="${P_OPERATION_TYPE}" parameterDefId="${PD_OPERATION_TYPE}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_CODE}" parameterDefId="${PD_CODE}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${P_CATEGORY}" parameterDefId="${PD_CATEGORY}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_RESET_POLICY}" parameterDefId="${PD_RESET_POLICY}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_OUTPUT_ACTION}" parameterDefId="${PD_OUTPUT_ACTION}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_ACTIVATION_CONDITION}" parameterDefId="${PD_ACTIVATION_CONDITION}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AUTO_RESET_CONDITION}" parameterDefId="${PD_AUTO_RESET_CONDITION}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_RESET}" parameterDefId="${PD_RESET}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AUX_RESET}" parameterDefId="${PD_AUX_RESET}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_SELECTIVE_RESET_TRIGGER}" parameterDefId="${PD_SELECTIVE_RESET_TRIGGER}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_SELECTIVE_RESET_CODE}" parameterDefId="${PD_SELECTIVE_RESET_CODE}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_CUMULATIVE_OUTPUT_ACTION}" parameterDefId="${PD_CUMULATIVE_OUTPUT_ACTION}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_ACTIVE_CATEGORY}" parameterDefId="${PD_ACTIVE_CATEGORY}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_RESET_ENABLE}" parameterDefId="${PD_RESET_ENABLE}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AUX_RESET_ENABLE}" parameterDefId="${PD_AUX_RESET_ENABLE}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ERROR}" parameterDefId="${PD_ERROR}" deviceId="${SIGNAL_MGMT_DEVICE_ID}" symbolicValue="N"/>
+
+</entity-facade-xml>

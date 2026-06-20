@@ -1,0 +1,12 @@
+{
+  "sessionId": "demo-plant-session",
+  "exportedAt": "2026-05-29T06:19:43Z",
+  "zipFile": "demo-plant-session.zip",
+  "files": [
+    {
+      "path": "session.json",
+      "size": 1226,
+      "sha256": "11bee6762278a1f42d0cfee8a7247b9107f7a4f02ef2426794ef2250c198d5c4"
+    }
+  ]
+}
