@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${AXIS_GROUP_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${AXIS_GROUP_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${AXIS_GROUP_PURPOSE_ENUM_ID}"
+            description="${AXIS_GROUP_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${AXIS_GROUP_DEVICE_ID}"
+            deviceName="${AXIS_GROUP_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_GROUP_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.01" parameterName="Group Enable" description="Axis-group enable."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AXIS_GROUP_ID}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.02" parameterName="Axis Group Id" description="Axis-group metadata id."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AXIS_GROUP_NAME}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.03" parameterName="Axis Group Name" description="Axis-group metadata name."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CMD}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.04" parameterName="Cmd" description="Axis-group command."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_END_POINT_X}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.03" parameterName="End Point X" description="Target endpoint X."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_END_POINT_Y}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.04" parameterName="End Point Y" description="Target endpoint Y."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_END_POINT_Z}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.05" parameterName="End Point Z" description="Target endpoint Z."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_VELOCITY}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.06" parameterName="Velocity" description="Group velocity."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACCELERATION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.07" parameterName="Acceleration" description="Group acceleration."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DECELERATION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.08" parameterName="Deceleration" description="Group deceleration."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JERK}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.09" parameterName="Jerk" description="Group jerk."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TRANSITION_PARAMETER}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.10" parameterName="Transition Parameter" description="Transition/cornering parameter."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OVERRIDE_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.11" parameterName="Override Enable" description="Override enable flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_VEL_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.12" parameterName="Vel Factor" description="Velocity override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACC_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.13" parameterName="Acc Factor" description="Acceleration override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JERK_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.14" parameterName="Jerk Factor" description="Jerk override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_READY}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.11" parameterName="Ready" description="Group ready status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_COMMAND_EXECUTED}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.12" parameterName="Command Executed" description="Motion command executed."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_GROUP_ERROR}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.13" parameterName="Group Error" description="Axis-group error status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_GROUP_ERROR_ID}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${AXIS_GROUP_PARAMETER_CODE_PREFIX}.14" parameterName="Group Error Id" description="Axis-group error code."/>
+
+    <moqui.math.Parameter parameterId="${P_GROUP_ENABLE}" parameterDefId="${PD_GROUP_ENABLE}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AXIS_GROUP_ID}" parameterDefId="${PD_AXIS_GROUP_ID}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="${AXIS_GROUP_DEVICE_ID}"/>
+    <moqui.math.Parameter parameterId="${P_AXIS_GROUP_NAME}" parameterDefId="${PD_AXIS_GROUP_NAME}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="${AXIS_GROUP_NAME}"/>
+    <moqui.math.Parameter parameterId="${P_CMD}" parameterDefId="${PD_CMD}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_END_POINT_X}" parameterDefId="${PD_END_POINT_X}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_END_POINT_Y}" parameterDefId="${PD_END_POINT_Y}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_END_POINT_Z}" parameterDefId="${PD_END_POINT_Z}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_VELOCITY}" parameterDefId="${PD_VELOCITY}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACCELERATION}" parameterDefId="${PD_ACCELERATION}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DECELERATION}" parameterDefId="${PD_DECELERATION}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_JERK}" parameterDefId="${PD_JERK}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_TRANSITION_PARAMETER}" parameterDefId="${PD_TRANSITION_PARAMETER}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_OVERRIDE_ENABLE}" parameterDefId="${PD_OVERRIDE_ENABLE}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_VEL_FACTOR}" parameterDefId="${PD_VEL_FACTOR}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_ACC_FACTOR}" parameterDefId="${PD_ACC_FACTOR}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_JERK_FACTOR}" parameterDefId="${PD_JERK_FACTOR}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_READY}" parameterDefId="${PD_READY}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_COMMAND_EXECUTED}" parameterDefId="${PD_COMMAND_EXECUTED}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_GROUP_ERROR}" parameterDefId="${PD_GROUP_ERROR}" deviceId="${AXIS_GROUP_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_GROUP_ERROR_ID}" parameterDefId="${PD_GROUP_ERROR_ID}" deviceId="${AXIS_GROUP_DEVICE_ID}" numericValue="0"/>
+
+</entity-facade-xml>

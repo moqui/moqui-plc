@@ -1,0 +1,76 @@
+{
+  "sessionId": "plant-demo-001",
+  "projectName": "Demo Plant",
+  "customerName": "",
+  "createdAt": "2026-05-29T00:00:00Z",
+  "updatedAt": "2026-05-29T00:00:00Z",
+  "status": "in_progress",
+  "currentStage": "system_decomposition",
+  "currentSkill": "moqui-plant-designer",
+  "workflowOrder": [
+    "moqui-device-seed-designer",
+    "moqui-plc-designer",
+    "moqui-device-config-designer",
+    "moqui-plc-config"
+  ],
+  "paths": {
+    "surveyAnswersDir": "survey-answers",
+    "seedDataDir": "seed-data",
+    "generatedPlcDir": "generated-plc",
+    "generatedRecipesDir": "generated-recipes",
+    "generatedConfigDir": "generated-config",
+    "attachmentsDir": "attachments",
+    "notesDir": "notes",
+    "exportsDir": "exports"
+  },
+  "artifacts": {
+    "seedData": [],
+    "generatedPlc": [],
+    "generatedRecipes": [],
+    "generatedConfig": [],
+    "attachments": [],
+    "surveys": [
+      "survey-answers/system-decomposition-survey.yaml",
+      "survey-answers/elementary-device-classification-survey.yaml",
+      "survey-answers/signal-catalog-survey.yaml",
+      "survey-answers/sampling-domains-survey.yaml",
+      "survey-answers/live-parameters-survey.yaml",
+      "survey-answers/main-fsm-survey.yaml",
+      "survey-answers/main-rule-engine-survey.yaml"
+    ]
+  },
+  "steps": {
+    "system_decomposition": {
+      "status": "pending",
+      "notes": ""
+    },
+    "device_classification": {
+      "status": "pending",
+      "notes": ""
+    },
+    "signal_catalog": {
+      "status": "pending",
+      "notes": ""
+    },
+    "sampling_design": {
+      "status": "pending",
+      "notes": ""
+    },
+    "seed_design": {
+      "status": "pending",
+      "notes": ""
+    },
+    "plc_design": {
+      "status": "pending",
+      "notes": ""
+    },
+    "config_recipe": {
+      "status": "pending",
+      "notes": ""
+    },
+    "plc_framework_config": {
+      "status": "pending",
+      "notes": ""
+    }
+  }
+}

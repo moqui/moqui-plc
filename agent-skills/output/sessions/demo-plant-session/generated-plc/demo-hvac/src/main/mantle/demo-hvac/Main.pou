@@ -1,0 +1,225 @@
+{attribute 'no_assign'}
+(* 
+ * NOTE: In general, the Main component implements the control logic of automated industrial systems (Finite State Machine - FSM)
+ * using hierarchical control architectures. It separates control policies from implementation mechanisms,
+ * and diagnostic mechanisms from failure/error reaction and system reset policies.
+ *
+ * MainRuleEngine generates transition requests; Main consumes them.
+ * DeviceManager orchestrates the individual device FBs.
+ *
+ * Call order in the PLC task:
+ *   InputSignalUpdate -> Main -> DeviceManager -> OutputSignalUpdate
+ *)
+FUNCTION_BLOCK Main
+VAR_EXTERNAL
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode;
+    enable : BOOL;
+END_VAR
+VAR_OUTPUT
+    done : BOOL;
+    error : BOOL;
+END_VAR
+VAR CONSTANT
+    componentName : STRING := 'demo-hvac';
+END_VAR
+VAR
+    (* Logger facade *)
+    logger : LoggerFacade;
+    (* FSM transition logic *)
+    ruleEngine : MainRuleEngine;
+    (* Optional: define one or more FSMs for managing subsystems, if needed *)
+    (* HAL manager *)
+    deviceManager : DeviceManager;
+END_VAR
+
+(* Logger facade init *)
+logger.enable := TRUE; logger.loggerName := componentName;
+
+IF NOT enable THEN RETURN; END_IF
+
+(* Init: device setup and configuration *)
+IF (operationType = OperatingMode.Init) THEN
+    logger(message := 'Setup and configuration of all devices.', level := LogLevel.DEBUG);
+    (* The static device configuration parameters are mapped directly by the device config manager (recipe manager),
+     * while only the dynamic parameters are mapped below in the standby status.
+     *)
+    (* Reset signal manager *)
+    dev.signalMgmt(operationType := SignalMgmtOperatingMode.Reset, loggerName := componentName);
+    dev.status := MainStatus.Disabled;
+    dev.lastStatus := MainStatus.Disabled;
+    done := FALSE;
+    dev.actualRuntime := 0;
+    dev.actualBreakDuration := 0;
+    dev.processActualDuration := 0;
+    dev.processRemainingDuration := 0;
+    dev.timeBreakEnabled := FALSE;
+    dev.isCompleted := FALSE;
+ELSE
+    (* FSM transition-condition rule engine *)
+    logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
+    ruleEngine(operationType := operationType);
+END_IF;
+
+dev.lastStatus := dev.status;
+
+(* Fault overrides any other state *)
+IF dev.faultRequest THEN dev.status := MainStatus.ErrorStop; END_IF;
+
+(* Main FSM - Output function + State-update function *)
+logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
+CASE dev.status OF
+    MainStatus.Disabled :
+        logger(message := 'Disabled.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_DISABLED__
+
+        (* FSM status update function *)
+        IF __COND_DISABLED_TO_STANDSTILL__ THEN
+            (* Init -> Standstill *)
+            dev.status := MainStatus.Standstill;
+        END_IF;
+
+    MainStatus.Standstill :
+        logger(message := 'Standstill.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_STANDSTILL__
+
+        (* FSM status update function *)
+        IF __COND_STANDSTILL_TO_HOMING__ THEN
+            (* Homing -> Homing *)
+            dev.status := MainStatus.Homing;
+        ELSIF __COND_STANDSTILL_TO_STOPPING__ THEN
+            (* Stopping -> Stopping *)
+            dev.status := MainStatus.Stopping;
+        ELSIF __COND_STANDSTILL_TO_RUN__ THEN
+            (* Running -> Run *)
+            dev.status := MainStatus.Run;
+        ELSIF __COND_STANDSTILL_TO_SYNCHRONIZEDRUN__ THEN
+            (* Synchronized Run -> SynchronizedRun *)
+            dev.status := MainStatus.SynchronizedRun;
+        ELSIF __COND_STANDSTILL_TO_ERRORSTOP__ THEN
+            (* Error -> ErrorStop *)
+            dev.status := MainStatus.ErrorStop;
+        ELSIF __COND_STANDSTILL_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+
+    MainStatus.Homing :
+        logger(message := 'Homing.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_HOMING__
+
+        (* FSM status update function *)
+        IF __COND_HOMING_TO_STANDSTILL__ THEN
+            (* Standstill -> Standstill *)
+            dev.status := MainStatus.Standstill;
+        ELSIF __COND_HOMING_TO_STOPPING__ THEN
+            (* Stopping -> Stopping *)
+            dev.status := MainStatus.Stopping;
+        ELSIF __COND_HOMING_TO_ERRORSTOP__ THEN
+            (* Error -> ErrorStop *)
+            dev.status := MainStatus.ErrorStop;
+        ELSIF __COND_HOMING_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+
+    MainStatus.Run :
+        logger(message := 'Run.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_RUN__
+
+        (* FSM status update function *)
+        IF __COND_RUN_TO_STANDSTILL__ THEN
+            (* Standstill -> Standstill *)
+            dev.status := MainStatus.Standstill;
+        ELSIF __COND_RUN_TO_STOPPING__ THEN
+            (* Stopping -> Stopping *)
+            dev.status := MainStatus.Stopping;
+        ELSIF __COND_RUN_TO_SYNCHRONIZEDRUN__ THEN
+            (* Synchronized Run -> SynchronizedRun *)
+            dev.status := MainStatus.SynchronizedRun;
+        ELSIF __COND_RUN_TO_ERRORSTOP__ THEN
+            (* Error -> ErrorStop *)
+            dev.status := MainStatus.ErrorStop;
+        ELSIF __COND_RUN_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+
+    MainStatus.SynchronizedRun :
+        logger(message := 'SynchronizedRun.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_SYNCHRONIZEDRUN__
+
+        (* FSM status update function *)
+        IF __COND_SYNCHRONIZEDRUN_TO_STOPPING__ THEN
+            (* Stopping -> Stopping *)
+            dev.status := MainStatus.Stopping;
+        ELSIF __COND_SYNCHRONIZEDRUN_TO_RUN__ THEN
+            (* Run -> Run *)
+            dev.status := MainStatus.Run;
+        ELSIF __COND_SYNCHRONIZEDRUN_TO_ERRORSTOP__ THEN
+            (* Error -> ErrorStop *)
+            dev.status := MainStatus.ErrorStop;
+        ELSIF __COND_SYNCHRONIZEDRUN_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+
+    MainStatus.Stopping :
+        logger(message := 'Stopping.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_STOPPING__
+
+        (* FSM status update function *)
+        IF __COND_STOPPING_TO_STANDSTILL__ THEN
+            (* Standstill -> Standstill *)
+            dev.status := MainStatus.Standstill;
+        ELSIF __COND_STOPPING_TO_ERRORSTOP__ THEN
+            (* Error -> ErrorStop *)
+            dev.status := MainStatus.ErrorStop;
+        ELSIF __COND_STOPPING_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+
+    MainStatus.ErrorStop :
+        logger(message := 'ErrorStop.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        __OUTPUT_ASSIGNMENTS_ERRORSTOP__
+
+        (* FSM status update function *)
+        IF __COND_ERRORSTOP_TO_STANDSTILL__ THEN
+            (* Standstill -> Standstill *)
+            dev.status := MainStatus.Standstill;
+        ELSIF __COND_ERRORSTOP_TO_DISABLED__ THEN
+            (* Disabling -> Disabled *)
+            dev.status := MainStatus.Disabled;
+        END_IF;
+END_CASE;
+
+done := dev.isCompleted;
+
+(* Device orchestration (HAL) *)
+logger(message := 'Update devices.', level := LogLevel.DEBUG);
+deviceManager(operationType := operationType);
+
+(* Questions for the skill/user:
+ * 1. Which StatusFlow drives this Main FSM?
+ * 2. What is the initial state and what is the fault state?
+ * 3. For each state, which output requests must be asserted or cleared?
+ * 4. For each state, which next-state requests may be consumed here?
+ *)

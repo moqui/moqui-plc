@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Compose this fragment with device-config-template.xml. -->
+
+    <moqui.math.Parameter parameterId="${CFG_P_CONTROL_SYSTEM_ID}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_CONTROL_SYSTEM_ID}" symbolicValue="${CONTROL_SYSTEM_ID_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_CONTROL_SYSTEM_NAME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_CONTROL_SYSTEM_NAME}" symbolicValue="${CONTROL_SYSTEM_NAME_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_FEEDBACK_MULTIPLIER}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_FEEDBACK_MULTIPLIER}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AT_SETPOINT_HYSTERESIS}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AT_SETPOINT_HYSTERESIS}" numericValue="0.5"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_MULTIPLIER}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_MULTIPLIER}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_MIN}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_MIN}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_MAX}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_MAX}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_RAMP_TYPE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_RAMP_TYPE}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_INCREASE_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_INCREASE_TIME}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_DECREASE_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_DECREASE_TIME}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_FREEZE_ENABLE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_FREEZE_ENABLE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DEVIATION_INVERSION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DEVIATION_INVERSION}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OUTPUT_MIN}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OUTPUT_MIN}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OUTPUT_MAX}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OUTPUT_MAX}" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OUTPUT_FREEZE_ENABLE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OUTPUT_FREEZE_ENABLE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_GAIN}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_GAIN}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_INTEGRATION_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_INTEGRATION_TIME}" numericValue="10.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DERIVATION_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DERIVATION_TIME}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OFFSET}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OFFSET}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DEADBAND_RANGE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DEADBAND_RANGE}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DEADBAND_DELAY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DEADBAND_DELAY}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLEEP_LEVEL}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLEEP_LEVEL}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLEEP_DELAY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLEEP_DELAY}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_WAKEUP_DEVIATION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_WAKEUP_DEVIATION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_WAKEUP_DELAY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_WAKEUP_DELAY}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLEEP_BOOST_LEVEL}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLEEP_BOOST_LEVEL}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SLEEP_BOOST_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SLEEP_BOOST_TIME}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TICK_TIME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TICK_TIME}" numericValue="100"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TRACKING_MODE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TRACKING_MODE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TRACKING_REF}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TRACKING_REF}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_SETPOINT_EPSILON}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_SETPOINT_EPSILON}" numericValue="0.000001"/>
+
+</entity-facade-xml>

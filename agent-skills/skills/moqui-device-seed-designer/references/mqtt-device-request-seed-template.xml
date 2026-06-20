@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!--
+    Standard live-parameter request for values acquired in
+    moqui/moqui-plc through MqttParameterSub.
+
+    The request family is fixed.
+    The real variability is in the repeated DeviceRequestItem rows.
+    -->
+
+    <moqui.device.DeviceRequest
+            requestName="${DEVICE_ID}_LiveParametersMqttSub"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="DrpMonitoring"
+            routerEnumId="DrrBroker"
+            brokerUri="${LIVE_PARAMETERS_BROKER_URI}"
+            pollingInterval="${POLLING_INTERVAL}"/>
+
+    <!-- Repeat one row like this for each live parameter published by MqttParameterSub in moqui/moqui-plc -->
+    <moqui.device.DeviceRequestItem
+            requestName="${DEVICE_ID}_LiveParametersMqttSub"
+            parameterId="${LIVE_PARAMETER_ID_1}"
+            sequenceNum="1"
+            requestItemName="${LIVE_REQUEST_ITEM_NAME_1}"
+            query="${LIVE_QUERY_1}"
+            itemTypeEnumId="${LIVE_ITEM_TYPE_ENUM_ID_1}"/>
+
+</entity-facade-xml>

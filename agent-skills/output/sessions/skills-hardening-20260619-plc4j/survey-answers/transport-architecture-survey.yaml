@@ -1,0 +1,21 @@
+# Transport architecture survey
+transport_architecture:
+  primary_transport_mode: ""
+  allows_hybrid_projection: false
+  notes: ""
+gateway_projection:
+  required: false
+  rationale: ""
+plc4j_projection:
+  required: false
+  default_run_service_name: "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
+  connection_strategy: ""
+  notes: ""
+plc4j_connections:
+  - connection_name: ""
+    driver_enum_id: ""
+    transport_enum_id: ""
+    transport_config: ""
+    options: ""
+    scoped_domain_ids: []
+    notes: ""

@@ -1,0 +1,14 @@
+project_scope:
+  machine_name: UV Direct Cell
+  process_description: Direct PLC4J-driven UV curing cell
+  control_objective: Control one UV lamp and monitor power supply readiness
+  safety_scope: Positive logic
+  notes: ""
+system_tree:
+  - subsystem_id: SS_CURE
+    parent_subsystem_id: ""
+    subsystem_name: Cure
+    subsystem_type: ProcessCell
+    control_responsibility: Drive UV curing
+    candidate_fsm: Main
+    notes: ""

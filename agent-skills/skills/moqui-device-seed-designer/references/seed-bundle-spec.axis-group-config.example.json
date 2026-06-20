@@ -1,0 +1,43 @@
+{
+  "includes": [
+    "device_config",
+    "axis_group_config"
+  ],
+  "variables": {
+    "DEVICE_CONFIG_ID": "CFG_AXIS_GROUP_TEMPLATE",
+    "PARENT_DEVICE_CONFIG_ID": "",
+    "DEVICE_TYPE_ENUM_ID": "DtAxisGroup",
+    "CONFIG_NAME_TEMPLATE": "Axis Group TEMPLATE",
+    "CONTROL_METHOD_ENUM_ID": "DcmMotionControl",
+    "APPROXIMATED_FUNCTION_ID": "",
+    "DEVICE_CONFIG_DESCRIPTION": "Prototype config for coordinated axis group.",
+
+    "DEVICE_RULE_SET_ID": "RULESET_AXIS_GROUP_TEMPLATE",
+    "PARENT_DEVICE_RULE_SET_ID": "",
+    "RULE_SET_SEQUENCE_NUM": "1",
+    "RULE_SET_NAME": "Axis Group Template Rule Set",
+    "RULE_SET_DESCRIPTION": "Applies the axis-group template.",
+
+    "DEVICE_RULE_ID": "RULE_AXIS_GROUP_TEMPLATE",
+    "PARENT_DEVICE_RULE_ID": "",
+    "DEVICE_ID": "ROBOT_ARM_GROUP",
+    "RULE_STATUS_ID": "",
+    "RULE_STATUS_FLOW_ID": "",
+    "RULE_NAME": "Apply Axis Group Template",
+    "RULE_DESCRIPTION": "Apply prototype config to coordinated axis group.",
+    "RULE_SERVICE_NAME": "",
+    "RULE_FLOATING_POINT_TOLERANCE": "0.0",
+    "RULE_TIME_TOLERANCE": "0",
+
+    "CFG_P_VELOCITY": "CFG_P_VELOCITY",
+    "PD_VELOCITY": "PD_GROUP_VELOCITY",
+    "CFG_P_ACCELERATION": "CFG_P_ACCELERATION",
+    "PD_ACCELERATION": "PD_GROUP_ACCELERATION",
+    "CFG_P_DECELERATION": "CFG_P_DECELERATION",
+    "PD_DECELERATION": "PD_GROUP_DECELERATION",
+    "CFG_P_JERK": "CFG_P_JERK",
+    "PD_JERK": "PD_GROUP_JERK",
+    "CFG_P_TRANSITION_PARAMETER": "CFG_P_TRANSITION_PARAMETER",
+    "PD_TRANSITION_PARAMETER": "PD_GROUP_TRANSITION_PARAMETER"
+  }
+}

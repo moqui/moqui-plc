@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${AXIS_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${AXIS_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${AXIS_PURPOSE_ENUM_ID}"
+            description="${AXIS_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${AXIS_DEVICE_ID}"
+            deviceName="${AXIS_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_AXIS_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.01" parameterName="Axis Enable" description="Axis enable handshake."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CMD}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpControl" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.02" parameterName="Cmd" description="Axis command selector."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_POSITION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.03" parameterName="Position" description="Absolute target position."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISTANCE}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.04" parameterName="Distance" description="Relative distance."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_VELOCITY}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.05" parameterName="Velocity" description="Target velocity."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_VELOCITY_DIFF}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.06" parameterName="Velocity Diff" description="Superimposed velocity increment."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACCELERATION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.07" parameterName="Acceleration" description="Target acceleration."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DECELERATION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.08" parameterName="Deceleration" description="Target deceleration."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JERK}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.09" parameterName="Jerk" description="Target jerk."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_BUFFER_MODE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.10" parameterName="Buffer Mode" description="Numeric enum value for PLCopen buffer mode."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DIRECTION}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.11" parameterName="Direction" description="Numeric enum value for motion direction."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_HOME_POSITION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.12" parameterName="Home Position" description="Home position."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RATIO_NUMERATOR}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.13" parameterName="Ratio Numerator" description="Gear numerator."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_RATIO_DENOMINATOR}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.14" parameterName="Ratio Denominator" description="Gear denominator."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MASTER_SYNC_POS}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.15" parameterName="Master Sync Pos" description="Master sync position."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLAVE_SYNC_POS}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.16" parameterName="Slave Sync Pos" description="Slave sync position."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_CAM_VERSION}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.17" parameterName="Cam Version" description="Cam version number."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MASTER_OFFSET}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.18" parameterName="Master Offset" description="Master offset."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SLAVE_OFFSET}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.19" parameterName="Slave Offset" description="Slave offset."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_PHASE_SHIFT}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.20" parameterName="Phase Shift" description="Phasing shift."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_SET_POSITION_MODE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.21" parameterName="Set Position Mode" description="Encoder-only set-position flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OVERRIDE_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.22" parameterName="Override Enable" description="Override enable flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_VEL_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.23" parameterName="Vel Factor" description="Velocity override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACC_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.24" parameterName="Acc Factor" description="Acceleration override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JERK_FACTOR}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.25" parameterName="Jerk Factor" description="Jerk override factor."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JOG_FORWARD}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.26" parameterName="Jog Forward" description="Jog forward flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_JOG_BACKWARD}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.27" parameterName="Jog Backward" description="Jog backward flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TOUCH_PROBE_WINDOW}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.28" parameterName="Touch Probe Window" description="Windowed touch probe flag."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TOUCH_PROBE_FIRST}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.29" parameterName="Touch Probe First" description="Touch-probe window start."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_TOUCH_PROBE_LAST}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.30" parameterName="Touch Probe Last" description="Touch-probe window end."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUAL_POSITION}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.15" parameterName="Actual Position" description="Actual axis position."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUAL_VELOCITY}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.16" parameterName="Actual Velocity" description="Actual axis velocity."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AXIS_ERROR}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.17" parameterName="Axis Error" description="Axis error status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_AXIS_ERROR_ID}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.18" parameterName="Axis Error Id" description="Axis error code."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_READY}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.19" parameterName="Ready" description="Axis ready status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_COMMAND_EXECUTED}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${AXIS_PARAMETER_CODE_PREFIX}.20" parameterName="Command Executed" description="Command executed status."/>
+
+    <moqui.math.Parameter parameterId="${P_AXIS_ENABLE}" parameterDefId="${PD_AXIS_ENABLE}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_CMD}" parameterDefId="${PD_CMD}" deviceId="${AXIS_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_POSITION}" parameterDefId="${PD_POSITION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DISTANCE}" parameterDefId="${PD_DISTANCE}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_VELOCITY}" parameterDefId="${PD_VELOCITY}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_VELOCITY_DIFF}" parameterDefId="${PD_VELOCITY_DIFF}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACCELERATION}" parameterDefId="${PD_ACCELERATION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_DECELERATION}" parameterDefId="${PD_DECELERATION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_JERK}" parameterDefId="${PD_JERK}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_BUFFER_MODE}" parameterDefId="${PD_BUFFER_MODE}" deviceId="${AXIS_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_DIRECTION}" parameterDefId="${PD_DIRECTION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_HOME_POSITION}" parameterDefId="${PD_HOME_POSITION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_RATIO_NUMERATOR}" parameterDefId="${PD_RATIO_NUMERATOR}" deviceId="${AXIS_DEVICE_ID}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${P_RATIO_DENOMINATOR}" parameterDefId="${PD_RATIO_DENOMINATOR}" deviceId="${AXIS_DEVICE_ID}" numericValue="1"/>
+    <moqui.math.Parameter parameterId="${P_MASTER_SYNC_POS}" parameterDefId="${PD_MASTER_SYNC_POS}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SLAVE_SYNC_POS}" parameterDefId="${PD_SLAVE_SYNC_POS}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_CAM_VERSION}" parameterDefId="${PD_CAM_VERSION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_MASTER_OFFSET}" parameterDefId="${PD_MASTER_OFFSET}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SLAVE_OFFSET}" parameterDefId="${PD_SLAVE_OFFSET}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_PHASE_SHIFT}" parameterDefId="${PD_PHASE_SHIFT}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_SET_POSITION_MODE}" parameterDefId="${PD_SET_POSITION_MODE}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_OVERRIDE_ENABLE}" parameterDefId="${PD_OVERRIDE_ENABLE}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_VEL_FACTOR}" parameterDefId="${PD_VEL_FACTOR}" deviceId="${AXIS_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_ACC_FACTOR}" parameterDefId="${PD_ACC_FACTOR}" deviceId="${AXIS_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_JERK_FACTOR}" parameterDefId="${PD_JERK_FACTOR}" deviceId="${AXIS_DEVICE_ID}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${P_JOG_FORWARD}" parameterDefId="${PD_JOG_FORWARD}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_JOG_BACKWARD}" parameterDefId="${PD_JOG_BACKWARD}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_TOUCH_PROBE_WINDOW}" parameterDefId="${PD_TOUCH_PROBE_WINDOW}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_TOUCH_PROBE_FIRST}" parameterDefId="${PD_TOUCH_PROBE_FIRST}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_TOUCH_PROBE_LAST}" parameterDefId="${PD_TOUCH_PROBE_LAST}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACTUAL_POSITION}" parameterDefId="${PD_ACTUAL_POSITION}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_ACTUAL_VELOCITY}" parameterDefId="${PD_ACTUAL_VELOCITY}" deviceId="${AXIS_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_AXIS_ERROR}" parameterDefId="${PD_AXIS_ERROR}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_AXIS_ERROR_ID}" parameterDefId="${PD_AXIS_ERROR_ID}" deviceId="${AXIS_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_READY}" parameterDefId="${PD_READY}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_COMMAND_EXECUTED}" parameterDefId="${PD_COMMAND_EXECUTED}" deviceId="${AXIS_DEVICE_ID}" symbolicValue="N"/>
+
+</entity-facade-xml>

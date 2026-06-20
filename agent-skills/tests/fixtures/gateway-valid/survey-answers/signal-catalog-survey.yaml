@@ -1,0 +1,17 @@
+naming_rules:
+  positive_logic_default: true
+  input_prefix: I_
+  output_prefix: Q_
+  analog_suffix: _A
+  digital_suffix: _D
+  notes: ""
+signals:
+  - signal_id: SIG_LAMP_01_CMD
+    device_id: LAMP_01
+    signal_name: lamp01Cmd
+    direction: output
+    signal_kind: digital
+    iec_type: BOOL
+    source_rule: SA-NO actuation
+    reverse_logic: false
+    notes: ""

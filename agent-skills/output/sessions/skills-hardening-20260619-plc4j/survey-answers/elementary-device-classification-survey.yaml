@@ -1,0 +1,12 @@
+# Elementary device classification survey
+devices:
+  - device_id: ""
+    parent_subsystem_id: ""
+    physical_device_name: ""
+    logical_model: ""
+    actuation_feedback_class: ""
+    control_method_enum_id: ""
+    positive_logic_required: true
+    expected_actuation_signals: []
+    expected_feedback_signals: []
+    notes: ""

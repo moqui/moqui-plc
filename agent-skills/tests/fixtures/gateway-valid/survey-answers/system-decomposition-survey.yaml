@@ -1,0 +1,14 @@
+project_scope:
+  machine_name: UV Line
+  process_description: UV polymerization line
+  control_objective: Control UV lamps
+  safety_scope: Industrial cabinet
+  notes: ""
+system_tree:
+  - subsystem_id: SS_MAIN
+    parent_subsystem_id: ""
+    subsystem_name: Main Line
+    subsystem_type: Machine
+    control_responsibility: Main orchestration
+    candidate_fsm: Main
+    notes: ""

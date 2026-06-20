@@ -1,0 +1,128 @@
+{
+  "libraryVersion": "1.0",
+  "description": "Canonical model-driven library for moqui-plc atomic components. Each component defines the seed fragment, the reusable config fragment, and the semantic partition between structural metadata, contextual signal-facing parameters, recipe/config parameters, and runtime status parameters.",
+  "components": {
+    "actuator": {
+      "logicalModel": "Actuator",
+      "seedInclude": "actuator",
+      "configInclude": "actuator_config",
+      "deviceTypeEnumHint": "DtMoquiPlcActuator",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmSingleActuationNoFeedback",
+      "deviceIdVariable": "ACTUATOR_DEVICE_ID",
+      "nameVariable": "ACTUATOR_NAME",
+      "deviceTypeVariable": "ACTUATOR_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "ACTUATOR_PURPOSE_ENUM_ID",
+      "controlMethodVariable": "ACTUATOR_CONTROL_METHOD_ENUM_ID",
+      "descriptionVariable": "ACTUATOR_DESCRIPTION",
+      "parameterCodePrefixVariable": "ACTUATOR_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": ["PD_ACTUATOR_ID", "PD_ACTUATOR_NAME", "PD_ACTUATION_TYPE", "PD_FEEDBACK_TYPE", "PD_MODEL", "PD_OPERATION_TYPE"],
+        "contextualSignals": ["PD_ENABLE_REQUEST", "PD_DISABLE_REQUEST", "PD_ENABLE", "PD_DISABLE", "PD_ENABLED_SENSOR", "PD_DISABLED_SENSOR", "PD_EXTERNAL_FAULT", "PD_REF", "PD_FEEDBACK"],
+        "configRecipe": ["PD_ACTUATOR_ID", "PD_ACTUATOR_NAME", "PD_ACTUATION_TYPE", "PD_FEEDBACK_TYPE", "PD_MODEL", "PD_OPERATION_TYPE", "PD_ENABLE_TIME", "PD_DISABLE_TIME", "PD_ENABLE_PRESET", "PD_DIAGNOSTICS_ENABLE"],
+        "runtimeStatus": ["PD_FAULT", "PD_ACTUATOR_FAULT", "PD_ENABLED_SENSOR_FAULT", "PD_DISABLED_SENSOR_FAULT", "PD_NOT_INITIALIZED"]
+      }
+    },
+    "actuator_group": {
+      "logicalModel": "ActuatorGroup",
+      "seedInclude": "actuator_group",
+      "configInclude": "actuator_group_config",
+      "deviceTypeEnumHint": "DtMoquiPlcActuatorGroup",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmNone",
+      "deviceIdVariable": "ACTUATOR_GROUP_DEVICE_ID",
+      "nameVariable": "ACTUATOR_GROUP_NAME",
+      "deviceTypeVariable": "ACTUATOR_GROUP_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "ACTUATOR_GROUP_PURPOSE_ENUM_ID",
+      "descriptionVariable": "ACTUATOR_GROUP_DESCRIPTION",
+      "parameterCodePrefixVariable": "ACTUATOR_GROUP_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": ["PD_ACTUATOR_GROUP_ID", "PD_ACTUATOR_GROUP_NAME", "PD_ACTUATOR_NUM", "PD_MIN_RUNNING", "PD_MAX_RUNNING"],
+        "contextualSignals": ["PD_GROUP_ENABLE", "PD_GROUP_DISABLE", "PD_DEMAND_SETPOINT", "PD_AUTOCHANGE_TRIGGER"],
+        "configRecipe": ["PD_ACTUATOR_GROUP_ID", "PD_ACTUATOR_GROUP_NAME", "PD_ACTUATOR_NUM", "PD_MIN_RUNNING", "PD_MAX_RUNNING", "PD_DEMAND_SETPOINT", "PD_START_DELAY", "PD_STOP_DELAY", "PD_AUTOCHANGE", "PD_AUTOCHANGE_INTERVAL", "PD_MAX_WEAR_IMBALANCE", "PD_AUTOCHANGE_LEVEL", "PD_AUTOCHANGE_TRIGGER"],
+        "runtimeStatus": ["PD_AVAILABLE_NUM", "PD_RUNNING_NUM", "PD_DEGRADED", "PD_UNDER_MINIMUM", "PD_INVALID_CONFIG", "PD_AUTOCHANGE_ACTIVE"]
+      }
+    },
+    "axis": {
+      "logicalModel": "Axis",
+      "seedInclude": "axis",
+      "configInclude": "axis_config",
+      "deviceTypeEnumHint": "DtMoquiPlcAxis",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmNone",
+      "deviceIdVariable": "AXIS_DEVICE_ID",
+      "nameVariable": "AXIS_NAME",
+      "deviceTypeVariable": "AXIS_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "AXIS_PURPOSE_ENUM_ID",
+      "descriptionVariable": "AXIS_DESCRIPTION",
+      "parameterCodePrefixVariable": "AXIS_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": [],
+        "contextualSignals": ["PD_AXIS_ENABLE", "PD_CMD", "PD_POSITION", "PD_DISTANCE"],
+        "configRecipe": ["PD_CMD", "PD_POSITION", "PD_DISTANCE", "PD_VELOCITY", "PD_VELOCITY_DIFF", "PD_ACCELERATION", "PD_DECELERATION", "PD_JERK", "PD_BUFFER_MODE", "PD_DIRECTION", "PD_HOME_POSITION", "PD_RATIO_NUMERATOR", "PD_RATIO_DENOMINATOR", "PD_MASTER_SYNC_POS", "PD_SLAVE_SYNC_POS", "PD_CAM_VERSION", "PD_MASTER_OFFSET", "PD_SLAVE_OFFSET", "PD_PHASE_SHIFT", "PD_SET_POSITION_MODE", "PD_OVERRIDE_ENABLE", "PD_VEL_FACTOR", "PD_ACC_FACTOR", "PD_JERK_FACTOR", "PD_JOG_FORWARD", "PD_JOG_BACKWARD", "PD_TOUCH_PROBE_WINDOW", "PD_TOUCH_PROBE_FIRST", "PD_TOUCH_PROBE_LAST"],
+        "runtimeStatus": ["PD_ACTUAL_POSITION", "PD_ACTUAL_VELOCITY", "PD_AXIS_ERROR", "PD_AXIS_ERROR_ID", "PD_READY", "PD_COMMAND_EXECUTED"]
+      }
+    },
+    "axis_group": {
+      "logicalModel": "AxisGroup",
+      "seedInclude": "axis_group",
+      "configInclude": "axis_group_config",
+      "deviceTypeEnumHint": "DtMoquiPlcAxisGroup",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmNone",
+      "deviceIdVariable": "AXIS_GROUP_DEVICE_ID",
+      "nameVariable": "AXIS_GROUP_NAME",
+      "deviceTypeVariable": "AXIS_GROUP_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "AXIS_GROUP_PURPOSE_ENUM_ID",
+      "descriptionVariable": "AXIS_GROUP_DESCRIPTION",
+      "parameterCodePrefixVariable": "AXIS_GROUP_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": ["PD_AXIS_GROUP_ID", "PD_AXIS_GROUP_NAME"],
+        "contextualSignals": ["PD_GROUP_ENABLE", "PD_CMD", "PD_END_POINT_X", "PD_END_POINT_Y", "PD_END_POINT_Z"],
+        "configRecipe": ["PD_AXIS_GROUP_ID", "PD_AXIS_GROUP_NAME", "PD_CMD", "PD_VELOCITY", "PD_ACCELERATION", "PD_DECELERATION", "PD_JERK", "PD_TRANSITION_PARAMETER", "PD_OVERRIDE_ENABLE", "PD_VEL_FACTOR", "PD_ACC_FACTOR", "PD_JERK_FACTOR"],
+        "runtimeStatus": ["PD_READY", "PD_COMMAND_EXECUTED", "PD_GROUP_ERROR", "PD_GROUP_ERROR_ID"]
+      }
+    },
+    "process_pid": {
+      "logicalModel": "ProcessPid",
+      "seedInclude": "process_pid",
+      "configInclude": "process_pid_config",
+      "deviceTypeEnumHint": "DtMoquiPlcProcessPID",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmPIDControl",
+      "deviceIdVariable": "PROCESS_PID_DEVICE_ID",
+      "nameVariable": "PROCESS_PID_NAME",
+      "deviceTypeVariable": "PROCESS_PID_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "PROCESS_PID_PURPOSE_ENUM_ID",
+      "controlMethodVariable": "PROCESS_PID_CONTROL_METHOD_ENUM_ID",
+      "descriptionVariable": "PROCESS_PID_DESCRIPTION",
+      "parameterCodePrefixVariable": "PROCESS_PID_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": ["PD_CONTROL_SYSTEM_ID", "PD_CONTROL_SYSTEM_NAME"],
+        "contextualSignals": ["PD_ENABLE", "PD_RESET", "PD_FEEDBACK"],
+        "configRecipe": ["PD_CONTROL_SYSTEM_ID", "PD_CONTROL_SYSTEM_NAME", "PD_FEEDBACK_MULTIPLIER", "PD_SETPOINT", "PD_AT_SETPOINT_HYSTERESIS", "PD_SETPOINT_MULTIPLIER", "PD_SETPOINT_MIN", "PD_SETPOINT_MAX", "PD_SETPOINT_RAMP_TYPE", "PD_SETPOINT_INCREASE_TIME", "PD_SETPOINT_DECREASE_TIME", "PD_SETPOINT_FREEZE_ENABLE", "PD_DEVIATION_INVERSION", "PD_OUTPUT_MIN", "PD_OUTPUT_MAX", "PD_OUTPUT_FREEZE_ENABLE", "PD_GAIN", "PD_INTEGRATION_TIME", "PD_DERIVATION_TIME", "PD_OFFSET", "PD_DEADBAND_RANGE", "PD_DEADBAND_DELAY", "PD_SLEEP_LEVEL", "PD_SLEEP_DELAY", "PD_WAKEUP_DEVIATION", "PD_WAKEUP_DELAY", "PD_SLEEP_BOOST_LEVEL", "PD_SLEEP_BOOST_TIME", "PD_TICK_TIME", "PD_TRACKING_MODE", "PD_TRACKING_REF", "PD_SETPOINT_EPSILON"],
+        "runtimeStatus": ["PD_OUTPUT_ACTUAL", "PD_ACTIVE", "PD_AT_SETPOINT", "PD_SLEEP_MODE"]
+      }
+    },
+    "signal_mgmt": {
+      "logicalModel": "SignalMgmt",
+      "seedInclude": "signal_mgmt",
+      "configInclude": "signal_mgmt_config",
+      "deviceTypeEnumHint": "DtMoquiPlcSignalMgmt",
+      "purposeEnumHint": "DepProcessControl",
+      "defaultControlMethodEnumId": "DcmNone",
+      "deviceIdVariable": "SIGNAL_MGMT_DEVICE_ID",
+      "nameVariable": "SIGNAL_MGMT_NAME",
+      "deviceTypeVariable": "SIGNAL_MGMT_DEVICE_TYPE_ENUM_ID",
+      "purposeVariable": "SIGNAL_MGMT_PURPOSE_ENUM_ID",
+      "descriptionVariable": "SIGNAL_MGMT_DESCRIPTION",
+      "parameterCodePrefixVariable": "SIGNAL_MGMT_PARAMETER_CODE_PREFIX",
+      "parameterGroups": {
+        "structuralIdentity": ["PD_OPERATION_TYPE", "PD_CODE", "PD_CATEGORY", "PD_RESET_POLICY", "PD_OUTPUT_ACTION"],
+        "contextualSignals": ["PD_ACTIVATION_CONDITION", "PD_AUTO_RESET_CONDITION", "PD_RESET", "PD_AUX_RESET", "PD_SELECTIVE_RESET_TRIGGER", "PD_SELECTIVE_RESET_CODE"],
+        "configRecipe": ["PD_CODE", "PD_CATEGORY", "PD_RESET_POLICY", "PD_OUTPUT_ACTION", "PD_ACTIVATION_CONDITION", "PD_AUTO_RESET_CONDITION"],
+        "runtimeStatus": ["PD_CUMULATIVE_OUTPUT_ACTION", "PD_ACTIVE_CATEGORY", "PD_RESET_ENABLE", "PD_AUX_RESET_ENABLE", "PD_ERROR"]
+      }
+    }
+  }
+}

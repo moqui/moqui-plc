@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <moqui.device.Device
+            deviceId="${ACTUATOR_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${ACTUATOR_DEVICE_TYPE_ENUM_ID}"
+            purposeEnumId="${ACTUATOR_PURPOSE_ENUM_ID}"
+            controlMethodEnumId="${ACTUATOR_CONTROL_METHOD_ENUM_ID}"
+            description="${ACTUATOR_DESCRIPTION}"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="${ACTUATOR_DEVICE_ID}"
+            deviceName="${ACTUATOR_NAME}"/>
+
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLE_REQUEST}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.01" parameterName="Enable Request" description="Handshake enable request."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISABLE_REQUEST}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.02" parameterName="Disable Request" description="Handshake disable request."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_ID}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.03" parameterName="Actuator Id" description="Actuator metadata id."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_NAME}" parameterTypeEnumId="PtTextShort" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.04" parameterName="Actuator Name" description="Actuator metadata name."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATION_TYPE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.05" parameterName="Actuation Type" description="Numeric enum value for ActuatorActuationType."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_FEEDBACK_TYPE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.06" parameterName="Feedback Type" description="Numeric enum value for ActuatorFeedbackType."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_MODEL}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.07" parameterName="Model" description="Numeric enum value for ActuatorModel."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_OPERATION_TYPE}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.08" parameterName="Operation Type" description="Numeric enum value for OperatingMode."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.09" parameterName="Enable" description="Physical enable output."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpControl" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.10" parameterName="Disable" description="Physical disable output."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLED_SENSOR}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.11" parameterName="Enabled Sensor" description="Enabled sensor feedback."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISABLED_SENSOR}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.12" parameterName="Disabled Sensor" description="Disabled sensor feedback."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_EXTERNAL_FAULT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.13" parameterName="External Fault" description="External actuator fault signal."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_FAULT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.14" parameterName="Fault" description="Actuator fault."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ACTUATOR_FAULT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.15" parameterName="Actuator Fault" description="Generic actuator diagnostic fault."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLED_SENSOR_FAULT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.16" parameterName="Enabled Sensor Fault" description="Enabled sensor diagnostic fault."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISABLED_SENSOR_FAULT}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.17" parameterName="Disabled Sensor Fault" description="Disabled sensor diagnostic fault."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_NOT_INITIALIZED}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpStatus" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.18" parameterName="Not Initialized" description="Initialization status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLE_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.19" parameterName="Enable Time" description="Enable timeout in PLC ticks."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DISABLE_TIME}" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.20" parameterName="Disable Time" description="Disable timeout in PLC ticks."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_ENABLE_PRESET}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.21" parameterName="Enable Preset" description="Startup preset status."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_DIAGNOSTICS_ENABLE}" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.22" parameterName="Diagnostics Enable" description="Enable actuator diagnostics."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_REF}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpControl" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.23" parameterName="Reference" description="Optional actuator reference."/>
+    <moqui.math.ParameterDef parameterDefId="${PD_FEEDBACK}" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="${ACTUATOR_PARAMETER_CODE_PREFIX}.24" parameterName="Feedback" description="Optional analog feedback."/>
+
+    <moqui.math.Parameter parameterId="${P_ENABLE_REQUEST}" parameterDefId="${PD_ENABLE_REQUEST}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DISABLE_REQUEST}" parameterDefId="${PD_DISABLE_REQUEST}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_ID}" parameterDefId="${PD_ACTUATOR_ID}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="${ACTUATOR_DEVICE_ID}"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_NAME}" parameterDefId="${PD_ACTUATOR_NAME}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="${ACTUATOR_NAME}"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATION_TYPE}" parameterDefId="${PD_ACTUATION_TYPE}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_FEEDBACK_TYPE}" parameterDefId="${PD_FEEDBACK_TYPE}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_MODEL}" parameterDefId="${PD_MODEL}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_OPERATION_TYPE}" parameterDefId="${PD_OPERATION_TYPE}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${P_ENABLE}" parameterDefId="${PD_ENABLE}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DISABLE}" parameterDefId="${PD_DISABLE}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ENABLED_SENSOR}" parameterDefId="${PD_ENABLED_SENSOR}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DISABLED_SENSOR}" parameterDefId="${PD_DISABLED_SENSOR}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${P_EXTERNAL_FAULT}" parameterDefId="${PD_EXTERNAL_FAULT}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_FAULT}" parameterDefId="${PD_FAULT}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ACTUATOR_FAULT}" parameterDefId="${PD_ACTUATOR_FAULT}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ENABLED_SENSOR_FAULT}" parameterDefId="${PD_ENABLED_SENSOR_FAULT}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DISABLED_SENSOR_FAULT}" parameterDefId="${PD_DISABLED_SENSOR_FAULT}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_NOT_INITIALIZED}" parameterDefId="${PD_NOT_INITIALIZED}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_ENABLE_TIME}" parameterDefId="${PD_ENABLE_TIME}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${P_DISABLE_TIME}" parameterDefId="${PD_DISABLE_TIME}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="10"/>
+    <moqui.math.Parameter parameterId="${P_ENABLE_PRESET}" parameterDefId="${PD_ENABLE_PRESET}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${P_DIAGNOSTICS_ENABLE}" parameterDefId="${PD_DIAGNOSTICS_ENABLE}" deviceId="${ACTUATOR_DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${P_REF}" parameterDefId="${PD_REF}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${P_FEEDBACK}" parameterDefId="${PD_FEEDBACK}" deviceId="${ACTUATOR_DEVICE_ID}" numericValue="0.0"/>
+
+</entity-facade-xml>

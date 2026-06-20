@@ -1,0 +1,40 @@
+{attribute 'no_assign'}
+(* Hardware Abstraction Layer (HAL) orchestrator.
+ *
+ * Drives all physical device FBs once per scan.
+ * Main component sets the enable/disable request flags; DeviceManager wires them
+ * to the individual Actuator / ProcessPid FBs.
+ *
+ * Call order within the PLC task:
+ *   InputSignalUpdate (updates feedback signals from field)
+ *   Main (FSM + DeviceRuleEngine -> sets request flags)
+ *   DeviceManager (this block - drives device FBs)
+ *   OutputSignalUpdate (maps device outputs to physical terminals)
+ *
+ * Handshake note (Actuator FBs):
+ *   enableRequest / disableRequest are VAR_IN_OUT.  The Actuator FB clears
+ *   the flag as its acknowledgment.  Main.pou re-asserts the flag each scan
+ *   from dev.xxxEnableRequest, so the handshake is level-triggered.
+ *
+ * ProcessPid note (ahuFan):
+ *   ProcessPid uses a plain BOOL 'enable' input - no VAR_IN_OUT handshake.
+ *   Setting enable := FALSE ramps the output to 0 and disables the controller.
+ *)
+FUNCTION_BLOCK DeviceManager
+VAR_EXTERNAL
+    clks : Clocks;
+    dev : DeviceFacade;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+
+(* Atomic device orchestration *)
+(* TODO: invoke each atomic device instance in deterministic order *)
+
+(* Questions for the skill/user:
+ * 1. Which atomic devices must be called every scan?
+ * 2. For each Actuator, which enableRequest/disableRequest flags drive it?
+ * 3. For each ProcessPid, which enable/setpoint/feedback signals drive it?
+ * 4. For each Axis or AxisGroup, which command/enable structures are used?
+ *)

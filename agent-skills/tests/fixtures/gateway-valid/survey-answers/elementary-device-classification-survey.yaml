@@ -1,0 +1,12 @@
+devices:
+  - device_id: LAMP_01
+    parent_subsystem_id: SS_MAIN
+    physical_device_name: UV Lamp 1
+    logical_model: Actuator
+    actuation_feedback_class: SA-NO
+    control_method_enum_id: ""
+    positive_logic_required: true
+    expected_actuation_signals:
+      - CMD_LAMP_01
+    expected_feedback_signals: []
+    notes: ""

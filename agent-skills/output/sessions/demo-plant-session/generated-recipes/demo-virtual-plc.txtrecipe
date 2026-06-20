@@ -1,0 +1,17 @@
+dev.reference:=0.0
+dev.allConfigLoaded:=FALSE
+dev.autoReset:=FALSE
+dev.commError:=FALSE
+dev.enable:=FALSE
+dev.error:=FALSE
+dev.fault:=FALSE
+dev.heartbeat:=0
+dev.init:=FALSE
+dev.isPrimary:=FALSE
+dev.logAppenderEnable:=FALSE
+dev.paramsPubEnable:=FALSE
+dev.paramsSubEnable:=FALSE
+dev.reset:=FALSE
+dev.retryCount:=0
+dev.retryTime:=0
+dev.mainStatusWord:=0

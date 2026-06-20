@@ -1,0 +1,7 @@
+live_parameters:
+  - parameter_id: LAMP_POWER_REF
+    device_id: UV_LAMP_BANK
+    parameter_name: lampPowerReference
+    iec_type: REAL
+    mqtt_key: lampPowerReference
+    notes: ""

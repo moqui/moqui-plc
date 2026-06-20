@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed">
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!-- Base device seed derived from moqui-device-gateway test fixtures -->
+
+    <moqui.device.Device
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            deviceTypeEnumId="DtPLC"
+            purposeEnumId="DepProcessControl"
+            controlMethodEnumId=""
+            operatingModeEnumId=""
+            statusTypeId=""
+            statusFlowId="DeviceBasicStatusFlow"
+            statusId="DbsStandstill"
+            description="Example direct OPC UA virtual PLC root device."
+            location=""/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            deviceName="Virtual PLC OPCUA S001"
+            version=""
+            hardwareVersion=""
+            firmwareVersion=""
+            operatingSystem=""
+            softwareApplication=""
+            cycleTime=""
+            isMulticore=""/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_REFERENCE_OPCUA_S001"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpControl"
+            parameterCode="VPL-OPCUA-S001-24.01"
+            parameterName="Reference"
+            description="Main numeric reference."/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_FEEDBACK_OPCUA_S001"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpFeedback"
+            parameterCode="VPL-OPCUA-S001-24.02"
+            parameterName="Feedback"
+            description="Feedback value."/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_FAULT_OPCUA_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="VPL-OPCUA-S001-24.05"
+            parameterName="Fault"
+            description="Fault status."/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_REFERENCE_OPCUA_S001"
+            parameterDefId="VPL_PD_REFERENCE_OPCUA_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            numericValue="300.00"/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_FEEDBACK_OPCUA_S001"
+            parameterDefId="VPL_PD_FEEDBACK_OPCUA_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            symbolicValue="0"/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_FAULT_OPCUA_S001"
+            parameterDefId="VPL_PD_FAULT_OPCUA_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            parameterEnumId="N"/>
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!--
+    Optional direct OPC UA request template derived from moqui-device-gateway
+    test fixtures.
+
+    This fragment is useful as an internal reference or for installations that
+    still want direct transport-oriented requests. It is not part of the
+    standard minimal request set normally used for moqui-plc systems.
+    -->
+
+    <moqui.device.DeviceConnection
+            connectionName="VPL_OPCUA_CONN_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            connectionTypeEnumId="DctDirectConnection"
+            purposeEnumId="DcpOperations"
+            driverEnumId="DcdOpcUa"
+            transportEnumId="DctrTcp"
+            transportConfig="opc.tcp://127.0.0.1:12686/milo"
+            options=""/>
+
+    <moqui.device.DeviceRequest
+            requestName="VPL_OPCUA_READ_REQ_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrDirect"
+            connectionName="VPL_OPCUA_CONN_S001"
+            pollingInterval="100"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="VPL_OPCUA_READ_REQ_S001"
+            parameterId="VPL_PARAM_REFERENCE_OPCUA_S001"
+            sequenceNum="1"
+            requestItemName="virtualPlcFeedback"
+            query="ns=2;s=Demo.Dynamic.Scalar.Double"
+            itemTypeEnumId="DritReal"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="VPL_OPCUA_READ_REQ_S001"
+            parameterId="VPL_PARAM_FEEDBACK_OPCUA_S001"
+            sequenceNum="2"
+            requestItemName="virtualPlcFault"
+            query="ns=2;s=Demo.Dynamic.Scalar.Boolean"
+            itemTypeEnumId="DritBool"/>
+
+    <moqui.device.DeviceRequest
+            requestName="VPL_OPCUA_UNSUB_REQ_S001"
+            parentRequestName="VPL_OPCUA_READ_REQ_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            requestTypeEnumId="DrtUnsubscribe"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrDirect"
+            connectionName="VPL_OPCUA_CONN_S001"/>
+
+    <moqui.device.DeviceRequest
+            requestName="VPL_OPCUA_WRITE_REQ_S001"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
+            requestTypeEnumId="DrtWrite"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrDirect"
+            connectionName="VPL_OPCUA_CONN_S001"
+            onlyChangedParameters="N"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="VPL_OPCUA_WRITE_REQ_S001"
+            parameterId="VPL_PARAM_FAULT_OPCUA_S001"
+            sequenceNum="1"
+            requestItemName="virtualPlcReference"
+            query="ns=2;s=Demo.Dynamic.Scalar.Double"
+            itemTypeEnumId="DritReal"/>
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!-- Standard recipe export wrapper for moqui-device-gateway. -->
+
+    <moqui.device.Device
+            deviceId="MOQUI_DEVICE_GATEWAY_1"
+            deviceTypeEnumId="DtIoTGateway"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="MOQUI_DEVICE_GATEWAY_1"
+            deviceName="Moqui Device Gateway 1"/>
+
+    <moqui.device.DeviceRequest
+            requestName="MOQUI_DEVICE_GATEWAY_1_ExportRecipe"
+            deviceId="MOQUI_DEVICE_GATEWAY_1"
+            requestTypeEnumId="DrtConfigWrite"
+            purposeEnumId="DrpCommissioning"
+            routerEnumId="DrrMoquiDeviceGateway"
+            runServiceName="moqui.device.DeviceGatewayServices.export#DeviceConfig"
+            brokerUri="http://localhost:8081"
+            timeout="30"
+            onlyChangedParameters="N"/>
+
+</entity-facade-xml>

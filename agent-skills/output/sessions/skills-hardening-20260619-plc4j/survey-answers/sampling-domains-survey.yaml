@@ -1,0 +1,11 @@
+# Sampling domains survey
+domains:
+  - domain_id: ""
+    domain_name: ""
+    natural_frequency_class: ""
+    scan_time: ""
+    transport_scope: ""
+    transport_projection: ""
+    devices: []
+    signals: []
+    notes: ""

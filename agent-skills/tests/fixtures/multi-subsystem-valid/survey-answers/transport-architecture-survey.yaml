@@ -1,0 +1,12 @@
+transport_architecture:
+  primary_transport_mode: gateway
+  allows_hybrid_projection: false
+  notes: Gateway-only projection for a multi-subsystem cell.
+gateway_projection:
+  required: true
+  rationale: The edge gateway owns request restoration and runtime transport.
+plc4j_projection:
+  required: false
+  default_run_service_name: moqui.plc4j.Plc4jServices.run#Plc4jRequest
+  connection_strategy: ""
+  notes: ""

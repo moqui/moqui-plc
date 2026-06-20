@@ -105,12 +105,23 @@ compliant IDE (CODESYS, Siemens AX, etc.). The repository also includes
 for demos, manual validation, and automated test execution.
 
 
-## Canonical IEC 61131-3 source and platform ports
+## Project Structure and Platform Ports
 
-The directory `iec61131/moqui` is the canonical source of truth for the PLC
-framework and runtime components. Vendor-specific implementations are derived
-from this tree and must preserve the original structure, names, comments, state
-machines, and execution order wherever the target platform permits it.
+The project is composed of the canonical IEC 61131-3 implementation and its derived platform-specific ports, alongside developer workflow utilities:
+
+- **[iec61131](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iec61131/moqui)**: The canonical source of truth for the PLC framework and runtime components, exported as a clean, vendor-neutral IEC 61131-3 reference tree.
+- **[simatic-ax](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/simatic-ax)**: The SIMATIC AX port, generated from the canonical `iec61131` tree with AX-specific overrides.
+- **[iot-firmware](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iot-firmware)**: The embedded ESP32/FreeRTOS port, compiled into binary outputs, also derived from the canonical `iec61131` tree.
+- **[agent-skills](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/agent-skills)**: A model-first, data-driven low-code/no-code solution for the industrial automation world. Starting from the [moqui-device](https://github.com/moqui/moqui-device) and [moqui-math](https://github.com/moqui/moqui-math) data models, it encapsulates skills, templates, and scripts to automate repetitive system-engineering decomposition, survey validation, Moqui XML seed rendering, and PLC artifact generation.
+
+For details, requirements, and guides specific to each of these sub-projects, please refer to their respective documentation:
+- [simatic-ax README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/simatic-ax/README.md)
+- [iot-firmware README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iot-firmware/README.md)
+- [agent-skills README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/agent-skills/README.md)
+
+### Canonical Source of Truth
+
+The directory `iec61131/moqui` is the canonical source of truth for the PLC framework and runtime components. Vendor-specific implementations (`simatic-ax`, `iot-firmware`) are derived from this tree and must preserve the original structure, names, comments, state machines, and execution order wherever the target platform permits it.
 
 The current platform paths are:
 
@@ -119,7 +130,8 @@ The current platform paths are:
 - `iec61131/moqui`: the clean IEC 61131-3 export used as the vendor-neutral reference;
 - `simatic-ax`: the SIMATIC AX port, generated from the canonical IEC tree with a
   limited set of manually maintained AX-specific overrides;
-- `iot-firmware`: the embedded ESP32/FreeRTOS port and its supporting generated code.
+- `iot-firmware`: the embedded ESP32/FreeRTOS port and its supporting generated code;
+- `agent-skills`: the low-code/no-code agent skills and templates directory.
 
 The porting scripts must not treat a generated target as the new source of truth.
 Changes are made first in the CODESYS project or canonical IEC source, then

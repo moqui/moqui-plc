@@ -1,0 +1,9 @@
+# Gateway topology survey
+gateways:
+  - gateway_device_id: ""
+    gateway_name: ""
+    gateway_device_type_enum_id: "DtEdgeGateway"
+    gateway_member_purpose_enum_id: "DgmpEdgeGateway"
+    scoped_subsystem_ids: []
+    scoped_device_ids: []
+    notes: ""

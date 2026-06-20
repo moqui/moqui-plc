@@ -1,0 +1,16 @@
+# Main FSM survey
+component_name: ""
+main_status_enum: MainStatus
+status_flow_id: ""
+states:
+  - status: ""
+    activate:
+      device_groups: []
+      physical_devices: []
+      request_flags: []
+    deactivate:
+      device_groups: []
+      physical_devices: []
+      request_flags: []
+    consume_transition_requests: []
+    notes: ""

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!--
+    Optional direct OPC UA request template derived from moqui-device-gateway
+    test fixtures.
+
+    This fragment is useful as an internal reference or for installations that
+    still want direct transport-oriented requests. It is not part of the
+    standard minimal request set normally used for moqui-plc systems.
+    -->
+
+    <moqui.device.DeviceConnection
+            connectionName="${CONNECTION_NAME}"
+            deviceId="${DEVICE_ID}"
+            connectionTypeEnumId="DctDirectConnection"
+            purposeEnumId="${CONNECTION_PURPOSE_ENUM_ID}"
+            driverEnumId="DcdOpcUa"
+            transportEnumId="DctrTcp"
+            transportConfig="${TRANSPORT_CONFIG}"
+            options="${CONNECTION_OPTIONS}"/>
+
+    <moqui.device.DeviceRequest
+            requestName="${READ_REQUEST_NAME}"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="${READ_PURPOSE_ENUM_ID}"
+            routerEnumId="DrrDirect"
+            connectionName="${CONNECTION_NAME}"
+            pollingInterval="${POLLING_INTERVAL}"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="${READ_REQUEST_NAME}"
+            parameterId="${PARAMETER_ID_1}"
+            sequenceNum="1"
+            requestItemName="${REQUEST_ITEM_NAME_1}"
+            query="${OPCUA_READ_QUERY_1}"
+            itemTypeEnumId="${ITEM_TYPE_ENUM_ID_1}"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="${READ_REQUEST_NAME}"
+            parameterId="${PARAMETER_ID_2}"
+            sequenceNum="2"
+            requestItemName="${REQUEST_ITEM_NAME_2}"
+            query="${OPCUA_READ_QUERY_2}"
+            itemTypeEnumId="${ITEM_TYPE_ENUM_ID_2}"/>
+
+    <moqui.device.DeviceRequest
+            requestName="${UNSUB_REQUEST_NAME}"
+            parentRequestName="${READ_REQUEST_NAME}"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtUnsubscribe"
+            purposeEnumId="${READ_PURPOSE_ENUM_ID}"
+            routerEnumId="DrrDirect"
+            connectionName="${CONNECTION_NAME}"/>
+
+    <moqui.device.DeviceRequest
+            requestName="${WRITE_REQUEST_NAME}"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtWrite"
+            purposeEnumId="${WRITE_PURPOSE_ENUM_ID}"
+            routerEnumId="DrrDirect"
+            connectionName="${CONNECTION_NAME}"
+            onlyChangedParameters="N"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="${WRITE_REQUEST_NAME}"
+            parameterId="${PARAMETER_ID_3}"
+            sequenceNum="1"
+            requestItemName="${REQUEST_ITEM_NAME_3}"
+            query="${OPCUA_WRITE_QUERY_1}"
+            itemTypeEnumId="${ITEM_TYPE_ENUM_ID_3}"/>
+
+</entity-facade-xml>

@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!--
+    Example seed derived by reverse engineering moqui/moqui-plc -> iec61131/moqui/runtime/component/mantle-hvac.
+
+    This file is intentionally partial but structured:
+    - one root HVAC controller device
+    - atomic child devices
+    - logical device groups
+    - a few shared ParameterDef / Parameter rows
+    - one example DeviceConfig
+    - one example DeviceRuleSet + DeviceRule
+
+    It is meant as a practical example for the seed-designer workflow, not as a
+    complete production seed.
+    -->
+
+    <!-- ========== Root HVAC machine/controller ========== -->
+
+    <moqui.device.Device
+            deviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtHVACController"
+            purposeEnumId="DepProcessControl"
+            statusFlowId="DeviceAdvancedStatusFlow"
+            statusId="DasStandstill"
+            configId="HvacCfg_Phase1Cooling"/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_CELL_01"
+            deviceName="MantleHvac"/>
+
+    <!-- ========== Atomic child devices ========== -->
+
+    <moqui.device.Device
+            deviceId="HVAC_COLD_GLYCOL_PUMP"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepColdPumpControl"
+            controlMethodEnumId="DcmSingleActuationEnableFeedback"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_COLD_GLYCOL_PUMP"
+            deviceName="coldGlycolPump"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_COLD_GLYCOL_VALVE"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepProcessControl"
+            controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_COLD_GLYCOL_VALVE"
+            deviceName="coldGlycolValve"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_HOT_GLYCOL_PUMP"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepPumpControl"
+            controlMethodEnumId="DcmSingleActuationEnableFeedback"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_HOT_GLYCOL_PUMP"
+            deviceName="hotGlycolPump"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_HOT_GLYCOL_VALVE"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepProcessControl"
+            controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_HOT_GLYCOL_VALVE"
+            deviceName="hotGlycolValve"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_AHU_FAN"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepAhuFanControl"
+            controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_AHU_FAN"
+            deviceName="ahuFan"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_AIR_FLOW"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DtSmartActuator"
+            purposeEnumId="DepFanControl"
+            controlMethodEnumId="DcmSingleActuationEnableFeedback"/>
+    <moqui.device.PhysicalDevice
+            deviceId="HVAC_AIR_FLOW"
+            deviceName="airFlow"/>
+
+    <!-- ========== Device groups ========== -->
+
+    <moqui.device.Device
+            deviceId="HVAC_COLD_GROUP"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DgtCold"
+            purposeEnumId="DepProcessControl"/>
+    <moqui.device.DeviceGroup
+            deviceId="HVAC_COLD_GROUP"
+            groupName="ColdGroup"/>
+    <moqui.device.DeviceGroupMember
+            deviceId="HVAC_COLD_GROUP"
+            memberDeviceId="HVAC_COLD_GLYCOL_PUMP"
+            purposeEnumId="DepColdPumpControl"
+            sequenceNum="1"
+            description="Cold glycol circulating pump"/>
+    <moqui.device.DeviceGroupMember
+            deviceId="HVAC_COLD_GROUP"
+            memberDeviceId="HVAC_COLD_GLYCOL_VALVE"
+            purposeEnumId="DepProcessControl"
+            sequenceNum="2"
+            description="Cold glycol modulating valve"/>
+
+    <moqui.device.Device
+            deviceId="HVAC_HOT_GROUP"
+            parentDeviceId="HVAC_CELL_01"
+            deviceTypeEnumId="DgtHeat"
+            purposeEnumId="DepProcessControl"/>
+    <moqui.device.DeviceGroup
+            deviceId="HVAC_HOT_GROUP"
+            groupName="HotGroup"/>
+    <moqui.device.DeviceGroupMember
+            deviceId="HVAC_HOT_GROUP"
+            memberDeviceId="HVAC_HOT_GLYCOL_PUMP"
+            purposeEnumId="DepPumpControl"
+            sequenceNum="1"
+            description="Hot water circulating pump"/>
+    <moqui.device.DeviceGroupMember
+            deviceId="HVAC_HOT_GROUP"
+            memberDeviceId="HVAC_HOT_GLYCOL_VALVE"
+            purposeEnumId="DepProcessControl"
+            sequenceNum="2"
+            description="Hot water modulating valve"/>
+
+    <!-- ========== Shared machine-level ParameterDef ========== -->
+
+    <moqui.math.ParameterDef parameterDefId="PD_TEMP_SETPOINT"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.01"
+            parameterName="Temp Setpoint"
+            description="Target process temperature."/>
+    <moqui.math.ParameterDef parameterDefId="PD_TEMP_MIN"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.02"
+            parameterName="Temp Min"
+            description="Minimum process temperature."/>
+    <moqui.math.ParameterDef parameterDefId="PD_TEMP_MAX"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.03"
+            parameterName="Temp Max"
+            description="Maximum process temperature."/>
+    <moqui.math.ParameterDef parameterDefId="PD_RH_SETPOINT"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.04"
+            parameterName="RH Setpoint"
+            description="Target relative humidity."/>
+    <moqui.math.ParameterDef parameterDefId="PD_COLD_GROUP_ENABLE_REQUEST"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="HVAC.05"
+            parameterName="Cold Group Enable Request"
+            description="Logical request for the cold subsystem."/>
+    <moqui.math.ParameterDef parameterDefId="PD_COLD_GROUP_DISABLE_REQUEST"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="HVAC.06"
+            parameterName="Cold Group Disable Request"
+            description="Logical disable request for the cold subsystem."/>
+    <moqui.math.ParameterDef parameterDefId="PD_HOT_GROUP_ENABLE_REQUEST"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="HVAC.07"
+            parameterName="Hot Group Enable Request"
+            description="Logical request for the hot subsystem."/>
+    <moqui.math.ParameterDef parameterDefId="PD_HOT_GROUP_DISABLE_REQUEST"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="HVAC.08"
+            parameterName="Hot Group Disable Request"
+            description="Logical disable request for the hot subsystem."/>
+    <moqui.math.ParameterDef parameterDefId="PD_AHU_FAN_SPEED_SETPOINT"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.09"
+            parameterName="AHU Fan Speed Setpoint"
+            description="Fan speed setpoint in percent."/>
+    <moqui.math.ParameterDef parameterDefId="PD_AIR_FLOW_REF"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="HVAC.10"
+            parameterName="Air Flow Reference"
+            description="Air flow distribution reference."/>
+
+    <!-- ========== Shared machine-level Parameter instances ========== -->
+
+    <moqui.math.Parameter parameterId="P_TEMP_SETPOINT" parameterDefId="PD_TEMP_SETPOINT" deviceId="HVAC_CELL_01" numericValue="4.0"/>
+    <moqui.math.Parameter parameterId="P_TEMP_MIN" parameterDefId="PD_TEMP_MIN" deviceId="HVAC_CELL_01" numericValue="2.0"/>
+    <moqui.math.Parameter parameterId="P_TEMP_MAX" parameterDefId="PD_TEMP_MAX" deviceId="HVAC_CELL_01" numericValue="6.0"/>
+    <moqui.math.Parameter parameterId="P_RH_SETPOINT" parameterDefId="PD_RH_SETPOINT" deviceId="HVAC_CELL_01" numericValue="75.0"/>
+    <moqui.math.Parameter parameterId="P_COLD_GROUP_ENABLE_REQUEST" parameterDefId="PD_COLD_GROUP_ENABLE_REQUEST" deviceId="HVAC_CELL_01" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="P_COLD_GROUP_DISABLE_REQUEST" parameterDefId="PD_COLD_GROUP_DISABLE_REQUEST" deviceId="HVAC_CELL_01" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="P_HOT_GROUP_ENABLE_REQUEST" parameterDefId="PD_HOT_GROUP_ENABLE_REQUEST" deviceId="HVAC_CELL_01" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="P_HOT_GROUP_DISABLE_REQUEST" parameterDefId="PD_HOT_GROUP_DISABLE_REQUEST" deviceId="HVAC_CELL_01" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="P_AHU_FAN_SPEED_SETPOINT" parameterDefId="PD_AHU_FAN_SPEED_SETPOINT" deviceId="HVAC_CELL_01" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="P_AIR_FLOW_REF" parameterDefId="PD_AIR_FLOW_REF" deviceId="HVAC_CELL_01" numericValue="50.0"/>
+
+    <!-- ========== Example atomic-device ParameterDef / Parameter rows ========== -->
+
+    <moqui.math.ParameterDef parameterDefId="PD_ACT_ENABLE_TIME"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="ACT.01"
+            parameterName="Enable Time"
+            description="Actuator enable time."/>
+    <moqui.math.ParameterDef parameterDefId="PD_ACT_DISABLE_TIME"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="ACT.02"
+            parameterName="Disable Time"
+            description="Actuator disable time."/>
+    <moqui.math.ParameterDef parameterDefId="PD_PID_GAIN"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="PID.01"
+            parameterName="Gain"
+            description="PID gain."/>
+    <moqui.math.ParameterDef parameterDefId="PD_PID_OUTPUT_MAX"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="PID.02"
+            parameterName="Output Max"
+            description="PID output maximum."/>
+
+    <moqui.math.Parameter parameterId="P_COLD_PUMP_ENABLE_TIME" parameterDefId="PD_ACT_ENABLE_TIME" deviceId="HVAC_COLD_GLYCOL_PUMP" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_COLD_PUMP_DISABLE_TIME" parameterDefId="PD_ACT_DISABLE_TIME" deviceId="HVAC_COLD_GLYCOL_PUMP" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_HOT_PUMP_ENABLE_TIME" parameterDefId="PD_ACT_ENABLE_TIME" deviceId="HVAC_HOT_GLYCOL_PUMP" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_HOT_PUMP_DISABLE_TIME" parameterDefId="PD_ACT_DISABLE_TIME" deviceId="HVAC_HOT_GLYCOL_PUMP" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_AIR_FLOW_ENABLE_TIME" parameterDefId="PD_ACT_ENABLE_TIME" deviceId="HVAC_AIR_FLOW" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_AIR_FLOW_DISABLE_TIME" parameterDefId="PD_ACT_DISABLE_TIME" deviceId="HVAC_AIR_FLOW" numericValue="1"/>
+    <moqui.math.Parameter parameterId="P_COLD_VALVE_GAIN" parameterDefId="PD_PID_GAIN" deviceId="HVAC_COLD_GLYCOL_VALVE" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="P_COLD_VALVE_OUTPUT_MAX" parameterDefId="PD_PID_OUTPUT_MAX" deviceId="HVAC_COLD_GLYCOL_VALVE" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="P_HOT_VALVE_GAIN" parameterDefId="PD_PID_GAIN" deviceId="HVAC_HOT_GLYCOL_VALVE" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="P_HOT_VALVE_OUTPUT_MAX" parameterDefId="PD_PID_OUTPUT_MAX" deviceId="HVAC_HOT_GLYCOL_VALVE" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="P_AHU_FAN_GAIN" parameterDefId="PD_PID_GAIN" deviceId="HVAC_AHU_FAN" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="P_AHU_FAN_OUTPUT_MAX" parameterDefId="PD_PID_OUTPUT_MAX" deviceId="HVAC_AHU_FAN" numericValue="100.0"/>
+
+    <!-- ========== Example framework/gateway request ========== -->
+
+    <moqui.device.DeviceRequest
+            requestName="run#HvacGatewayRequest"
+            deviceId="HVAC_CELL_01"
+            requestTypeEnumId="DrtWrite"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrMoquiDeviceGateway"
+            runServiceName="moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
+            onlyChangedParameters="N"
+            query="HvacGatewayWrite"/>
+
+    <moqui.device.DeviceRequestItem
+            requestName="run#HvacGatewayRequest"
+            parameterId="P_COLD_GROUP_ENABLE_REQUEST"
+            sequenceNum="1"
+            requestItemName="coldGroupEnableRequest"
+            itemTypeEnumId="DritBool"
+            query="coldGroupEnableRequest"/>
+    <moqui.device.DeviceRequestItem
+            requestName="run#HvacGatewayRequest"
+            parameterId="P_HOT_GROUP_ENABLE_REQUEST"
+            sequenceNum="2"
+            requestItemName="hotGroupEnableRequest"
+            itemTypeEnumId="DritBool"
+            query="hotGroupEnableRequest"/>
+    <moqui.device.DeviceRequestItem
+            requestName="run#HvacGatewayRequest"
+            parameterId="P_AHU_FAN_SPEED_SETPOINT"
+            sequenceNum="3"
+            requestItemName="ahuFanSpeedSetpoint"
+            itemTypeEnumId="DritReal"
+            query="ahuFanSpeedSetpoint"/>
+
+    <!-- ========== Example DeviceConfig / recipe ========== -->
+
+    <moqui.device.DeviceConfig
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            configTypeEnumId="DctDeviceConfig"
+            purposeEnumId="DcpRunConfig"
+            deviceTypeEnumId="DtHVACController"
+            configName="Phase1HvacCooling"
+            description="Cooling phase recipe for mantle HVAC."/>
+
+    <moqui.math.Parameter parameterId="CFG_P_TEMP_SETPOINT"
+            parameterDefId="PD_TEMP_SETPOINT"
+            deviceId="HVAC_CELL_01"
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            numericValue="4.0"/>
+    <moqui.math.Parameter parameterId="CFG_P_RH_SETPOINT"
+            parameterDefId="PD_RH_SETPOINT"
+            deviceId="HVAC_CELL_01"
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            numericValue="75.0"/>
+    <moqui.math.Parameter parameterId="CFG_P_AHU_FAN_SPEED_SETPOINT"
+            parameterDefId="PD_AHU_FAN_SPEED_SETPOINT"
+            deviceId="HVAC_CELL_01"
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="CFG_P_AIR_FLOW_REF"
+            parameterDefId="PD_AIR_FLOW_REF"
+            deviceId="HVAC_CELL_01"
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            numericValue="50.0"/>
+
+    <!-- ========== Example DeviceRuleSet / DeviceRule ========== -->
+
+    <moqui.device.DeviceRuleSet
+            deviceRuleSetId="HvacProcessRules"
+            purposeEnumId="DrspProcess"
+            ruleSetName="HvacProcessRules"
+            description="Example process rule set for mantle HVAC."/>
+
+    <moqui.device.DeviceRule
+            deviceRuleId="HvacRulePhase1Cooling"
+            ruleTypeEnumId="DrtApplyConfig"
+            deviceRuleSetId="HvacProcessRules"
+            deviceConfigId="HvacCfg_Phase1Cooling"
+            deviceId="HVAC_CELL_01"
+            statusFlowId="DeviceAdvancedStatusFlow"
+            statusId="DasCooling"
+            ruleName="ApplyPhase1Cooling"
+            priority="10"
+            isEnabled="Y"
+            runDevice="Y"/>
+
+</entity-facade-xml>

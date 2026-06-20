@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!--
+    Standard framework-facing parameters for moqui-plc based controllers.
+    Source of truth: moqui/moqui-plc -> iec61131/moqui/framework/src/main/org/moqui/context/ec.gvl
+
+    These parameters represent the public framework state/control surface that
+    Moqui or another supervisor can monitor or drive.
+    -->
+
+    <!-- ========== ParameterDef ========== -->
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_ENABLE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.01"
+            parameterName="Enable"
+            description="Framework enable command."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_INIT}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.02"
+            parameterName="Init"
+            description="Framework init or power-on style command."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_FAULT}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.03"
+            parameterName="Fault"
+            description="Framework fault status."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_ERROR}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.04"
+            parameterName="Error"
+            description="Framework error status."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_COMM_ERROR}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.05"
+            parameterName="CommError"
+            description="Framework communication error status."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_RESET}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.06"
+            parameterName="Reset"
+            description="Framework reset command."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_AUTO_RESET}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.07"
+            parameterName="AutoReset"
+            description="Framework auto-reset enable command."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_ALL_CONFIG_LOADED}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.08"
+            parameterName="AllConfigLoaded"
+            description="All device configs loaded status."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_RETRY_COUNT}"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.09"
+            parameterName="RetryCount"
+            description="Framework retry counter."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_RETRY_TIME}"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.10"
+            parameterName="RetryTime"
+            description="Framework retry time configuration."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_IS_PRIMARY}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.11"
+            parameterName="IsPrimary"
+            description="Primary controller role status."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_HEARTBEAT}"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpStatus"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.12"
+            parameterName="Heartbeat"
+            description="Framework heartbeat counter."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_LOG_APPENDER_ENABLE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.13"
+            parameterName="LogAppenderEnable"
+            description="Enable framework MQTT log appender."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_PARAMS_PUB_ENABLE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.14"
+            parameterName="ParamsPubEnable"
+            description="Enable framework parameter publish channel."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_PARAMS_SUB_ENABLE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.15"
+            parameterName="ParamsSubEnable"
+            description="Enable framework parameter subscribe channel."/>
+
+    <!-- ========== Parameter ========== -->
+
+    <moqui.math.Parameter parameterId="${FW_PARAM_ENABLE}" parameterDefId="${FW_PD_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_INIT}" parameterDefId="${FW_PD_INIT}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_FAULT}" parameterDefId="${FW_PD_FAULT}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_ERROR}" parameterDefId="${FW_PD_ERROR}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_COMM_ERROR}" parameterDefId="${FW_PD_COMM_ERROR}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_RESET}" parameterDefId="${FW_PD_RESET}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_AUTO_RESET}" parameterDefId="${FW_PD_AUTO_RESET}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_ALL_CONFIG_LOADED}" parameterDefId="${FW_PD_ALL_CONFIG_LOADED}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_RETRY_COUNT}" parameterDefId="${FW_PD_RETRY_COUNT}" deviceId="${DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_RETRY_TIME}" parameterDefId="${FW_PD_RETRY_TIME}" deviceId="${DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_IS_PRIMARY}" parameterDefId="${FW_PD_IS_PRIMARY}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_HEARTBEAT}" parameterDefId="${FW_PD_HEARTBEAT}" deviceId="${DEVICE_ID}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_LOG_APPENDER_ENABLE}" parameterDefId="${FW_PD_LOG_APPENDER_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_PARAMS_PUB_ENABLE}" parameterDefId="${FW_PD_PARAMS_PUB_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_PARAMS_SUB_ENABLE}" parameterDefId="${FW_PD_PARAMS_SUB_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+
+    <!-- ========== Standard framework requests ========== -->
+
+    <moqui.device.DeviceRequest
+            requestName="${DEVICE_ID}_FrameworkStatusRead"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="DrpStatusMonitoring"
+            routerEnumId="DrrBroker"
+            brokerUri="${FRAMEWORK_STATUS_BROKER_URI}"
+            pollingInterval="100"/>
+
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_FAULT}" sequenceNum="1" requestItemName="fault" query="fault" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_ERROR}" sequenceNum="2" requestItemName="error" query="error" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_COMM_ERROR}" sequenceNum="3" requestItemName="commError" query="commError" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_ALL_CONFIG_LOADED}" sequenceNum="4" requestItemName="allConfigLoaded" query="allConfigLoaded" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_IS_PRIMARY}" sequenceNum="5" requestItemName="isPrimary" query="isPrimary" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_HEARTBEAT}" sequenceNum="6" requestItemName="heartbeat" query="heartbeat" itemTypeEnumId="DritULInt"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkStatusRead" parameterId="${FW_PARAM_RETRY_COUNT}" sequenceNum="7" requestItemName="retryCount" query="retryCount" itemTypeEnumId="DritUInt"/>
+
+    <moqui.device.DeviceRequest
+            requestName="${DEVICE_ID}_FrameworkControlWrite"
+            deviceId="${DEVICE_ID}"
+            requestTypeEnumId="DrtWrite"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrBroker"
+            brokerUri="${FRAMEWORK_CONTROL_BROKER_URI}"
+            onlyChangedParameters="N"/>
+
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_ENABLE}" sequenceNum="1" requestItemName="enable" query="enable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_INIT}" sequenceNum="2" requestItemName="init" query="init" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_RESET}" sequenceNum="3" requestItemName="reset" query="reset" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_AUTO_RESET}" sequenceNum="4" requestItemName="autoReset" query="autoReset" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_LOG_APPENDER_ENABLE}" sequenceNum="5" requestItemName="logAppenderEnable" query="logAppenderEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_PARAMS_PUB_ENABLE}" sequenceNum="6" requestItemName="paramsPubEnable" query="paramsPubEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_PARAMS_SUB_ENABLE}" sequenceNum="7" requestItemName="paramsSubEnable" query="paramsSubEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_RETRY_TIME}" sequenceNum="8" requestItemName="retryTime" query="retryTime" itemTypeEnumId="DritUInt"/>
+
+</entity-facade-xml>

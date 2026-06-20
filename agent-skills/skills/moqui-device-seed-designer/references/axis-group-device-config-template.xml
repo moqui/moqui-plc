@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Compose this fragment with device-config-template.xml or device-config-set-template.xml. -->
+
+    <moqui.math.Parameter parameterId="${CFG_P_AXIS_GROUP_ID}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AXIS_GROUP_ID}" symbolicValue="${AXIS_GROUP_ID_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_AXIS_GROUP_NAME}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_AXIS_GROUP_NAME}" symbolicValue="${AXIS_GROUP_NAME_VALUE}"/>
+    <moqui.math.Parameter parameterId="${CFG_P_CMD}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_CMD}" numericValue="0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_VELOCITY}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_VELOCITY}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACCELERATION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACCELERATION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_DECELERATION}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_DECELERATION}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JERK}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JERK}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_TRANSITION_PARAMETER}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_TRANSITION_PARAMETER}" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_OVERRIDE_ENABLE}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_OVERRIDE_ENABLE}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${CFG_P_VEL_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_VEL_FACTOR}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_ACC_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_ACC_FACTOR}" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="${CFG_P_JERK_FACTOR}" deviceConfigId="${DEVICE_CONFIG_ID}" parameterDefId="${PD_JERK_FACTOR}" numericValue="1.0"/>
+
+</entity-facade-xml>

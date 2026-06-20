@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed">
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!-- Base device seed derived from moqui-device-gateway test fixtures -->
+
+    <moqui.device.Device
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            deviceTypeEnumId="DtPLC"
+            purposeEnumId="DepProcessControl"
+            controlMethodEnumId=""
+            operatingModeEnumId=""
+            statusTypeId=""
+            statusFlowId="DeviceBasicStatusFlow"
+            statusId="DbsStandstill"
+            description="Example MQTT virtual PLC root device."
+            location=""/>
+
+    <moqui.device.PhysicalDevice
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            deviceName="Virtual PLC MQTT S001"
+            version=""
+            hardwareVersion=""
+            firmwareVersion=""
+            operatingSystem=""
+            softwareApplication=""
+            cycleTime=""
+            isMulticore=""/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_REFERENCE_MQTT_S001"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpControl"
+            parameterCode="VPL-MQTT-S001-24.01"
+            parameterName="Reference"
+            description="Main numeric reference."/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_FAULT_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="VPL-MQTT-S001-24.05"
+            parameterName="Fault"
+            description="Fault status."/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="VPL_PD_MAIN_STATUS_WORD_MQTT_S001"
+            parameterTypeEnumId="PtBitSet"
+            purposeEnumId="PpStatus"
+            parameterCode="VPL-MQTT-S001-24.04"
+            parameterName="MainStatusWord"
+            description="Free drive status word."/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_REFERENCE_MQTT_S001"
+            parameterDefId="VPL_PD_REFERENCE_MQTT_S001"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            numericValue="300.00"/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_FAULT_MQTT_S001"
+            parameterDefId="VPL_PD_FAULT_MQTT_S001"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            symbolicValue="N"/>
+
+    <moqui.math.Parameter
+            parameterId="VPL_PARAM_MAIN_STATUS_WORD_MQTT_S001"
+            parameterDefId="VPL_PD_MAIN_STATUS_WORD_MQTT_S001"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            parameterEnumId="0100011111111101"/>
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!--
+    Standard live-parameter request for values acquired in moqui-plc through
+    MqttParameterSub.
+
+    The request family is fixed.
+    The real variability is in the repeated DeviceRequestItem rows.
+    -->
+
+    <moqui.device.DeviceRequest
+            requestName="VIRTUAL_PLC_MQTT_S001_LiveParametersMqttSub"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="DrpMonitoring"
+            routerEnumId="DrrBroker"
+            brokerUri="paho-mqtt5:virtual_plc_live?brokerUrl=tcp://localhost:1883"
+            pollingInterval="100"/>
+
+    <!-- Repeat one row like this for each live parameter published by MqttParameterSub -->
+    <moqui.device.DeviceRequestItem
+            requestName="VIRTUAL_PLC_MQTT_S001_LiveParametersMqttSub"
+            parameterId="VPL_PARAM_FAULT_MQTT_S001"
+            sequenceNum="1"
+            requestItemName="virtualPlcFault"
+            query="virtual_plc_fault"
+            itemTypeEnumId="DritBool"/>
+
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+    <!--
+    Standard framework-facing parameters for moqui-plc based controllers.
+    Source of truth: iec61131/moqui/framework/src/main/org/moqui/context/ec.gvl
+
+    These parameters represent the public framework state/control surface that
+    Moqui or another supervisor can monitor or drive.
+    -->
+
+    <!-- ========== ParameterDef ========== -->
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_ENABLE_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.01"
+            parameterName="Enable"
+            description="Framework enable command."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_INIT_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.02"
+            parameterName="Init"
+            description="Framework init or power-on style command."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_FAULT_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.03"
+            parameterName="Fault"
+            description="Framework fault status."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_ERROR_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.04"
+            parameterName="Error"
+            description="Framework error status."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_COMM_ERROR_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.05"
+            parameterName="CommError"
+            description="Framework communication error status."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_RESET_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.06"
+            parameterName="Reset"
+            description="Framework reset command."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_AUTO_RESET_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.07"
+            parameterName="AutoReset"
+            description="Framework auto-reset enable command."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_ALL_CONFIG_LOADED_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.08"
+            parameterName="AllConfigLoaded"
+            description="All device configs loaded status."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_RETRY_COUNT_MQTT_S001"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.09"
+            parameterName="RetryCount"
+            description="Framework retry counter."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_RETRY_TIME_MQTT_S001"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpDeviceConfiguration"
+            parameterCode="FW-MQTT-S001.10"
+            parameterName="RetryTime"
+            description="Framework retry time configuration."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_IS_PRIMARY_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.11"
+            parameterName="IsPrimary"
+            description="Primary controller role status."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_HEARTBEAT_MQTT_S001"
+            parameterTypeEnumId="PtNumberInteger"
+            purposeEnumId="PpStatus"
+            parameterCode="FW-MQTT-S001.12"
+            parameterName="Heartbeat"
+            description="Framework heartbeat counter."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_LOG_APPENDER_ENABLE_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.13"
+            parameterName="LogAppenderEnable"
+            description="Enable framework MQTT log appender."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_PARAMS_PUB_ENABLE_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.14"
+            parameterName="ParamsPubEnable"
+            description="Enable framework parameter publish channel."/>
+
+    <moqui.math.ParameterDef parameterDefId="FW_PD_PARAMS_SUB_ENABLE_MQTT_S001"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="FW-MQTT-S001.15"
+            parameterName="ParamsSubEnable"
+            description="Enable framework parameter subscribe channel."/>
+
+    <!-- ========== Parameter ========== -->
+
+    <moqui.math.Parameter parameterId="FW_PARAM_ENABLE_MQTT_S001" parameterDefId="FW_PD_ENABLE_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_INIT_MQTT_S001" parameterDefId="FW_PD_INIT_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_FAULT_MQTT_S001" parameterDefId="FW_PD_FAULT_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_ERROR_MQTT_S001" parameterDefId="FW_PD_ERROR_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_COMM_ERROR_MQTT_S001" parameterDefId="FW_PD_COMM_ERROR_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_RESET_MQTT_S001" parameterDefId="FW_PD_RESET_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_AUTO_RESET_MQTT_S001" parameterDefId="FW_PD_AUTO_RESET_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_ALL_CONFIG_LOADED_MQTT_S001" parameterDefId="FW_PD_ALL_CONFIG_LOADED_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_RETRY_COUNT_MQTT_S001" parameterDefId="FW_PD_RETRY_COUNT_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" numericValue="0"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_RETRY_TIME_MQTT_S001" parameterDefId="FW_PD_RETRY_TIME_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" numericValue="0"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_IS_PRIMARY_MQTT_S001" parameterDefId="FW_PD_IS_PRIMARY_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_HEARTBEAT_MQTT_S001" parameterDefId="FW_PD_HEARTBEAT_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" numericValue="0"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_LOG_APPENDER_ENABLE_MQTT_S001" parameterDefId="FW_PD_LOG_APPENDER_ENABLE_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_PARAMS_PUB_ENABLE_MQTT_S001" parameterDefId="FW_PD_PARAMS_PUB_ENABLE_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="FW_PARAM_PARAMS_SUB_ENABLE_MQTT_S001" parameterDefId="FW_PD_PARAMS_SUB_ENABLE_MQTT_S001" deviceId="VIRTUAL_PLC_MQTT_S001" symbolicValue="Y"/>
+
+    <!-- ========== Standard framework requests ========== -->
+
+    <moqui.device.DeviceRequest
+            requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            requestTypeEnumId="DrtCyclic"
+            purposeEnumId="DrpStatusMonitoring"
+            routerEnumId="DrrBroker"
+            brokerUri="paho-mqtt5:framework_status?brokerUrl=tcp://localhost:1883"
+            pollingInterval="100"/>
+
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_FAULT_MQTT_S001" sequenceNum="1" requestItemName="fault" query="fault" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_ERROR_MQTT_S001" sequenceNum="2" requestItemName="error" query="error" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_COMM_ERROR_MQTT_S001" sequenceNum="3" requestItemName="commError" query="commError" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_ALL_CONFIG_LOADED_MQTT_S001" sequenceNum="4" requestItemName="allConfigLoaded" query="allConfigLoaded" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_IS_PRIMARY_MQTT_S001" sequenceNum="5" requestItemName="isPrimary" query="isPrimary" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_HEARTBEAT_MQTT_S001" sequenceNum="6" requestItemName="heartbeat" query="heartbeat" itemTypeEnumId="DritULInt"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkStatusRead" parameterId="FW_PARAM_RETRY_COUNT_MQTT_S001" sequenceNum="7" requestItemName="retryCount" query="retryCount" itemTypeEnumId="DritUInt"/>
+
+    <moqui.device.DeviceRequest
+            requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite"
+            deviceId="VIRTUAL_PLC_MQTT_S001"
+            requestTypeEnumId="DrtWrite"
+            purposeEnumId="DrpControl"
+            routerEnumId="DrrBroker"
+            brokerUri="paho-mqtt5:framework_control?brokerUrl=tcp://localhost:1883"
+            onlyChangedParameters="N"/>
+
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_ENABLE_MQTT_S001" sequenceNum="1" requestItemName="enable" query="enable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_INIT_MQTT_S001" sequenceNum="2" requestItemName="init" query="init" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_RESET_MQTT_S001" sequenceNum="3" requestItemName="reset" query="reset" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_AUTO_RESET_MQTT_S001" sequenceNum="4" requestItemName="autoReset" query="autoReset" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_LOG_APPENDER_ENABLE_MQTT_S001" sequenceNum="5" requestItemName="logAppenderEnable" query="logAppenderEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_PARAMS_PUB_ENABLE_MQTT_S001" sequenceNum="6" requestItemName="paramsPubEnable" query="paramsPubEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_PARAMS_SUB_ENABLE_MQTT_S001" sequenceNum="7" requestItemName="paramsSubEnable" query="paramsSubEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="VIRTUAL_PLC_MQTT_S001_FrameworkControlWrite" parameterId="FW_PARAM_RETRY_TIME_MQTT_S001" sequenceNum="8" requestItemName="retryTime" query="retryTime" itemTypeEnumId="DritUInt"/>
+
+</entity-facade-xml>

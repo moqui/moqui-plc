@@ -1,0 +1,15 @@
+# System decomposition survey
+project_scope:
+  machine_name: ""
+  process_description: ""
+  control_objective: ""
+  safety_scope: ""
+  notes: ""
+system_tree:
+  - subsystem_id: ""
+    parent_subsystem_id: ""
+    subsystem_name: ""
+    subsystem_type: ""
+    control_responsibility: ""
+    candidate_fsm: ""
+    notes: ""

@@ -1,0 +1,3 @@
+display_name: Moqui Device Seed Designer
+short_description: Collect, validate, and generate Moqui seed XML for devices, parameters, requests, and status flows.
+default_prompt: Generate or validate Moqui seed XML for a machine or plant by collecting missing data, checking completeness against the entity models, and preparing reviewable output.

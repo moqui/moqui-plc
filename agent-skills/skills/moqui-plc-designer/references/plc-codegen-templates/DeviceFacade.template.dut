@@ -1,0 +1,43 @@
+(* 
+ * DeviceFacade implementation for managing devices and logical parameters.
+ *
+ * Naming rules:
+ *   deviceName + parameterName or parameterName -> logical signal
+ *   deviceName + parameterName or parameterName + Min/Max -> limits
+ *
+ * All digital signals (boolean) are active-high (positive logic).
+ * All durations are expressed in seconds TUnit.
+ *)
+TYPE DeviceFacade : STRUCT
+    (* ========== Analog process/environment parameters ========== *)
+${ANALOG_SIGNAL_DECLARATIONS}
+
+    (* ========== Digital process/environment parameters ========== *)
+${DIGITAL_SIGNAL_DECLARATIONS}
+
+    (* Boolean predicates - computed each scan by MainRuleEngine *)
+${PREDICATE_DECLARATIONS}
+
+    (* Operating-mode flags and process timing (mapped from recipe). *)
+${PROCESS_MODE_DECLARATIONS}
+
+    (* Main FSM state and transition request/acknowledge commands *)
+    status : ${MAIN_STATUS_ENUM} := ${INITIAL_STATUS};
+    lastStatus : ${MAIN_STATUS_ENUM} := ${INITIAL_STATUS};
+${STATE_REQUEST_DECLARATIONS}
+
+    (* ========== Atomic devices ========== *)
+${ATOMIC_DEVICE_DECLARATIONS}
+
+    (* Signal management - centralised fault / alarm / warning engine *)
+    signalMgmt : SignalMgmt;
+END_STRUCT END_TYPE
+
+(* Questions for the skill/user:
+ * 1. Which analog input signals and setpoints must be declared as REAL?
+ * 2. Which digital signals must be declared as BOOL?
+ * 3. Which computed predicates are required by MainRuleEngine?
+ * 4. Which timing/process flags are needed (estimatedRuntime, minRuntime, etc.)?
+ * 5. Which request flags correspond to the states in the selected StatusFlow?
+ * 6. Which atomic devices exist: Actuator, ActuatorGroup, Axis, AxisGroup, ProcessPid?
+ *)

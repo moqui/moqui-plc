@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed">
+
+    <!--
+    Generic subsystem grouping template.
+
+    Use this when a PLC subsystem is controlled as one logical unit even if it
+    contains several atomic physical devices.
+
+    Mantle HVAC examples:
+    - ColdGroup -> coldGlycolPump + coldGlycolValve
+    - HotGroup -> hotGlycolPump + hotGlycolValve
+    -->
+
+    <moqui.device.Device
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            parentDeviceId="${PARENT_DEVICE_ID}"
+            deviceTypeEnumId="${DEVICE_GROUP_TYPE_ENUM_ID}"
+            purposeEnumId="${DEVICE_GROUP_PURPOSE_ENUM_ID}"
+            statusFlowId="${DEVICE_GROUP_STATUS_FLOW_ID}"
+            statusId="${DEVICE_GROUP_STATUS_ID}"
+            description="${DEVICE_GROUP_DESCRIPTION}"/>
+
+    <moqui.device.DeviceGroup
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            groupName="${DEVICE_GROUP_NAME}"/>
+
+    <moqui.device.DeviceGroupMember
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            memberDeviceId="${MEMBER_DEVICE_ID_1}"
+            purposeEnumId="${MEMBER_PURPOSE_ENUM_ID_1}"
+            sequenceNum="1"
+            statusFlowId="${MEMBER_STATUS_FLOW_ID_1}"
+            statusId="${MEMBER_STATUS_ID_1}"
+            description="${MEMBER_DESCRIPTION_1}"/>
+
+    <moqui.device.DeviceGroupMember
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            memberDeviceId="${MEMBER_DEVICE_ID_2}"
+            purposeEnumId="${MEMBER_PURPOSE_ENUM_ID_2}"
+            sequenceNum="2"
+            statusFlowId="${MEMBER_STATUS_FLOW_ID_2}"
+            statusId="${MEMBER_STATUS_ID_2}"
+            description="${MEMBER_DESCRIPTION_2}"/>
+
+    <!-- Optional group-level logical requests -->
+
+    <moqui.math.ParameterDef
+            parameterDefId="${GROUP_PD_ENABLE_REQUEST}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${GROUP_PARAMETER_CODE_PREFIX}.01"
+            parameterName="Enable Request"
+            description="Logical enable request for the device group."/>
+
+    <moqui.math.ParameterDef
+            parameterDefId="${GROUP_PD_DISABLE_REQUEST}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${GROUP_PARAMETER_CODE_PREFIX}.02"
+            parameterName="Disable Request"
+            description="Logical disable request for the device group."/>
+
+    <moqui.math.Parameter
+            parameterId="${GROUP_PARAM_ENABLE_REQUEST}"
+            parameterDefId="${GROUP_PD_ENABLE_REQUEST}"
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            symbolicValue="N"/>
+
+    <moqui.math.Parameter
+            parameterId="${GROUP_PARAM_DISABLE_REQUEST}"
+            parameterDefId="${GROUP_PD_DISABLE_REQUEST}"
+            deviceId="${DEVICE_GROUP_DEVICE_ID}"
+            symbolicValue="N"/>
+
+</entity-facade-xml>

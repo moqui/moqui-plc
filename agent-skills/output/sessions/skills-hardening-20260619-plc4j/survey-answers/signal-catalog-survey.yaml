@@ -1,0 +1,19 @@
+# Signal catalog survey
+naming_rules:
+  positive_logic_default: true
+  input_prefix: ""
+  output_prefix: ""
+  analog_suffix: ""
+  digital_suffix: ""
+  notes: ""
+signals:
+  - signal_id: ""
+    device_id: ""
+    signal_name: ""
+    direction: ""
+    signal_kind: ""
+    iec_type: ""
+    source_rule: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: ""

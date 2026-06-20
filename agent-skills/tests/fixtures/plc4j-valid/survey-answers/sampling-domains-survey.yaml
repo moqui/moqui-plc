@@ -1,0 +1,10 @@
+domains:
+  - domain_id: FAST_IO
+    domain_name: Fast IO
+    natural_frequency_class: fast
+    scan_time: T#250ms
+    transport_scope: control
+    transport_projection: plc4j
+    devices: [UV_LAMP_01]
+    signals: [SIG_LAMP_ENABLE, SIG_LAMP_READY]
+    notes: ""

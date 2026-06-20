@@ -1,0 +1,12 @@
+transport_architecture:
+  primary_transport_mode: gateway
+  allows_hybrid_projection: false
+  notes: Gateway-only projection for MQTT/gateway runtime.
+gateway_projection:
+  required: true
+  rationale: PLC requests are restored and executed by moqui-device-gateway.
+plc4j_projection:
+  required: false
+  default_run_service_name: moqui.plc4j.Plc4jServices.run#Plc4jRequest
+  connection_strategy: ""
+  notes: ""

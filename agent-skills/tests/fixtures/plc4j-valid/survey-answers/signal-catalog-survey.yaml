@@ -1,0 +1,28 @@
+naming_rules:
+  positive_logic_default: true
+  input_prefix: I_
+  output_prefix: Q_
+  analog_suffix: _A
+  digital_suffix: _D
+  notes: ""
+signals:
+  - signal_id: SIG_LAMP_ENABLE
+    device_id: UV_LAMP_01
+    signal_name: lampEnable
+    direction: output
+    signal_kind: digital
+    iec_type: BOOL
+    source_rule: SA-DF actuation
+    plc4j_query: coil:1:BOOL
+    reverse_logic: false
+    notes: ""
+  - signal_id: SIG_LAMP_READY
+    device_id: UV_LAMP_01
+    signal_name: lampReady
+    direction: input
+    signal_kind: digital
+    iec_type: BOOL
+    source_rule: SA-DF feedback
+    plc4j_query: discrete-input:1:BOOL
+    reverse_logic: false
+    notes: ""
