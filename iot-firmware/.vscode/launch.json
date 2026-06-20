@@ -5,7 +5,7 @@
       "name": "ESP32 GDB Debug",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "program": "${workspaceFolder}/build/iot_firmware.elf",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
@@ -38,7 +38,7 @@
       "name": "ESP32 LLDB Debug",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "program": "${workspaceFolder}/build/iot_firmware.elf",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
@@ -51,7 +51,7 @@
       "name": "Build & Debug ESP32",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "program": "${workspaceFolder}/build/iot_firmware.elf",
       "args": [],
       "stopAtEntry": true,
       "cwd": "${workspaceFolder}",
@@ -62,7 +62,7 @@
       "setupCommands": [
         {
           "description": "Load debug info",
-          "text": "file ${workspaceFolder}/build/moqui_iot_firmware.elf",
+          "text": "file ${workspaceFolder}/build/iot_firmware.elf",
           "ignoreFailures": false
         }
       ],
@@ -72,7 +72,7 @@
       "name": "QEMU Docker Debug",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/moqui_iot_firmware.elf",
+      "program": "${workspaceFolder}/build/iot_firmware.elf",
       "args": [],
       "stopAtEntry": true,
       "cwd": "${workspaceFolder}",
@@ -84,7 +84,7 @@
       "setupCommands": [
         {
           "description": "Load debug info",
-          "text": "file ${workspaceFolder}/build/moqui_iot_firmware.elf",
+          "text": "file ${workspaceFolder}/build/iot_firmware.elf",
           "ignoreFailures": false
         }
       ],

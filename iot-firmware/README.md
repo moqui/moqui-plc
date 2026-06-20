@@ -1,4 +1,4 @@
-﻿# moqui-iot
+# iot-firmware
 
 ESP32 implementation of the Moqui PLC framework — a faithful C (MISRA C:2012) port of IEC 61131-3 Structured Text programs.
 
@@ -66,7 +66,7 @@ docker run --rm -v "$PWD":/project -w /project espressif/idf:latest bash -lc "
       --flash-mode dio --flash-freq 40m --flash-size 4MB \
       0x1000 bootloader/bootloader.bin \
       0x8000 partition_table/partition-table.bin \
-      0x10000 moqui_iot_firmware.bin"
+      0x10000 iot_firmware.bin"
 
 # 2. Run on QEMU
 docker run --rm -v "$PWD":/project -w /project espressif/idf:latest bash -lc "
@@ -147,7 +147,7 @@ Debug controls: `F5` continue · `F10` step over · `F11` step into · `Shift+F1
 | `MOQUI_MQTT_BROKER_URI` | `mqtt://moqui-device-gateway:1883` | Broker URI |
 | `MOQUI_MQTT_DEVICE_TOPIC_PREFIX` | `moqui/device` | Topic prefix; MAC address is appended automatically |
 | `MOQUI_CONTROL_TASK_STACK` | 8192 | Core 1 stack (bytes) |
-| `MOQUI_IOT_TASK_STACK` | 4096 | Core 0 MQTT stack (bytes) |
+| `IOT_FIRMWARE_TASK_STACK` | 4096 | Core 0 MQTT stack (bytes) |
 | `MOQUI_ENABLE_TEST_SUITE` | `y` | Include `HvacTestSuite`; set to `n` for production builds |
 
 ---

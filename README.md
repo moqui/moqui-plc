@@ -1,4 +1,4 @@
-﻿# Moqui Framework for PLC
+# Moqui Framework for PLC
 
 [![license](http://img.shields.io/badge/license-CC0%201.0%20Universal-blue.svg)](https://github.com/moqui/moqui-plc/blob/master/LICENSE.md)
 
@@ -119,7 +119,7 @@ The current platform paths are:
 - `iec61131/moqui`: the clean IEC 61131-3 export used as the vendor-neutral reference;
 - `simatic-ax`: the SIMATIC AX port, generated from the canonical IEC tree with a
   limited set of manually maintained AX-specific overrides;
-- `moqui_iot`: the embedded ESP32/FreeRTOS port and its supporting generated code.
+- `iot-firmware`: the embedded ESP32/FreeRTOS port and its supporting generated code.
 
 The porting scripts must not treat a generated target as the new source of truth.
 Changes are made first in the CODESYS project or canonical IEC source, then

@@ -19,4 +19,4 @@ if(NOT DEFINED ENV{IDF_PATH})
 endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(moqui_iot_firmware)
+project(iot_firmware)
