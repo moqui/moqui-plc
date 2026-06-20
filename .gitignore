@@ -35,10 +35,10 @@ simatic-ax/docs/
 simatic-ax/motion-errors-full.txt
 CODEX-CLOSEOUT-PLAN-corrected.md
 
-# moqui_iot ESP-IDF build (also covered by moqui_iot/.gitignore)
-moqui_iot/build/
-moqui_iot/managed_components/
-moqui_iot/sdkconfig
-moqui_iot/sdkconfig.old
-moqui_iot/sdkconfig.defaults.esp32
-moqui_iot/dependencies.lock
+# iot-firmware ESP-IDF build (also covered by iot-firmware/.gitignore)
+iot-firmware/build/
+iot-firmware/managed_components/
+iot-firmware/sdkconfig
+iot-firmware/sdkconfig.old
+iot-firmware/sdkconfig.defaults.esp32
+iot-firmware/dependencies.lock

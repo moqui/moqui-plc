@@ -110,13 +110,13 @@ Not a suitable target for the full stack — no OS, no TCP/IP stack, <256 KB RAM
 
 ## TI SimpleLink / Sitara (FreeRTOS-capable)
 
-Modern TI families that *can* run the full moqui-iot stack:
+Modern TI families that *can* run the full iot-firmware stack:
 
 | Family | Representative part | Notes |
 |---|---|---|
 | **CC3235S/SF** | CC3235SFMODB | Dual-band Wi-Fi MCU, 256 KB RAM, FreeRTOS, built-in MQTT client — closest ESP32 analogue from TI |
 | **AM243x** | AM2434 | Quad-core Cortex-R5F, 2 MB SRAM, industrial real-time, FreeRTOS + lwIP + MQTT, EtherCAT capable |
-| **AM64x** | AM6442 | Dual A53 (Linux) + dual R5F (FreeRTOS) — run moqui-iot on the R5F cores, Linux SCADA on the A53 |
+| **AM64x** | AM6442 | Dual A53 (Linux) + dual R5F (FreeRTOS) — run iot-firmware on the R5F cores, Linux SCADA on the A53 |
 | **C2000 F28P65x** | TMS320F28P650DK | Newest C2000 with FPU64 + FreeRTOS support; still limited RAM (~1 MB) but viable for the process layer without MQTT |
 
 Porting to **CC3235S** is essentially identical to the ESP32 path — FreeRTOS, lwIP, TI's MQTT client library maps directly to the PAL interface. The three PAL files and `LoggerFacade.c` are the only files that change.

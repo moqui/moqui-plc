@@ -129,8 +129,8 @@ if [[ $? -eq 0 ]]; then
         build)
             echo ""
             echo -e "${GREEN}✓ Build completed successfully!${NC}"
-            if [[ -f "build/moqui_iot_firmware.elf" ]]; then
-                echo -e "${GREEN}  Firmware: build/moqui_iot_firmware.elf${NC}"
+            if [[ -f "build/iot_firmware.elf" ]]; then
+                echo -e "${GREEN}  Firmware: build/iot_firmware.elf${NC}"
             fi
             ;;
         clean)

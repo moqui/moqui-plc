@@ -22,7 +22,7 @@ menu "Moqui IoT Framework"
         help
             Stack size for the main PLC control task (runs on Core 1).
 
-    config MOQUI_IOT_TASK_STACK
+    config IOT_FIRMWARE_TASK_STACK
         int "IoT/MQTT task stack size (bytes)"
         default 4096
         range 2048 16384

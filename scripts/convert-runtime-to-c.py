@@ -19,8 +19,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 
 DEFAULT_SOURCE_DIR = REPO_ROOT / "iec61131" / "moqui"
-DEFAULT_TARGET_DIR = REPO_ROOT / "moqui_iot" / "components" / "moqui"
-DEFAULT_MANUAL_PRESERVE_ROOT = REPO_ROOT / "moqui_iot" / "src-manual"
+DEFAULT_TARGET_DIR = REPO_ROOT / "iot-firmware" / "components" / "moqui"
+DEFAULT_MANUAL_PRESERVE_ROOT = REPO_ROOT / "iot-firmware" / "src-manual"
 
 # Relative stems (no extension, relative to source/target root) whose
 # hand-maintained MISRA-C implementations live in src-manual/ and must
@@ -221,12 +221,12 @@ def main() -> None:
     parser.add_argument(
         "--target-dir",
         default=str(DEFAULT_TARGET_DIR),
-        help="Root of the C output tree (default: moqui_iot/components/moqui).",
+        help="Root of the C output tree (default: iot-firmware/components/moqui).",
     )
     parser.add_argument(
         "--manual-preserve-root",
         default=str(DEFAULT_MANUAL_PRESERVE_ROOT),
-        help="Directory with authoritative hand-maintained C files (default: moqui_iot/src-manual).",
+        help="Directory with authoritative hand-maintained C files (default: iot-firmware/src-manual).",
     )
     parser.add_argument(
         "--clean",
