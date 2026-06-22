@@ -33,7 +33,7 @@
 	     * Step 16 : Error recovery - velocity = 0 fault injected; MC_GroupReset restores Standby
 	     * Step 17 : Trajectory following - 4-point Cartesian trajectory (blending + one break point)
 	     *)
-	    pass : ARRAY[1..17] OF BOOL;
+	    pass : ARRAY[1..18] OF BOOL;
 	    (* Diagnostics - inspect in online monitor to identify failures *)
 	    grpStatus : AxisGroupStatus;
 	    grpError : BOOL;
@@ -722,7 +722,7 @@
 	     *)
 	    82 :
 	        IF trjIdx >= trj.pointCount THEN
-	            pass[17] := TRUE; step := 7; cycles := 0;
+	            pass[17] := TRUE; step := 83; cycles := 0;
 	        ELSIF cycles = 1 THEN
 	            IF trj.points[trjIdx].isBreakPoint THEN
 	                grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
@@ -760,6 +760,44 @@
 	            grp.overrideEnable := FALSE;
 	        END_IF;
 
+
+	    (*
+	     * 83 : Dynamic-slowdown test -- simulates Moqui activating the override via the
+	     *      trjDynamicSlowdownEnable / trjDynamicSlowdownFactor live parameters.
+	     * Dispatches a CP move to the first trajectory waypoint (posCpBase + 50 mm Y).
+	     * After 3 cycles the slowdown globals are set (enable=TRUE, factor=0.5);
+	     * the per-cycle override block applies MC_GroupSetOverride without interrupting the move.
+	     * The globals are cleared on commandExecuted and pass[18] is set.
+	     *)
+	    83 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
+	        IF cycles = 1 THEN
+	            grp.velocity := trj.velocity;
+	            grp.acceleration := trj.acceleration;
+	            grp.deceleration := trj.deceleration;
+	            grp.jerk := trj.jerk;
+	            grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	            grp.endPoint := trj.points[0].pos;
+	            grp.coordinateSystem := trj.coordSystem;
+	        ELSIF cycles = 3 THEN
+	            trjDynamicSlowdownEnable := TRUE;
+	            trjDynamicSlowdownFactor := 0.5;
+	        ELSIF grp.commandExecuted THEN
+	            trjDynamicSlowdownEnable := FALSE;
+	            pass[18] := TRUE; step := 7; cycles := 0;
+	        END_IF;
+
+	        (* Same per-cycle override block as step 82. *)
+	        IF trjDynamicSlowdownEnable THEN
+	            grp.overrideEnable := TRUE;
+	            grp.velFactor := trjDynamicSlowdownFactor;
+	            grp.accFactor := 1.0;
+	            grp.jerkFactor := 1.0;
+	        ELSE
+	            grp.overrideEnable := FALSE;
+	        END_IF;
 	    (*
 	     * 7/8 : MoveDirectAbsolute then GroupHalt.
 	     * Step 7 resets bufferMode to aborting before dispatching: the trajectory test
