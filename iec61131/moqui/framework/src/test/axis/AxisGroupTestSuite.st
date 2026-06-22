@@ -752,12 +752,18 @@ PROGRAM AxisGroupTestSuite
 
 	    (*
 	     * 7/8 : MoveDirectAbsolute then GroupHalt.
-	     * Step 7 starts a move toward posA; after 2+ cycles step 8 issues GroupHalt.
-	     * With bufferMode = aborting (default), the active move is aborted; the FSM
-	     * returns to Standby and then dispatches GroupHalt, which decelerates to standstill.
+	     * Step 7 resets bufferMode to aborting before dispatching: the trajectory test
+	     * (step 82) leaves bufferMode = blendingPrevious on the last waypoint, which would
+	     * cause MC_MoveDirectAbsolute to error if not cleared here.
+	     * Step 7 starts a move toward posHome; after 2+ cycles step 8 issues GroupHalt.
+	     * With bufferMode = aborting, the active move is aborted; the FSM returns to Standby
+	     * and then dispatches GroupHalt, which decelerates to standstill.
 	     * commandExecuted fires when MC_GroupHalt.Done is received.
 	     *)
 	    7 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
 	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
 	        grp.endPoint := posHome;
 	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
