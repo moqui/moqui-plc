@@ -1,12 +1,11 @@
 (*
- * HvacTestSuite - integration test suite for the civil HVAC AHU component.
+ * HvacTestSuite - integration test suite for the HVAC curing-room component.
  *
  * Tests cover:
- *   Main FSM state transitions (all 6 states)
+ *   Main FSM state transitions (all 7 states)
  *   MainRuleEngine predicate computation and auto-transitions
  *   Output function: which device-enable request flags are set per state
  *   Run / break cycle: Drying <-> Standby break and resume
- *   AirDistributionController: Init->HighPhase->TransitionToLow->LowPhase->TransitionToHigh
  *   Duct safety alarms: ImmediateStop on temperature limit violation
  *   Fault recovery via operationType = Init
  *
@@ -53,6 +52,7 @@ PROGRAM HvacTestSuite
 		failStep : UINT;
 		testReset : BOOL;
 		pass : ARRAY[1..32] OF BOOL;
+
 		mirStatus : MainStatus;
 		mirColdGroupEnable : BOOL;
 		mirHotGroupEnable : BOOL;
@@ -94,14 +94,38 @@ PROGRAM HvacTestSuite
 		testDone := FALSE;
 		testFailed := FALSE;
 		failStep := UINT#0;
-		pass[1] := FALSE; pass[2] := FALSE; pass[3] := FALSE; pass[4] := FALSE;
-		pass[5] := FALSE; pass[6] := FALSE; pass[7] := FALSE; pass[8] := FALSE;
-		pass[9] := FALSE; pass[10] := FALSE; pass[11] := FALSE; pass[12] := FALSE;
-		pass[13] := FALSE; pass[14] := FALSE; pass[15] := FALSE; pass[16] := FALSE;
-		pass[17] := FALSE; pass[18] := FALSE; pass[19] := FALSE; pass[20] := FALSE;
-		pass[21] := FALSE; pass[22] := FALSE; pass[23] := FALSE; pass[24] := FALSE;
-		pass[25] := FALSE; pass[26] := FALSE; pass[27] := FALSE; pass[28] := FALSE;
-		pass[29] := FALSE; pass[30] := FALSE; pass[31] := FALSE; pass[32] := FALSE;
+		pass[1] := FALSE;
+		pass[2] := FALSE;
+		pass[3] := FALSE;
+		pass[4] := FALSE;
+		pass[5] := FALSE;
+		pass[6] := FALSE;
+		pass[7] := FALSE;
+		pass[8] := FALSE;
+		pass[9] := FALSE;
+		pass[10] := FALSE;
+		pass[11] := FALSE;
+		pass[12] := FALSE;
+		pass[13] := FALSE;
+		pass[14] := FALSE;
+		pass[15] := FALSE;
+		pass[16] := FALSE;
+		pass[17] := FALSE;
+		pass[18] := FALSE;
+		pass[19] := FALSE;
+		pass[20] := FALSE;
+		pass[21] := FALSE;
+		pass[22] := FALSE;
+		pass[23] := FALSE;
+		pass[24] := FALSE;
+		pass[25] := FALSE;
+		pass[26] := FALSE;
+		pass[27] := FALSE;
+		pass[28] := FALSE;
+		pass[29] := FALSE;
+		pass[30] := FALSE;
+		pass[31] := FALSE;
+		pass[32] := FALSE;
 		dev.status := MainStatus#Standby;
 		dev.lastStatus := MainStatus#Standby;
 		dev.isCompleted := FALSE;
@@ -200,24 +224,6 @@ PROGRAM HvacTestSuite
 	dev.ahuFan.atSetpointHysteresis := REAL#1.0;
 	dev.ahuFan.tickTime := T#100ms;
 	dev.ahuFanSpeedSetpoint := REAL#50.0;
-
-	dev.highFlowDamper.actuatorId := 'highFlowDamper';
-	dev.highFlowDamper.actuatorName := 'HighFlowDamper';
-	dev.highFlowDamper.actuationType := ActuatorActuationType#SingleActuation;
-	dev.highFlowDamper.feedbackType := ActuatorFeedbackType#WithoutFeedback;
-	dev.highFlowDamper.model := ActuatorModel#ABBACH580;
-	dev.highFlowDamper.enableTime := UINT#1;
-	dev.highFlowDamper.disableTime := UINT#1;
-	dev.highFlowDamper.diagnosticsEnable := FALSE;
-
-	dev.lowFlowDamper.actuatorId := 'lowFlowDamper';
-	dev.lowFlowDamper.actuatorName := 'LowFlowDamper';
-	dev.lowFlowDamper.actuationType := ActuatorActuationType#SingleActuation;
-	dev.lowFlowDamper.feedbackType := ActuatorFeedbackType#WithoutFeedback;
-	dev.lowFlowDamper.model := ActuatorModel#ABBACH580;
-	dev.lowFlowDamper.enableTime := UINT#1;
-	dev.lowFlowDamper.disableTime := UINT#1;
-	dev.lowFlowDamper.diagnosticsEnable := FALSE;
 
 	(* Test sequence *)
 	CASE step OF
@@ -451,9 +457,8 @@ PROGRAM HvacTestSuite
 				step := UINT#22;
 			END_IF;
 
-		(* Group 8: Thermostat auto-restart from Standby *)
+		(* Group 8: Thermostat re-activation *)
 
-		(* pass[22]: Standby + lastStatus=Cooling + tempHot -> resume Cooling *)
 		UINT#22 :
 			dev.status := MainStatus#Standby;
 			dev.lastStatus := MainStatus#Cooling;
@@ -468,7 +473,6 @@ PROGRAM HvacTestSuite
 
 		(* Group 9: AirDistributionController - alternating high/low air throw *)
 
-		(* pass[23]: AirDistrib disabled - no switching even after many clock1s ticks *)
 		UINT#23 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -484,7 +488,6 @@ PROGRAM HvacTestSuite
 				step := UINT#24;
 			END_IF;
 
-		(* pass[24]: AirDistrib enabled in Drying - Init->HighPhase: highFlowDamper=ON, lowFlowDamper=OFF *)
 		UINT#24 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -499,7 +502,6 @@ PROGRAM HvacTestSuite
 				step := UINT#25;
 			END_IF;
 
-		(* pass[25]: HighPhase->TransitionToLow after setPointTimeHigh clock1s ticks *)
 		UINT#25 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -513,7 +515,6 @@ PROGRAM HvacTestSuite
 				step := UINT#26;
 			END_IF;
 
-		(* pass[26]: TransitionToLow->LowPhase after damper handshake (Actuator ack via clock100ms) *)
 		UINT#26 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -528,7 +529,6 @@ PROGRAM HvacTestSuite
 				step := UINT#27;
 			END_IF;
 
-		(* pass[27]: LowPhase->TransitionToHigh after setPointTimeLow clock1s ticks *)
 		UINT#27 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -546,7 +546,6 @@ PROGRAM HvacTestSuite
 
 		(* Group 10: Duct safety alarms *)
 
-		(* pass[28]: ductTempOverMax -> Fault *)
 		UINT#28 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -558,7 +557,6 @@ PROGRAM HvacTestSuite
 				step := UINT#29;
 			END_IF;
 
-		(* pass[29]: Fault persists while alarm condition is still active *)
 		UINT#29 :
 			dev.ductTempFeedback := DUCT_HOT;
 			main(operationType := OperatingMode#Run, enable := TRUE);
@@ -568,7 +566,6 @@ PROGRAM HvacTestSuite
 				step := UINT#30;
 			END_IF;
 
-		(* pass[30]: Fault -> Standby after Init (signalMgmt reset) *)
 		UINT#30 :
 			dev.ductTempFeedback := DUCT_NORMAL;
 			main(operationType := OperatingMode#Init, enable := TRUE);
@@ -578,7 +575,6 @@ PROGRAM HvacTestSuite
 				step := UINT#31;
 			END_IF;
 
-		(* pass[31]: ductTempUnderMin -> Fault *)
 		UINT#31 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
@@ -592,7 +588,6 @@ PROGRAM HvacTestSuite
 				step := UINT#32;
 			END_IF;
 
-		(* pass[32]: Fault state - all groups disabled (safe state) *)
 		UINT#32 :
 			dev.status := MainStatus#Drying;
 			dev.ductTempFeedback := DUCT_HOT;

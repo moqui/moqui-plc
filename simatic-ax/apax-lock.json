@@ -9,6 +9,7 @@
     "dependencies": {
       "@ax/simatic-1500-clocks": "^10.0.6",
       "@ax/simatic-1500-fileaccess": "^9.0.3",
+      "@ax/simatic-1500-motioncontrol-native-v8": "^9.0.3",
       "@ax/system-strings": "^10.4.16"
     },
     "devDependencies": {
@@ -215,35 +216,35 @@
     },
     "@ax/hw-s7-1500": {
       "name": "@ax/hw-s7-1500",
-      "version": "4.4.1",
-      "integrity": "sha512-7jQ/KO2A/txdMsZZadbF98ArkJfgMXswf4gJSO4h6qBFIllc9hhxCtVZcDeesbIh+TPdFAlnAL/ohbCZqNr3/A==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hw-s7-1500/-/hw-s7-1500-4.4.1.tgz",
+      "version": "4.6.0",
+      "integrity": "sha512-H3VkQjRNAiUC2KgT+Q3w9dnIylfJXDrVvVLSM5oauQ9ADg8r2yS3uQ48UvaiK0olhEaDaziXPcOsdadex5mozQ==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hw-s7-1500/-/hw-s7-1500-4.6.0.tgz",
       "dependencies": {
-        "@ax/hw-shared-s7-1500": "4.4.1"
+        "@ax/hw-shared-s7-1500": "4.6.0"
       }
     },
     "@ax/hw-shared-s7-1500": {
       "name": "@ax/hw-shared-s7-1500",
-      "version": "4.4.1",
-      "integrity": "sha512-h2pDcmA0It/1F3pajYYWYKGtUj6P5w2guHGlMX+NGintHPfsktiXw9p+SzWYdPMW2s4LLFD6oNlrBCl2lyGseg==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hw-shared-s7-1500/-/hw-shared-s7-1500-4.4.1.tgz",
+      "version": "4.6.0",
+      "integrity": "sha512-o7fXq5DURbxL0voAmDwLZo1cbq62ps4jX4gJ/TfaByvlIny+rVEEGVCTwb7QOpIk42KmlP0aVJisIYYq/ahMbA==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hw-shared-s7-1500/-/hw-shared-s7-1500-4.6.0.tgz",
       "dependencies": {}
     },
     "@ax/hwc": {
       "name": "@ax/hwc",
-      "version": "4.4.1",
-      "integrity": "sha512-h8DGVEbETp6kHinJ9dZtVmS+ZYobgnxc+SqhihRGR/vxFP6qgtitu2CTtPRzNacbAGVkGkxKoISAByQ1mPJhdg==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc/-/hwc-4.4.1.tgz",
+      "version": "4.6.0",
+      "integrity": "sha512-muvhbwWLtPbh1tI5OUGPGMeqly5NLVk8P8HY26ChNW9U5T1DEfm+zg+PHyFjjDJ7lC3QoaT2lsNvAjs6HzdEqw==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc/-/hwc-4.6.0.tgz",
       "dependencies": {
-        "@ax/hwc-linux-x64": "4.4.1",
-        "@ax/hwc-win-x64": "4.4.1"
+        "@ax/hwc-linux-x64": "4.6.0",
+        "@ax/hwc-win-x64": "4.6.0"
       }
     },
     "@ax/hwc-linux-x64": {
       "name": "@ax/hwc-linux-x64",
-      "version": "4.4.1",
-      "integrity": "sha512-7LsmPmVhsSVYYCSTOaupgn9u3oHobVGn4T32BGYazbdo/iWAbby8XOpzGF14FswgMUAYQCsteKdtAX8t4xjMVQ==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc-linux-x64/-/hwc-linux-x64-4.4.1.tgz",
+      "version": "4.6.0",
+      "integrity": "sha512-9vXILyo79UcN/jP5at6hICI9FQ1NCEjJEt0eA9ru28fj+mZ3CeIKp8FkvIr76Wi3ULGYfUo+Y6Ra1tWtSRQTEw==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc-linux-x64/-/hwc-linux-x64-4.6.0.tgz",
       "os": [
         "linux"
       ],
@@ -254,9 +255,9 @@
     },
     "@ax/hwc-win-x64": {
       "name": "@ax/hwc-win-x64",
-      "version": "4.4.1",
-      "integrity": "sha512-TeARUN93XppKe017EkIaDf+LtoGrtpinKcYW5WvegaHXEHM75wVQv//BuFgPIwtfLeWh4DKGLu148oDfx2uNNA==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc-win-x64/-/hwc-win-x64-4.4.1.tgz",
+      "version": "4.6.0",
+      "integrity": "sha512-w0yoFwun/g0wqvHsERZnNJBofY/J8HKaqmYuPYOC/+0TFCwiVnPyfQUNNz0iXIcOhP0SVEGGED7JefZepZjtEQ==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwc-win-x64/-/hwc-win-x64-4.6.0.tgz",
       "os": [
         "win32"
       ],
@@ -267,9 +268,9 @@
     },
     "@ax/hwld": {
       "name": "@ax/hwld",
-      "version": "3.4.0",
-      "integrity": "sha512-YfUS32jW8cc5pSlpWmVWJsatQsqKS2NE8hqX6EmYHJpr/cpYVXzs1ePPXQBByuWqkL5T+MQd7VDsXp/b6A/RHQ==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwld/-/hwld-3.4.0.tgz",
+      "version": "3.6.0",
+      "integrity": "sha512-BbH3qRa95i2vDeVqih59yOelKKh3KwcL6epchMdk2HlkCiqEs9rJKU5UM0eYlQOYt9I9aOZ6s5rhECDdernonA==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/hwld/-/hwld-3.6.0.tgz",
       "cpu": [
         "x64"
       ],
@@ -410,17 +411,17 @@
     },
     "@ax/sdk": {
       "name": "@ax/sdk",
-      "version": "2510.13.1",
-      "integrity": "sha512-ndzRndgdh+U0OzDRm0faz2h0BphWcCkf8ZfFMiN1qy3CyD5YiC8c3tbofPum1Ytc1QqtGWwwF8AaOWqZmzHkEA==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/sdk/-/sdk-2510.13.1.tgz",
+      "version": "2510.14.0",
+      "integrity": "sha512-OrPTTVASxoSYCYJmNDdN1GPRDuYCmtQSj52caMCaxSw8soAvCyx/6VKF174nydeOfP58skWHzbLou0PM+IoX6A==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/sdk/-/sdk-2510.14.0.tgz",
       "dependencies": {
         "@ax/apax-build": "2.2.60",
         "@ax/axunitst": "9.4.8",
         "@ax/certificate-management": "2.0.1",
         "@ax/diagnostic-buffer": "2.2.0",
-        "@ax/hw-s7-1500": "4.4.1",
-        "@ax/hwc": "4.4.1",
-        "@ax/hwld": "3.4.0",
+        "@ax/hw-s7-1500": "4.6.0",
+        "@ax/hwc": "4.6.0",
+        "@ax/hwld": "3.6.0",
         "@ax/mod": "1.14.13",
         "@ax/mon": "1.14.13",
         "@ax/plc-control": "1.7.22",
@@ -451,6 +452,30 @@
       "version": "9.0.26",
       "integrity": "sha512-oFbDdDJZhjV5DlnHygVphLbh/3MGdPlcbFgtasI0hltN4j4veQ34qOJciC1fV/jSm8DR87IaDM32zoqx0kBnjw==",
       "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-1500-fileaccess/-/simatic-1500-fileaccess-9.0.26.tgz",
+      "dependencies": {}
+    },
+    "@ax/simatic-1500-motioncontrol-native-docs": {
+      "name": "@ax/simatic-1500-motioncontrol-native-docs",
+      "version": "9.0.3",
+      "integrity": "sha512-bKPaorgVoKHSSVk4RKP1p0ox+3kZPTp2KbtHaEaX8Scvjq3I4LtYqW4JCZYfo6eX/du64XahXa+7V2JCVzT2Xg==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-1500-motioncontrol-native-docs/-/simatic-1500-motioncontrol-native-docs-9.0.3.tgz",
+      "dependencies": {}
+    },
+    "@ax/simatic-1500-motioncontrol-native-v8": {
+      "name": "@ax/simatic-1500-motioncontrol-native-v8",
+      "version": "9.0.3",
+      "integrity": "sha512-OgOw1GQtSDj3VN/hNVm9MnyYJUWLEsYyHXz6J2Wpc2LTsC+sQnY9hQOSnxCWaN+b6fQJOXZfT0hkR4bbdqglmQ==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-1500-motioncontrol-native-v8/-/simatic-1500-motioncontrol-native-v8-9.0.3.tgz",
+      "dependencies": {
+        "@ax/simatic-1500-motioncontrol-native-docs": "9.0.3",
+        "@ax/simatic-1500-motioncontrol-stc-plugin": "9.0.3"
+      }
+    },
+    "@ax/simatic-1500-motioncontrol-stc-plugin": {
+      "name": "@ax/simatic-1500-motioncontrol-stc-plugin",
+      "version": "9.0.3",
+      "integrity": "sha512-1I2nzXZ4yUd7MOnfE7CH8wTNrBNe/h++PaFsNsgvUbLU1nsLrpnedPENNnXCvsOV+FEqI7sKNbBQUN8Vboh+8g==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-1500-motioncontrol-stc-plugin/-/simatic-1500-motioncontrol-stc-plugin-9.0.3.tgz",
       "dependencies": {}
     },
     "@ax/simatic-package-tool": {
@@ -729,9 +754,9 @@
   "catalogs": {
     "@ax/simatic-ax": {
       "name": "@ax/simatic-ax",
-      "version": "2510.13.1",
-      "integrity": "sha512-ggZtgX/7Fl3KQ6DCVKkWpcyLL9hLYJ28dNU37F++iC+UGG5IBGjwgWV5xY1fkOtg2xLjHRR9J6QgBdFeTynJcQ==",
-      "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-ax/-/simatic-ax-2510.13.1.tgz",
+      "version": "2510.14.0",
+      "integrity": "sha512-j1MEGiCKdG2T80rCrcR76o9BFZi4bDnAzikeHOUkHvopAyMtACWBchAvimVCDodi6VkIcD5Ctdzmx1TSZJlOvw==",
+      "resolved": "https://registry.simatic-ax.siemens.io/@ax/simatic-ax/-/simatic-ax-2510.14.0.tgz",
       "dependencies": {},
       "catalogDependencies": {
         "@ax/apax-build": "2.2.60",
@@ -745,15 +770,16 @@
         "@ax/debug-st-ls-plugin": "1.0.10",
         "@ax/diagnostic-buffer": "2.2.0",
         "@ax/hardware-diagnostics": "1.2.0",
-        "@ax/hw-et200sp": "4.4.1",
-        "@ax/hw-s7-1500": "4.4.1",
-        "@ax/hwc": "4.4.1",
-        "@ax/hwld": "3.4.0",
+        "@ax/hw-et200sp": "4.6.0",
+        "@ax/hw-s7-1200g2": "4.6.0",
+        "@ax/hw-s7-1500": "4.6.0",
+        "@ax/hwc": "4.6.0",
+        "@ax/hwld": "3.6.0",
         "@ax/mod": "1.14.13",
         "@ax/mon": "1.14.13",
         "@ax/plc-control": "1.7.22",
         "@ax/plc-info": "4.2.0",
-        "@ax/plc-web-app-manager": "1.2.0",
+        "@ax/plc-web-app-manager": "1.3.0",
         "@ax/sdb": "1.14.13",
         "@ax/simatic-alarming": "5.1.0",
         "@ax/simatic-clocks": "11.0.116",
@@ -810,7 +836,7 @@
         "@ax/tia2st": "4.3.5",
         "@ax/trace": "3.4.0",
         "@ax/xlad-service": "1.1.0",
-        "@ax/sdk": "2510.13.1"
+        "@ax/sdk": "2510.14.0"
       }
     }
   }

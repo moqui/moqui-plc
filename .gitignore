@@ -35,6 +35,9 @@ simatic-ax/docs/
 simatic-ax/motion-errors-full.txt
 CODEX-CLOSEOUT-PLAN-corrected.md
 
+# moqui_iot was renamed to iot-firmware; ignore the old local directory if it lingers
+moqui_iot/
+
 # iot-firmware ESP-IDF build (also covered by iot-firmware/.gitignore)
 iot-firmware/build/
 iot-firmware/managed_components/

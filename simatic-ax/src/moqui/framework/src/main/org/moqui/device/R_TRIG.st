@@ -1,0 +1,14 @@
+FUNCTION_BLOCK R_TRIG
+VAR_INPUT
+    CLK : BOOL;
+END_VAR
+VAR_OUTPUT
+    Q : BOOL;
+END_VAR
+VAR
+    previousClock : BOOL;
+END_VAR
+
+Q := CLK AND NOT previousClock;
+previousClock := CLK;
+END_FUNCTION_BLOCK

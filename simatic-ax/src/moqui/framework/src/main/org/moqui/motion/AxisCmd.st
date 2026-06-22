@@ -1,0 +1,26 @@
+TYPE AxisCmd : (
+    Idle, (* Macro: Power + Home *)
+    MoveVelocity,
+    MoveAbsolute,
+    MoveRelative,
+    MoveAdditive,
+    MoveSuperimposed,
+	HaltSuperimposed,
+    GearIn,
+    CamIn,
+	GearInPos,
+	Phasing,
+	Jog,
+    PositionProfile,
+    VelocityProfile,
+    AccelerationProfile,
+	SetPosition,
+    Halt,
+	Stop,
+	TouchProbe,
+	AbortTrigger,
+	ReadParameter,
+	ReadBoolParameter,
+    WriteParameter,
+	WriteBoolParameter
+); END_TYPE
