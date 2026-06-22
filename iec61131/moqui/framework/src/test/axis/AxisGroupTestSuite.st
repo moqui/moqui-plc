@@ -1,4 +1,8 @@
 ﻿PROGRAM AxisGroupTestSuite
+	VAR_EXTERNAL
+		trjDynamicSlowdownEnable : BOOL;
+		trjDynamicSlowdownFactor : REAL;
+	END_VAR
 	VAR CONSTANT
 	    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
 	    TIMEOUT : UINT := 50000;
@@ -33,7 +37,7 @@
 	     * Step 16 : Error recovery - velocity = 0 fault injected; MC_GroupReset restores Standby
 	     * Step 17 : Trajectory following - 4-point Cartesian trajectory (blending + one break point)
 	     *)
-	    pass : ARRAY[1..18] OF BOOL;
+	    pass : ARRAY[1..19] OF BOOL;
 	    (* Diagnostics - inspect in online monitor to identify failures *)
 	    grpStatus : AxisGroupStatus;
 	    grpError : BOOL;
@@ -127,6 +131,9 @@
 	     *)
 	    trj : Trajectory;
 	    trjIdx : DINT;
+	    (* Abort-test state: trjAbortArmed arms the trigger after waypoint 1; trjCompletionStep routes step 82 exit. *)
+	    trjAbortArmed : BOOL;
+	    trjCompletionStep : UINT;
 	END_VAR
 
 	(* 
@@ -721,8 +728,21 @@
 	     * When trjIdx >= trj.pointCount: all waypoints visited, advance to GroupHalt test.
 	     *)
 	    82 :
-	        IF trjIdx >= trj.pointCount THEN
-	            pass[17] := TRUE; step := 83; cycles := 0;
+	        (* Abort: highest priority — clear override, halt, clear trajectory queue. *)
+	        IF abortCurrentTrajectory THEN
+	            trjDynamicSlowdownEnable := FALSE;
+	            grp.overrideEnable := FALSE;
+	            trjIdx := 0;
+	            grp.cmd := AxisGroupCmd.GroupHalt;
+	            step := 84; cycles := 0;
+	        ELSIF trjIdx >= trj.pointCount THEN
+	            pass[17] := TRUE;
+	            IF trjCompletionStep <> 0 THEN
+	                step := trjCompletionStep; trjCompletionStep := 0;
+	            ELSE
+	                step := 83;
+	            END_IF;
+	            cycles := 0;
 	        ELSIF cycles = 1 THEN
 	            IF trj.points[trjIdx].isBreakPoint THEN
 	                grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
@@ -746,6 +766,9 @@
 	            grp.coordinateSystem := trj.coordSystem;
 	        ELSIF grp.commandExecuted THEN
 	            trjIdx := trjIdx + 1;
+	            IF trjAbortArmed AND trjIdx = 1 THEN
+	                abortCurrentTrajectory := TRUE;
+	            END_IF;
 	            grp.cmd := AxisGroupCmd.Idle; (* change cmd → AxisGroup FSM exits CheckLinearAbsoluteState *)
 	            step := 82; cycles := 0;
 	        END_IF;
@@ -786,7 +809,7 @@
 	            trjDynamicSlowdownFactor := 0.5;
 	        ELSIF grp.commandExecuted THEN
 	            trjDynamicSlowdownEnable := FALSE;
-	            pass[18] := TRUE; step := 7; cycles := 0;
+	            pass[18] := TRUE; step := 86; cycles := 0;
 	        END_IF;
 
 	        (* Same per-cycle override block as step 82. *)
@@ -798,6 +821,59 @@
 	        ELSE
 	            grp.overrideEnable := FALSE;
 	        END_IF;
+
+	    (*
+	     * 84 : Abort halt — decelerates to standstill then clears trajectory state.
+	     * Entered from step 82 when abortCurrentTrajectory = TRUE.
+	     * In production Moqui clears the flag and pushes the escape trajectory; the test
+	     * simulates this inside step 85 after 10 cycles (trjAbortArmed guards the block).
+	     *)
+	    84 :
+	        grp.cmd := AxisGroupCmd.GroupHalt;
+	        IF grp.commandExecuted THEN
+	            grp.cmd := AxisGroupCmd.Idle;
+	            trj.pointCount := 0;
+	            step := 85; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 85 : Wait for new trajectory from Moqui.
+	     * Production: blocked until Moqui sets abortCurrentTrajectory = FALSE and
+	     *             pushes a non-empty trajectory. Step 82 then re-executes it.
+	     * Test simulation (guarded by trjAbortArmed so it never fires in production):
+	     *   after 10 cycles, reload the original 4-point trj and clear the abort flag.
+	     *)
+	    85 :
+	        IF trjAbortArmed AND cycles = 10 THEN
+	            abortCurrentTrajectory := FALSE;
+	            trjAbortArmed := FALSE;
+	            trj.pointCount := 4;
+	        END_IF;
+	        IF NOT abortCurrentTrajectory AND trj.pointCount > 0 THEN
+	            trjIdx := 0;
+	            step := 82; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 86 : Abort test setup.
+	     * Arms trjAbortArmed so that step 82 triggers abortCurrentTrajectory := TRUE
+	     * after the first waypoint completes (trjIdx = 1). Sets trjCompletionStep := 87
+	     * so that step 82 exits to step 87 after the abort recovery re-execution.
+	     *)
+	    86 :
+	        trjAbortArmed := TRUE;
+	        trj.pointCount := 4;
+	        trjIdx := 0;
+	        trjCompletionStep := 87;
+	        step := 82; cycles := 0;
+
+	    (*
+	     * 87 : Abort test pass.
+	     * Reached via trjCompletionStep = 87 when the recovery trajectory completes
+	     * in step 82. Sets pass[19] and continues to the GroupHalt sequence.
+	     *)
+	    87 :
+	        pass[19] := TRUE; step := 7; cycles := 0;
 	    (*
 	     * 7/8 : MoveDirectAbsolute then GroupHalt.
 	     * Step 7 resets bufferMode to aborting before dispatching: the trajectory test

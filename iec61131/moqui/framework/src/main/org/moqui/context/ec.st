@@ -40,4 +40,5 @@ VAR_GLOBAL
 	(* Motion override — written by Moqui via liveParamsSub *)
 	trjDynamicSlowdownEnable : BOOL := FALSE;
 	trjDynamicSlowdownFactor : LREAL := 1.0;
+	abortCurrentTrajectory : BOOL := FALSE;
 END_VAR
