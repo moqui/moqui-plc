@@ -51,7 +51,7 @@ PROGRAM HvacTestSuite
 		testFailed : BOOL;
 		failStep : UINT;
 		testReset : BOOL;
-		pass : ARRAY[1..30] OF BOOL;
+		pass : ARRAY[1..32] OF BOOL;
 
 		mirStatus : MainStatus;
 		mirColdGroupEnable : BOOL;
@@ -115,12 +115,17 @@ PROGRAM HvacTestSuite
 		pass[19] := FALSE;
 		pass[20] := FALSE;
 		pass[21] := FALSE;
+		pass[22] := FALSE;
+		pass[23] := FALSE;
+		pass[24] := FALSE;
 		pass[25] := FALSE;
 		pass[26] := FALSE;
 		pass[27] := FALSE;
 		pass[28] := FALSE;
 		pass[29] := FALSE;
 		pass[30] := FALSE;
+		pass[31] := FALSE;
+		pass[32] := FALSE;
 		dev.status := MainStatus#Standby;
 		dev.lastStatus := MainStatus#Standby;
 		dev.isCompleted := FALSE;
@@ -449,17 +454,63 @@ PROGRAM HvacTestSuite
 				pass[21] := TRUE;
 				main(operationType := OperatingMode#Init, enable := TRUE);
 				cycles := UINT#0;
-				step := UINT#25;
+				step := UINT#22;
 			END_IF;
 
-		UINT#25 :
+		(* Group 8: Thermostat re-activation *)
+
+		UINT#22 :
 			dev.status := MainStatus#Standby;
 			dev.lastStatus := MainStatus#Cooling;
 			dev.tempFeedback := T_HOT;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			IF dev.status = MainStatus#Cooling THEN
-				pass[25] := TRUE;
+				pass[22] := TRUE;
 				main(operationType := OperatingMode#Init, enable := TRUE);
+				cycles := UINT#0;
+				step := UINT#23;
+			END_IF;
+
+		(* Group 9: AirDistributionController - alternating high/low air throw *)
+
+		UINT#23 :
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.airDistributionEnabled := FALSE;
+			dev.setPointTimeHigh := UINT#2;
+			dev.setPointTimeLow := UINT#2;
+			clks.clock1s := TRUE;
+			main(operationType := OperatingMode#Run, enable := TRUE);
+			clks.clock1s := FALSE;
+			IF cycles >= UINT#5 AND NOT dev.lowFlowDamperEnableRequest THEN
+				pass[23] := TRUE;
+				cycles := UINT#0;
+				step := UINT#24;
+			END_IF;
+
+		UINT#24 :
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.airDistributionEnabled := TRUE;
+			dev.setPointTimeHigh := UINT#2;
+			dev.setPointTimeLow := UINT#2;
+			clks.clock1s := FALSE;
+			main(operationType := OperatingMode#Run, enable := TRUE);
+			IF dev.highFlowDamperEnableRequest AND NOT dev.lowFlowDamperEnableRequest THEN
+				pass[24] := TRUE;
+				cycles := UINT#0;
+				step := UINT#25;
+			END_IF;
+
+		UINT#25 :
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.airDistributionEnabled := TRUE;
+			clks.clock1s := TRUE;
+			main(operationType := OperatingMode#Run, enable := TRUE);
+			clks.clock1s := FALSE;
+			IF dev.lowFlowDamperEnableRequest AND dev.highFlowDamperDisableRequest THEN
+				pass[25] := TRUE;
 				cycles := UINT#0;
 				step := UINT#26;
 			END_IF;
@@ -467,46 +518,77 @@ PROGRAM HvacTestSuite
 		UINT#26 :
 			dev.status := MainStatus#Drying;
 			dev.tempFeedback := T_NORMAL;
-			dev.ductTempFeedback := DUCT_HOT;
+			dev.airDistributionEnabled := TRUE;
+			clks.clock100ms := TRUE;
+			clks.clock1s := FALSE;
 			main(operationType := OperatingMode#Run, enable := TRUE);
-			IF dev.status = MainStatus#Fault THEN
+			clks.clock100ms := FALSE;
+			IF NOT dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest THEN
 				pass[26] := TRUE;
 				cycles := UINT#0;
 				step := UINT#27;
 			END_IF;
 
 		UINT#27 :
-			dev.ductTempFeedback := DUCT_HOT;
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.airDistributionEnabled := TRUE;
+			clks.clock1s := TRUE;
 			main(operationType := OperatingMode#Run, enable := TRUE);
-			IF cycles >= UINT#3 AND dev.status = MainStatus#Fault THEN
+			clks.clock1s := FALSE;
+			IF dev.highFlowDamperEnableRequest AND dev.lowFlowDamperDisableRequest THEN
 				pass[27] := TRUE;
+				dev.airDistributionEnabled := FALSE;
+				main(operationType := OperatingMode#Init, enable := TRUE);
 				cycles := UINT#0;
 				step := UINT#28;
 			END_IF;
 
+		(* Group 10: Duct safety alarms *)
+
 		UINT#28 :
-			dev.ductTempFeedback := DUCT_NORMAL;
-			main(operationType := OperatingMode#Init, enable := TRUE);
-			IF dev.status = MainStatus#Standby THEN
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.ductTempFeedback := DUCT_HOT;
+			main(operationType := OperatingMode#Run, enable := TRUE);
+			IF dev.status = MainStatus#Fault THEN
 				pass[28] := TRUE;
 				cycles := UINT#0;
 				step := UINT#29;
 			END_IF;
 
 		UINT#29 :
-			dev.status := MainStatus#Drying;
-			dev.tempFeedback := T_NORMAL;
-			dev.ductTempFeedback := DUCT_COLD;
+			dev.ductTempFeedback := DUCT_HOT;
 			main(operationType := OperatingMode#Run, enable := TRUE);
-			IF dev.status = MainStatus#Fault THEN
+			IF cycles >= UINT#3 AND dev.status = MainStatus#Fault THEN
 				pass[29] := TRUE;
-				dev.ductTempFeedback := DUCT_NORMAL;
-				main(operationType := OperatingMode#Init, enable := TRUE);
 				cycles := UINT#0;
 				step := UINT#30;
 			END_IF;
 
 		UINT#30 :
+			dev.ductTempFeedback := DUCT_NORMAL;
+			main(operationType := OperatingMode#Init, enable := TRUE);
+			IF dev.status = MainStatus#Standby THEN
+				pass[30] := TRUE;
+				cycles := UINT#0;
+				step := UINT#31;
+			END_IF;
+
+		UINT#31 :
+			dev.status := MainStatus#Drying;
+			dev.tempFeedback := T_NORMAL;
+			dev.ductTempFeedback := DUCT_COLD;
+			main(operationType := OperatingMode#Run, enable := TRUE);
+			IF dev.status = MainStatus#Fault THEN
+				pass[31] := TRUE;
+				dev.ductTempFeedback := DUCT_NORMAL;
+				main(operationType := OperatingMode#Init, enable := TRUE);
+				cycles := UINT#0;
+				step := UINT#32;
+			END_IF;
+
+		UINT#32 :
 			dev.status := MainStatus#Drying;
 			dev.ductTempFeedback := DUCT_HOT;
 			main(operationType := OperatingMode#Run, enable := TRUE);
@@ -515,7 +597,7 @@ PROGRAM HvacTestSuite
 					AND NOT dev.hotGroupEnableRequest
 					AND NOT dev.ahuFanEnableRequest
 					AND NOT dev.airFlowEnableRequest THEN
-				pass[30] := TRUE;
+				pass[32] := TRUE;
 				dev.ductTempFeedback := DUCT_NORMAL;
 				main(operationType := OperatingMode#Init, enable := TRUE);
 				cycles := UINT#0;
