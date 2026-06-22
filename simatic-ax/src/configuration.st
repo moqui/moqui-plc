@@ -64,6 +64,11 @@ CONFIGURATION moqui
 
         	(* Facade for managing devices and logical parameters. *)
         	dev : DeviceFacade;
+
+        	(* Motion override — written by Moqui via liveParamsSub *)
+        	trjDynamicSlowdownEnable : BOOL := FALSE;
+        	trjDynamicSlowdownFactor : LREAL := 1.0;
+        	abortCurrentTrajectory : BOOL := FALSE;
     END_VAR
 
     TASK StartTask(INTERVAL := T#10ms, PRIORITY := 1);
