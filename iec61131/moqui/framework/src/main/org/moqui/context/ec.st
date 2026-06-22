@@ -36,4 +36,8 @@ VAR_GLOBAL
 	logAppenderEnable : BOOL := TRUE;
 	paramsPubEnable : BOOL := TRUE;
 	paramsSubEnable : BOOL := TRUE;
+
+	(* Motion override — written by Moqui via liveParamsSub *)
+	trjDynamicSlowdownEnable : BOOL := FALSE;
+	trjDynamicSlowdownFactor : LREAL := 1.0;
 END_VAR

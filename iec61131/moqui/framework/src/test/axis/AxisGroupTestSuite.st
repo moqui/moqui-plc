@@ -1,4 +1,4 @@
-PROGRAM AxisGroupTestSuite
+﻿PROGRAM AxisGroupTestSuite
 	VAR CONSTANT
 	    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
 	    TIMEOUT : UINT := 50000;
@@ -748,6 +748,16 @@ PROGRAM AxisGroupTestSuite
 	            trjIdx := trjIdx + 1;
 	            grp.cmd := AxisGroupCmd.Idle; (* change cmd → AxisGroup FSM exits CheckLinearAbsoluteState *)
 	            step := 82; cycles := 0;
+	        END_IF;
+
+	        (* Dynamic slowdown driven by Moqui: evaluated every cycle while in step 82. *)
+	        IF trjDynamicSlowdownEnable THEN
+	            grp.overrideEnable := TRUE;
+	            grp.velFactor := trjDynamicSlowdownFactor;
+	            grp.accFactor := 1.0;
+	            grp.jerkFactor := 1.0;
+	        ELSE
+	            grp.overrideEnable := FALSE;
 	        END_IF;
 
 	    (*

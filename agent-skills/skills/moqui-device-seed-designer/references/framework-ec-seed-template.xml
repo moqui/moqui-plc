@@ -129,6 +129,21 @@ along with this software (see the LICENSE.md file). If not, see
             parameterName="ParamsSubEnable"
             description="Enable framework parameter subscribe channel."/>
 
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_TRJ_DYNAMIC_SLOWDOWN_ENABLE}"
+            parameterTypeEnumId="PtTextIndicator"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.16"
+            parameterName="TrjDynamicSlowdownEnable"
+            description="Trajectory dynamic slowdown enable — Moqui sets TRUE while computing a new path to keep the robot in motion without overshooting."/>
+
+    <moqui.math.ParameterDef parameterDefId="${FW_PD_TRJ_DYNAMIC_SLOWDOWN_FACTOR}"
+            parameterTypeEnumId="PtNumberDecimal"
+            purposeEnumId="PpControl"
+            parameterCode="${FW_PARAMETER_CODE_PREFIX}.17"
+            parameterName="TrjDynamicSlowdownFactor"
+            minValue="0.0" maxValue="1.0"
+            description="Velocity override factor for dynamic slowdown (1.0 = full speed, 0.1 = 10%). Written by Moqui via liveParamsSub."/>
+
     <!-- ========== Parameter ========== -->
 
     <moqui.math.Parameter parameterId="${FW_PARAM_ENABLE}" parameterDefId="${FW_PD_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
@@ -146,6 +161,8 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.math.Parameter parameterId="${FW_PARAM_LOG_APPENDER_ENABLE}" parameterDefId="${FW_PD_LOG_APPENDER_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
     <moqui.math.Parameter parameterId="${FW_PARAM_PARAMS_PUB_ENABLE}" parameterDefId="${FW_PD_PARAMS_PUB_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
     <moqui.math.Parameter parameterId="${FW_PARAM_PARAMS_SUB_ENABLE}" parameterDefId="${FW_PD_PARAMS_SUB_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="Y"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_TRJ_DYNAMIC_SLOWDOWN_ENABLE}" parameterDefId="${FW_PD_TRJ_DYNAMIC_SLOWDOWN_ENABLE}" deviceId="${DEVICE_ID}" symbolicValue="N"/>
+    <moqui.math.Parameter parameterId="${FW_PARAM_TRJ_DYNAMIC_SLOWDOWN_FACTOR}" parameterDefId="${FW_PD_TRJ_DYNAMIC_SLOWDOWN_FACTOR}" deviceId="${DEVICE_ID}" numericValue="1.0"/>
 
     <!-- ========== Standard framework requests ========== -->
 
@@ -183,5 +200,7 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_PARAMS_PUB_ENABLE}" sequenceNum="6" requestItemName="paramsPubEnable" query="paramsPubEnable" itemTypeEnumId="DritBool"/>
     <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_PARAMS_SUB_ENABLE}" sequenceNum="7" requestItemName="paramsSubEnable" query="paramsSubEnable" itemTypeEnumId="DritBool"/>
     <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_RETRY_TIME}" sequenceNum="8" requestItemName="retryTime" query="retryTime" itemTypeEnumId="DritUInt"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_TRJ_DYNAMIC_SLOWDOWN_ENABLE}" sequenceNum="9" requestItemName="trjDynamicSlowdownEnable" query="trjDynamicSlowdownEnable" itemTypeEnumId="DritBool"/>
+    <moqui.device.DeviceRequestItem requestName="${DEVICE_ID}_FrameworkControlWrite" parameterId="${FW_PARAM_TRJ_DYNAMIC_SLOWDOWN_FACTOR}" sequenceNum="10" requestItemName="trjDynamicSlowdownFactor" query="trjDynamicSlowdownFactor" itemTypeEnumId="DritLReal"/>
 
 </entity-facade-xml>
