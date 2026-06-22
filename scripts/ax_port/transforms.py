@@ -14,6 +14,18 @@ class TransformResult:
 
 REFERENCE_TO_RE = re.compile(r"\bREFERENCE\s+TO\b")
 MC_DIRECTION_RE = re.compile(r"\bMC_DIRECTION\b")
+
+# CODESYS motion namespace → AX compat namespace substitutions.
+# Applied mechanically to all files; matches are scoped to motion files by the prefixes used.
+MOTION_NAMESPACE_REPLACEMENTS: list[tuple[str, str]] = [
+    ("SM3_Robotics.SMC_COORD_SYSTEM", "CoordMotion.SMC_COORD_SYSTEM"),
+    ("SM3_Robotics.MC_TRANSITION_MODE", "CoordMotion.MC_TRANSITION_MODE"),
+    ("SM3_Robotics.SMC_POS_REF", "CoordMotion.SMC_POS_REF"),
+    ("SM3_Robotics.SMC_CIRC_MODE", "CoordMotion.SMC_CIRC_MODE"),
+    ("SM3_Robotics.MC_CIRC_PATHCHOICE", "CoordMotion.MC_CIRC_PATHCHOICE"),
+    ("SM3_Robotics.AXIS_GROUP_REF_SM3", "TO_Kinematics"),
+    ("SM3_Basic.MC_BUFFER_MODE", "Motion.MC_BUFFER_MODE"),
+]
 CONTROL_END_RE = re.compile(r"\b(END_IF|END_CASE|END_FOR|END_WHILE|END_REPEAT)\b(?!\s*;)")
 REF_ASSIGN_RE = re.compile(
     r"(?P<indent>^[ \t]*)(?P<lhs>[A-Za-z_][A-Za-z0-9_\.\[\]]*)\s+REF=\s+(?P<rhs>[^;\r\n]+);",
@@ -146,6 +158,15 @@ def convert_enum_access(text: str, enum_type_names: Iterable[str]) -> tuple[str,
     return text, total
 
 
+def convert_motion_namespaces(text: str) -> tuple[str, int]:
+    count = 0
+    for source, target in MOTION_NAMESPACE_REPLACEMENTS:
+        if source in text:
+            text = text.replace(source, target)
+            count += 1
+    return text, count
+
+
 def ensure_final_newline(text: str) -> str:
     return text if not text or text.endswith("\n") else text + "\n"
 
@@ -168,5 +189,6 @@ def convert_text(relative: Path, source_text: str, enum_type_names: Iterable[str
     _apply(result, "convert_enum_access", lambda t: convert_enum_access(t, enum_type_names))
     _apply(result, "reference_to_to_ref_to", lambda t: REFERENCE_TO_RE.subn("REF_TO", t))
     _apply(result, "normalize_mc_direction", lambda t: MC_DIRECTION_RE.subn("MC_Direction", t))
+    _apply(result, "convert_motion_namespaces", convert_motion_namespaces)
     result.text = ensure_final_newline(result.text)
     return result
