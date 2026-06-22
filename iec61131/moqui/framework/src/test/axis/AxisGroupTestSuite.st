@@ -2,6 +2,7 @@
 	VAR_EXTERNAL
 		trjDynamicSlowdownEnable : BOOL;
 		trjDynamicSlowdownFactor : REAL;
+		abortCurrentTrajectory : BOOL;
 	END_VAR
 	VAR CONSTANT
 	    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
