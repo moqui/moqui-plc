@@ -19,15 +19,10 @@ jobs:
 
       - name: Sync pushed branch to the other
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
           if [ "${{ github.ref_name }}" = "main" ]; then
             TARGET=master
           else
             TARGET=main
           fi
 
-          git checkout $TARGET
-          git merge --ff-only origin/${{ github.ref_name }}
-          git push origin $TARGET
+          git push origin "origin/${{ github.ref_name }}:refs/heads/$TARGET" --force-with-lease

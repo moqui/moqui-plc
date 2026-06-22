@@ -45,14 +45,14 @@ TOP_LEVEL_SCHEMA: list[tuple[str | None, str | None]] = [
     ("dev.airDistributionEnabled", "BOOL"),   # 9
     ("dev.setPointTimeHigh",       "UINT"),   # 10
     ("dev.setPointTimeLow",        "UINT"),   # 11
-    (None, None),                             # 12 reserved (was tempCoreSetpoint)
-    (None, None),                             # 13 reserved (was tempCoreHysteresis)
+    (None, None),                             # 12 reserved
+    (None, None),                             # 13 reserved
     ("dev.ductTempMin",            "REAL"),   # 14
     ("dev.ductTempMax",            "REAL"),   # 15
     ("dev.ductRhMax",              "REAL"),   # 16
     ("dev.rhControlEnabled",       "BOOL"),   # 17
     ("dev.rhControlOnly",          "BOOL"),   # 18
-    (None, None),                             # 19 reserved (was tempCoreControlEnabled)
+    (None, None),                             # 19 reserved
     ("dev.airMixingEnabled",       "BOOL"),   # 20
     ("dev.estimatedRuntime",       "UDINT"),  # 21
     ("dev.minRuntime",             "UDINT"),  # 22
@@ -64,8 +64,8 @@ TOP_LEVEL_SCHEMA: list[tuple[str | None, str | None]] = [
     ("dev.ahuFanSpeedSetpoint",    "REAL"),   # 28
     ("dev.tempFeedback",           "REAL"),   # 29
     ("dev.rhFeedback",             "REAL"),   # 30
-    (None, None),                             # 31 reserved (was tempCoreFeedback)
-    (None, None),                             # 32 reserved (was tempSurfaceFeedback)
+    (None, None),                             # 31 reserved
+    (None, None),                             # 32 reserved
     ("dev.ductTempFeedback",       "REAL"),   # 33
     ("dev.ductRhFeedback",         "REAL"),   # 34
 ]
