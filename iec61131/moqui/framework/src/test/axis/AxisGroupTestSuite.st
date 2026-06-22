@@ -31,8 +31,9 @@ PROGRAM AxisGroupTestSuite
 	     * Step 14 : Buffered CP moves - MoveLinearAbsolute chained with MoveLinearRelative
 	     * Step 15 : Override - velFactor = 0.5 active during MoveLinearAbsolute
 	     * Step 16 : Error recovery - velocity = 0 fault injected; MC_GroupReset restores Standby
+	     * Step 17 : Trajectory following - 4-point Cartesian trajectory (blending + one break point)
 	     *)
-	    pass : ARRAY[1..16] OF BOOL;
+	    pass : ARRAY[1..17] OF BOOL;
 	    (* Diagnostics - inspect in online monitor to identify failures *)
 	    grpStatus : AxisGroupStatus;
 	    grpError : BOOL;
@@ -119,6 +120,13 @@ PROGRAM AxisGroupTestSuite
 	    posCircVia : SM3_Robotics.SMC_POS_REF;
 	    posCircRelEnd : SM3_Robotics.SMC_POS_REF;
 	    posCircRelVia : SM3_Robotics.SMC_POS_REF;
+	    (*
+	     * Trajectory following test (steps 80-82).
+	     * trj is populated inline in step 81 from posCpBase (actual TCP at posNonSingular).
+	     * trjIdx tracks which waypoint is being dispatched; reset to 0 in step 81.
+	     *)
+	    trj : Trajectory;
+	    trjIdx : DINT;
 	END_VAR
 
 	(* 
@@ -146,7 +154,7 @@ PROGRAM AxisGroupTestSuite
 	 * Cartesian targets (MCS)
 	 * Computed from TestRobotArm DH parameters at zero position (all joints = 0°):
 	 *   X = a1 + d4 + d6  = 150 + 600 + 100 = 850 mm
-	 *   Y = -d3           =   0              =   0 mm
+	 *   Y = -d3           =   0             =   0 mm
 	 *   Z = d1 + a2 + a3  = 400 + 600 + 150 = 1150 mm
 	 * posCartA is offset slightly from home to force a real trajectory.
 	 * cartDelta moves +50 mm along X (forward).
@@ -225,7 +233,8 @@ PROGRAM AxisGroupTestSuite
 	    pass[4] := FALSE; pass[5] := FALSE; pass[6] := FALSE;
 	    pass[7] := FALSE; pass[8] := FALSE; pass[9] := FALSE;
 	    pass[10] := FALSE; pass[11] := FALSE; pass[12] := FALSE; pass[13] := FALSE;
-	    pass[14] := FALSE; pass[15] := FALSE; pass[16] := FALSE;
+	    pass[14] := FALSE; pass[15] := FALSE; pass[16] := FALSE; pass[17] := FALSE;
+	    trjIdx := 0;
 	    errorTestActive := FALSE;
 	END_IF;
 
@@ -610,7 +619,135 @@ PROGRAM AxisGroupTestSuite
 	        IF cycles > 1 AND grp.ready THEN
 	            grp.reset := FALSE;
 	            errorTestActive := FALSE;
-	            pass[16] := TRUE; step := 7; cycles := 0;
+	            pass[16] := TRUE; step := 80; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * Trajectory following test - steps 80-82.
+	     *
+	     * Verifies that the AxisGroup can follow a multi-point Trajectory struct:
+	     *   - Cartesian CP moves (MoveLinearAbsolute) between waypoints
+	     *   - Shared blending defaults (bufferMode + transitionMode + blendingMode)
+	     *   - Per-point exact stop when isBreakPoint = TRUE
+	     *   - Per-point blending override when hasBlendingOverride = TRUE
+	     *
+	     * 4-waypoint open square around posCpBase (captured at posNonSingular):
+	     *   pt[0] : +50 mm X             -- blendingPrevious + TMCornerDistance(10 mm)
+	     *   pt[1] : +50 mm X, +50 mm Y   -- blendingPrevious + TMCornerDistance(10 mm)
+	     *   pt[2] : +50 mm Y             -- isBreakPoint = TRUE (exact stop, aborting+TMNone)
+	     *   pt[3] : posCpBase (return)   -- hasBlendingOverride, larger 20 mm corner
+	     *
+	     * Blending priority per point (mirrors the TrajectoryPoint.st rules):
+	     *   1. isBreakPoint = TRUE -> aborting + TMNone  (always wins)
+	     *   2. hasBlendingOverride = TRUE -> point.bufferMode + transitionMode + blendingMode
+	     *   3. Otherwise -> trj.bufferMode + transitionMode + blendingMode
+	     *
+	     * After all waypoints pass[17] = TRUE; control continues to step 7 (GroupHalt test).
+	     *)
+
+	    (*
+	     * 80 (internal): Restore default dynamics and bufferMode; return to posNonSingular.
+	     *)
+	    80 :
+	        grp.velocity := 30.0;
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 81; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 81 (internal): Build trajectory inline; capture posCpBase from actual TCP.
+	     * Executes in a single cycle and advances immediately to step 82.
+	     *)
+	    81 :
+	        posCpBase := grp.actualPosition;
+
+	        trj.trajectoryId := 'TEST_TRJ_01';
+	        trj.pointCount := 4;
+	        trj.coordSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        trj.velocity := 30.0;
+	        trj.acceleration := 100.0;
+	        trj.deceleration := 100.0;
+	        trj.jerk := 1000.0;
+	        trj.bufferMode := SM3_Basic.MC_BUFFER_MODE.blendingPrevious;
+	        trj.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+	        trj.blendingMode := 10.0; (* 10 mm corner radius *)
+
+	        (* pt[0]: +50 mm X *)
+	        trj.points[0].sequenceNum := 1; trj.points[0].timeOffsetMs := 0;
+	        trj.points[0].isBreakPoint := FALSE; trj.points[0].hasBlendingOverride := FALSE;
+	        trj.points[0].blendingMode := 0.0;
+	        trj.points[0].pos := posCpBase;
+	        trj.points[0].pos.v[0] := trj.points[0].pos.v[0] + 50.0;
+
+	        (* pt[1]: +50 mm X, +50 mm Y *)
+	        trj.points[1].sequenceNum := 2; trj.points[1].timeOffsetMs := 0;
+	        trj.points[1].isBreakPoint := FALSE; trj.points[1].hasBlendingOverride := FALSE;
+	        trj.points[1].blendingMode := 0.0;
+	        trj.points[1].pos := posCpBase;
+	        trj.points[1].pos.v[0] := trj.points[1].pos.v[0] + 50.0;
+	        trj.points[1].pos.v[1] := trj.points[1].pos.v[1] + 50.0;
+
+	        (* pt[2]: +50 mm Y -- BREAK POINT: exact stop *)
+	        trj.points[2].sequenceNum := 3; trj.points[2].timeOffsetMs := 0;
+	        trj.points[2].isBreakPoint := TRUE; trj.points[2].hasBlendingOverride := FALSE;
+	        trj.points[2].blendingMode := 0.0;
+	        trj.points[2].pos := posCpBase;
+	        trj.points[2].pos.v[1] := trj.points[2].pos.v[1] + 50.0;
+
+	        (* pt[3]: return to posCpBase -- per-point override: 20 mm corner *)
+	        trj.points[3].sequenceNum := 4;  trj.points[3].timeOffsetMs := 0;
+	        trj.points[3].isBreakPoint := FALSE; trj.points[3].hasBlendingOverride := TRUE;
+	        trj.points[3].blendingMode := 20.0;
+	        trj.points[3].bufferMode := SM3_Basic.MC_BUFFER_MODE.blendingPrevious;
+	        trj.points[3].transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+	        trj.points[3].pos := posCpBase;
+
+	        trjIdx := 0;
+	        step := 82; cycles := 0;
+
+	    (*
+	     * 82 : Trajectory following loop.
+	     *
+	     * On entry (cycles = 1): blending params are applied and the move is dispatched.
+	     * On commandExecuted: grp.cmd := Idle triggers cmd <> oldCmd in AxisGroup FSM
+	     *   (CheckLinearAbsoluteState → Standby), which clears commandExecuted.
+	     *   step := 82 + cycles := 0 re-enters the loop for the next waypoint.
+	     * When trjIdx >= trj.pointCount: all waypoints visited, advance to GroupHalt test.
+	     *)
+	    82 :
+	        IF trjIdx >= trj.pointCount THEN
+	            pass[17] := TRUE; step := 7; cycles := 0;
+	        ELSIF cycles = 1 THEN
+	            IF trj.points[trjIdx].isBreakPoint THEN
+	                grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	                grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	                grp.transitionParameter := 0.0;
+	            ELSIF trj.points[trjIdx].hasBlendingOverride THEN
+	                grp.bufferMode := trj.points[trjIdx].bufferMode;
+	                grp.transitionMode := trj.points[trjIdx].transitionMode;
+	                grp.transitionParameter := trj.points[trjIdx].blendingMode;
+	            ELSE
+	                grp.bufferMode := trj.bufferMode;
+	                grp.transitionMode := trj.transitionMode;
+	                grp.transitionParameter := trj.blendingMode;
+	            END_IF;
+	            grp.velocity := trj.velocity;
+	            grp.acceleration := trj.acceleration;
+	            grp.deceleration := trj.deceleration;
+	            grp.jerk := trj.jerk;
+	            grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	            grp.endPoint := trj.points[trjIdx].pos;
+	            grp.coordinateSystem := trj.coordSystem;
+	        ELSIF grp.commandExecuted THEN
+	            trjIdx := trjIdx + 1;
+	            grp.cmd := AxisGroupCmd.Idle; (* change cmd → AxisGroup FSM exits CheckLinearAbsoluteState *)
+	            step := 82; cycles := 0;
 	        END_IF;
 
 	    (*
@@ -758,4 +895,5 @@ PROGRAM AxisGroupTestSuite
 	grpError := grp.groupError;
 	grpErrorId := grp.groupErrorId;
 	grpNotInit := grp.groupNotInitialized;
-	END_PROGRAM
+
+END_PROGRAM

@@ -197,4 +197,13 @@ VAR_GLOBAL CONSTANT
 	deviceConfigStoragePath : STRING := '';
 	ACTUATOR_GROUP_MAX_SIZE : UINT := 8;
     AXIS_IN_VELOCITY_TOLERANCE : LREAL := 0.02;
+
+	(* ========== Motion ========== *)
+
+	(*
+	 * Maximum number of waypoints in a single Trajectory struct.
+	 * Each point holds one SMC_POS_REF (6 LREAL = 48 bytes) plus metadata.
+	 * Increase if longer trajectories are needed.
+	 *)
+	TRAJECTORY_POINT_LIST_MAX_SIZE : DINT := 64;
 END_VAR
