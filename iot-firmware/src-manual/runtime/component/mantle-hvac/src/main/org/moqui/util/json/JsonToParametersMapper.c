@@ -83,6 +83,35 @@ void JsonToParametersMapper_Apply(const char *key, const char *value,
     /* Unknown key: silently ignored (non-blocking, as per ST specification). */
 }
 
+/*
+ * 6-DOF robot arm trajectory mapping (moqui-device export#Trajectory)
+ *
+ * JSON payload shape (MQTT topic e.g. moqui/robot/arm1/trajectory):
+ *   { "approximatedFunctionId": "100051", "waypointCount": 10,
+ *     "axes": { "J1": [θ0,θ1,...,θ9], "J2": [...], ..., "J6": [...] } }
+ *
+ * The "axes" value is a nested object; each axis value is a float array.
+ * ParseAndApply() below handles FLAT objects only and cannot parse this.
+ * A dedicated JsonToParametersMapper_ParseAndApply_Trajectory() would be needed
+ * that detects the opening '[' after "J1":"J6" keys and iterates the array,
+ * e.g.:
+ *
+ *   if (strcmp(key, "J1") == 0 && value[0] == '[') {
+ *       size_t idx = 0;
+ *       const char *p = value + 1;
+ *       while (*p && *p != ']' && idx < TRAJECTORY_POINT_LIST_MAX_SIZE) {
+ *           dev->trajectory.points[idx].pos.x = strtof(p, (char **)&p);
+ *           while (*p == ',' || *p == ' ') p++;
+ *           idx++;
+ *       }
+ *       dev->trajectory.pointCount = (int32_t)idx;
+ *   }
+ *   // J2→pos.y, J3→pos.z, J4→pos.a, J5→pos.b, J6→pos.c
+ *
+ * The MapDesc descriptor table (s_mappings[]) applies to scalar fields only
+ * and is not extended for array types.
+ */
+
 /* -----------------------------------------------------------------------
  * Minimal JSON scanner — flat object {"k":v, "k":v, ...}
  * Handles: numeric scalars, booleans (true/false), quoted strings.
