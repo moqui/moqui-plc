@@ -1,0 +1,26 @@
+device_configs:
+  - device_config_id: CFG_LAMP_01_PRODUCTION
+    config_name: Lamp production profile
+    config_type_enum_id: DctApplyConfig
+    purpose_enum_id: DcpRunConfig
+    device_type_enum_id: DtMoquiPlcActuator
+    parameters:
+      - parameter_id: CFGP_LAMP_01_ENABLE
+        parameter_def_id: PD_LAMP_01_ENABLE_REQUEST
+        parameter_alias: LAMP_ENABLE
+        sequence_num: 10
+        symbolic_value: "true"
+device_rule_sets:
+  - device_rule_set_id: DRS_UV_LINE_PRODUCTION
+    root_device_id: DG_SS_MAIN
+    purpose_enum_id: DrspConfiguration
+    sequence_num: 10
+    rule_set_name: UV line production configuration
+    rules:
+      - device_rule_id: DR_UV_LINE_LAMP_010
+        device_config_id: CFG_LAMP_01_PRODUCTION
+        target_device_id: LAMP_01
+        rule_type_enum_id: DrtApplyConfig
+        rule_name: Apply lamp production profile
+        priority: 10
+        run_device: false

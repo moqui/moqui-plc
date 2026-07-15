@@ -384,6 +384,38 @@ def validate_generated_enum_references(root: ET.Element, enum_ids: set[str]) -> 
         )
 
 
+def validate_generated_model_references(root: ET.Element) -> None:
+    by_tag: dict[str, list[ET.Element]] = {}
+    for element in root:
+        if not isinstance(element.tag, str):
+            continue
+        by_tag.setdefault(local_name(element.tag), []).append(element)
+    device_ids = {row.get("deviceId") for row in by_tag.get("Device", [])}
+    config_ids = {row.get("deviceConfigId") for row in by_tag.get("DeviceConfig", [])}
+    rule_set_ids = {row.get("deviceRuleSetId") for row in by_tag.get("DeviceRuleSet", [])}
+    parameter_def_ids = {row.get("parameterDefId") for row in by_tag.get("ParameterDef", [])}
+    device_types = {row.get("deviceId"): row.get("deviceTypeEnumId") for row in by_tag.get("Device", [])}
+    config_types = {row.get("deviceConfigId"): row.get("deviceTypeEnumId") for row in by_tag.get("DeviceConfig", [])}
+    errors: list[str] = []
+    for row in by_tag.get("DeviceGroupMember", []):
+        if row.get("deviceId") not in device_ids or row.get("memberDeviceId") not in device_ids:
+            errors.append(f"DeviceGroupMember {row.get('deviceId')} -> {row.get('memberDeviceId')} has an unknown Device.")
+    for row in by_tag.get("Parameter", []):
+        if row.get("deviceConfigId") and row.get("parameterDefId") not in parameter_def_ids:
+            errors.append(f"Config parameter {row.get('parameterId')} references unknown ParameterDef {row.get('parameterDefId')}.")
+    for row in by_tag.get("DeviceRule", []):
+        config_id, device_id = row.get("deviceConfigId"), row.get("deviceId")
+        if config_id not in config_ids or row.get("deviceRuleSetId") not in rule_set_ids:
+            errors.append(f"DeviceRule {row.get('deviceRuleId')} has an unknown config or rule set.")
+        elif device_types.get(device_id) != config_types.get(config_id):
+            errors.append(
+                f"DeviceRule {row.get('deviceRuleId')} type mismatch: target {device_id} is {device_types.get(device_id)}, "
+                f"config {config_id} is {config_types.get(config_id)}."
+            )
+    if errors:
+        raise SystemExit("Generated seed model validation failed:\n- " + "\n- ".join(errors))
+
+
 def indent(elem: ET.Element, level: int = 0) -> None:
     i = "\n" + level * "    "
     if len(elem):
@@ -472,6 +504,11 @@ def gateway_by_id(model: dict, gateway_device_id: str) -> dict:
     return matches[0]
 
 
+def controller_for_domain(model: dict, domain_id: str, fallback: str) -> str:
+    domain = next((row for row in model["domains"] if row["domain_id"] == domain_id), None)
+    return domain["controller_device_id"] if domain and domain.get("controller_device_id") else fallback
+
+
 def append_gateway_dispatch_wrapper(
     root: ET.Element,
     model: dict,
@@ -541,58 +578,29 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
     fsm_by_subsystem = append_statusflow_seed(root, model.get("fsm_model", {}))
 
     project_scope = model["project_scope"]
-    add_elem(
-        root,
-        "moqui.device.Device",
-        deviceId=root_device_id,
-        deviceTypeEnumId="DtPLC",
-        purposeEnumId="DepProcessControl",
-        statusFlowId="DeviceBasicStatusFlow",
-        statusId="DbsStandstill",
-        description=project_scope.get("process_description", "") or project_scope.get("control_objective", ""),
-        location=project_scope.get("safety_scope", ""),
-    )
-    add_elem(
-        root,
-        "moqui.device.PhysicalDevice",
-        deviceId=root_device_id,
-        deviceName=project_scope.get("machine_name", root_device_id) or root_device_id,
-        softwareApplication="agent-skills survey-derived seed draft",
-    )
+    group_ids = {row["group_device_id"] for row in model["device_groups"] if row["group_device_id"]}
+    for group in model["device_groups"]:
+        if not group["group_device_id"]:
+            continue
+        owner_subsystem = next((row for row in model["system_tree"]
+            if subsystem_group_device_id(row["subsystem_id"]) == group["group_device_id"]), None)
+        owner_fsm = fsm_by_subsystem.get(owner_subsystem["subsystem_id"]) if owner_subsystem else None
+        initial_status_id = next((state["status_id"] for state in owner_fsm["states"] if state["initial"]), "") if owner_fsm else ""
+        add_elem(root, "moqui.device.Device", deviceId=group["group_device_id"],
+            parentDeviceId=group["parent_device_id"], deviceTypeEnumId=group["device_type_enum_id"],
+            purposeEnumId=group["purpose_enum_id"], statusFlowId=owner_fsm["status_flow_id"] if owner_fsm else "",
+            statusId=initial_status_id, description=group["notes"])
+        add_elem(root, "moqui.device.DeviceGroup", deviceId=group["group_device_id"], groupName=group["group_name"])
 
-    subsystem_rows = {row["subsystem_id"]: row for row in model["system_tree"]}
-
-    # Represent each subsystem as a logical Device + DeviceGroup so the seed
-    # can model system/subsystem boundaries explicitly before FSM generation.
-    for subsystem in model["system_tree"]:
-        subsystem_id = subsystem["subsystem_id"]
-        group_device_id = subsystem_group_device_id(subsystem_id)
-        parent_subsystem_id = subsystem.get("parent_subsystem_id", "")
-        parent_group_device_id = (
-            subsystem_group_device_id(parent_subsystem_id) if parent_subsystem_id else root_device_id
-        )
-        description = subsystem.get("notes", "") or subsystem.get("control_responsibility", "")
-        owner_fsm = fsm_by_subsystem.get(subsystem_id)
-        initial_status_id = ""
-        if owner_fsm:
-            initial_status_id = next(state["status_id"] for state in owner_fsm["states"] if state["initial"])
-        add_elem(
-            root,
-            "moqui.device.Device",
-            deviceId=group_device_id,
-            parentDeviceId=parent_group_device_id,
-            deviceTypeEnumId=SUBSYSTEM_GROUP_DEVICE_TYPE,
-            purposeEnumId="DepProcessControl",
-            statusFlowId=owner_fsm["status_flow_id"] if owner_fsm else "",
-            statusId=initial_status_id,
-            description=description or f"Survey-derived subsystem group for {subsystem['subsystem_name']}.",
-        )
-        add_elem(
-            root,
-            "moqui.device.DeviceGroup",
-            deviceId=group_device_id,
-            groupName=subsystem["subsystem_name"],
-        )
+    for controller in model["controllers"]:
+        if not controller["controller_device_id"]:
+            continue
+        add_elem(root, "moqui.device.Device", deviceId=controller["controller_device_id"],
+            parentDeviceId=controller["parent_device_id"], deviceTypeEnumId=controller["device_type_enum_id"],
+            purposeEnumId="DepProcessControl", statusFlowId="DeviceBasicStatusFlow", statusId="DbsStandstill",
+            description=controller["notes"] or f"{controller['controller_kind']} control runtime.")
+        add_elem(root, "moqui.device.PhysicalDevice", deviceId=controller["controller_device_id"],
+            deviceName=controller["controller_name"], softwareApplication=controller["application_id"] or controller["controller_kind"])
 
     for device in model["devices"]:
         control_method = default_control_method_for_device(device, atomic_library)
@@ -600,7 +608,8 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             root,
             "moqui.device.Device",
             deviceId=device["device_id"],
-            parentDeviceId=subsystem_group_device_id(device["parent_subsystem_id"]),
+            parentDeviceId=(subsystem_group_device_id(device["parent_subsystem_id"])
+                            if subsystem_group_device_id(device["parent_subsystem_id"]) in group_ids else ""),
             deviceTypeEnumId=device_type_for_logical_model(device["logical_model"]),
             purposeEnumId="DepProcessControl",
             controlMethodEnumId=control_method,
@@ -612,11 +621,6 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             deviceId=device["device_id"],
             deviceName=device.get("physical_device_name", "") or device["device_id"],
         )
-
-    subsystem_id_by_device_id = {
-        device["device_id"]: device["parent_subsystem_id"]
-        for device in model["devices"]
-    }
 
     for gateway in model.get("gateways", []):
         if not _gateway_row_is_meaningful(gateway):
@@ -640,11 +644,14 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
     for transport in model.get("gateway_transports", []):
         if not _gateway_transport_row_is_meaningful(transport) or transport["protocol"] != "opcua":
             continue
+        target_controller_id = controller_for_domain(
+            model, transport["scoped_domain_ids"][0] if transport["scoped_domain_ids"] else "", root_device_id
+        )
         add_elem(
             root,
             "moqui.device.DeviceConnection",
             connectionName=transport["connection_name"],
-            deviceId=root_device_id,
+            deviceId=target_controller_id,
             connectionTypeEnumId="DctDirectConnection",
             purposeEnumId="DcpOperations",
             driverEnumId=transport["driver_enum_id"] or "DcdOpcUa",
@@ -657,11 +664,14 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
     for connection in model.get("plc4j_connections", []):
         if not _plc4j_connection_row_is_meaningful(connection):
             continue
+        target_controller_id = controller_for_domain(
+            model, connection["scoped_domain_ids"][0] if connection["scoped_domain_ids"] else "", root_device_id
+        )
         add_elem(
             root,
             "moqui.device.DeviceConnection",
             connectionName=connection["connection_name"],
-            deviceId=root_device_id,
+            deviceId=target_controller_id,
             driverEnumId=connection["driver_enum_id"],
             transportEnumId=connection["transport_enum_id"],
             transportConfig=connection["transport_config"],
@@ -669,78 +679,13 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             description=connection.get("notes", ""),
         )
 
-    # DeviceGroupMember rows mirror the system decomposition:
-    # - child subsystem groups belong to their parent subsystem group
-    # - elementary devices belong to the subsystem group that owns them
-    for subsystem in model["system_tree"]:
-        subsystem_id = subsystem["subsystem_id"]
-        group_device_id = subsystem_group_device_id(subsystem_id)
-
-        child_subsystems = [
-            row for row in model["system_tree"] if row.get("parent_subsystem_id", "") == subsystem_id
-        ]
-        member_sequence = 1
-        for child in child_subsystems:
-            add_elem(
-                root,
-                "moqui.device.DeviceGroupMember",
-                deviceId=group_device_id,
-                memberDeviceId=subsystem_group_device_id(child["subsystem_id"]),
-                purposeEnumId=DEFAULT_SUBSYSTEM_MEMBER_PURPOSE_ENUM_ID,
-                sequenceNum=str(member_sequence),
-                description=f"Subsystem member {child['subsystem_name']}",
-            )
-            member_sequence += 1
-
-        child_devices = [
-            row for row in model["devices"] if row.get("parent_subsystem_id", "") == subsystem_id
-        ]
-        for child_device in child_devices:
-            add_elem(
-                root,
-                "moqui.device.DeviceGroupMember",
-                deviceId=group_device_id,
-                memberDeviceId=child_device["device_id"],
-                purposeEnumId=DEFAULT_CONTROLLED_DEVICE_MEMBER_PURPOSE_ENUM_ID,
-                sequenceNum=str(member_sequence),
-                description=f"Elementary device {child_device['device_id']}",
-            )
-            member_sequence += 1
-
-        add_elem(
-            root,
-            "moqui.device.DeviceGroupMember",
-            deviceId=group_device_id,
-            memberDeviceId=root_device_id,
-            purposeEnumId=DEFAULT_PROCESS_PLC_MEMBER_PURPOSE_ENUM_ID,
-            sequenceNum=str(member_sequence),
-            description=f"Root PLC {root_device_id}",
-        )
-        member_sequence += 1
-
-        gateway_members = []
-        for gateway in model.get("gateways", []):
-            if not _gateway_row_is_meaningful(gateway):
-                continue
-            scoped_subsystems = set(gateway["scoped_subsystem_ids"])
-            scoped_devices = set(gateway["scoped_device_ids"])
-            if subsystem_id in scoped_subsystems:
-                gateway_members.append(gateway)
-                continue
-            if any(subsystem_id_by_device_id.get(device_id, "") == subsystem_id for device_id in scoped_devices):
-                gateway_members.append(gateway)
-
-        for gateway in gateway_members:
-            add_elem(
-                root,
-                "moqui.device.DeviceGroupMember",
-                deviceId=group_device_id,
-                memberDeviceId=gateway["gateway_device_id"],
-                purposeEnumId=gateway.get("gateway_member_purpose_enum_id", "") or "DgmpEdgeGateway",
-                sequenceNum=str(member_sequence),
-                description=gateway.get("notes", "") or f"Edge gateway {gateway['gateway_device_id']}",
-            )
-            member_sequence += 1
+    # Membership is a developer-approved engineering decision and is never inferred.
+    for member in model["device_group_members"]:
+        if not member["group_device_id"]:
+            continue
+        add_elem(root, "moqui.device.DeviceGroupMember", deviceId=member["group_device_id"],
+            memberDeviceId=member["member_device_id"], purposeEnumId=member["purpose_enum_id"],
+            sequenceNum=member["sequence_num"], description=member["notes"])
 
     existing_parameter_ids: set[str] = set()
 
@@ -800,6 +745,38 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
         )
         existing_parameter_ids.add(parameter_id)
 
+    # DeviceConfig is atomic. Multi-device recipes are composed only by ordered rules.
+    for config in model["device_configs"]:
+        if not config["device_config_id"]:
+            continue
+        add_elem(root, "moqui.device.DeviceConfig", deviceConfigId=config["device_config_id"],
+            parentConfigId=config["parent_config_id"], configTypeEnumId=config["config_type_enum_id"],
+            purposeEnumId=config["purpose_enum_id"], deviceTypeEnumId=config["device_type_enum_id"],
+            configName=config["config_name"], description=config["notes"],
+            controlMethodEnumId=config["control_method_enum_id"], approximatedFunctionId=config["approximated_function_id"])
+        for parameter in config["parameters"]:
+            add_elem(root, "moqui.math.Parameter", parameterId=parameter["parameter_id"],
+                deviceConfigId=config["device_config_id"], parameterDefId=parameter["parameter_def_id"],
+                parameterAlias=parameter["parameter_alias"], sequenceNum=parameter["sequence_num"],
+                numericValue=parameter["numeric_value"], symbolicValue=parameter["symbolic_value"],
+                parameterEnumId=parameter["parameter_enum_id"])
+
+    for rule_set in model["device_rule_sets"]:
+        if not rule_set["device_rule_set_id"]:
+            continue
+        add_elem(root, "moqui.device.DeviceRuleSet", deviceRuleSetId=rule_set["device_rule_set_id"],
+            parentRuleSetId=rule_set["parent_rule_set_id"], purposeEnumId=rule_set["purpose_enum_id"],
+            deviceId=rule_set["root_device_id"], sequenceNum=rule_set["sequence_num"],
+            ruleSetName=rule_set["rule_set_name"], description=rule_set["notes"])
+        for rule in sorted(rule_set["rules"], key=lambda row: int(row["priority"])):
+            add_elem(root, "moqui.device.DeviceRule", deviceRuleId=rule["device_rule_id"],
+                parentRuleId=rule["parent_rule_id"], deviceRuleSetId=rule_set["device_rule_set_id"],
+                deviceConfigId=rule["device_config_id"], deviceId=rule["target_device_id"],
+                ruleTypeEnumId=rule["rule_type_enum_id"], ruleName=rule["rule_name"],
+                priority=rule["priority"], serviceName=rule["service_name"],
+                statusId=rule["status_id"], statusFlowId=rule["status_flow_id"],
+                isEnabled="Y", runDevice="Y" if rule["run_device"] else "N", description=rule["notes"])
+
     signals_by_id = {signal["signal_id"]: signal for signal in model["signals"]}
     domain_rows = model["domains"] or []
     if not domain_rows:
@@ -818,6 +795,7 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
 
     for domain in domain_rows:
         domain_id = normalize_identifier(domain["domain_id"])
+        controller_device_id = domain.get("controller_device_id") or root_device_id
         polling_interval = parse_iec_time_to_ms(domain["scan_time"])
         domain_signals = [signals_by_id[signal_id] for signal_id in domain["signals"] if signal_id in signals_by_id]
         input_signals = [signal for signal in domain_signals if signal["direction"].lower() == "input"]
@@ -833,13 +811,13 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
 
             if input_signals:
                 request_name = request_name_for_transport(
-                    f"{root_device_id}_{domain_id}_InputsRead",
+                    f"{controller_device_id}_{domain_id}_InputsRead",
                     transport_tag,
                     transport_count,
                 )
                 request_attrs = {
                     "requestName": request_name,
-                    "deviceId": root_device_id,
+                    "deviceId": controller_device_id,
                     "requestTypeEnumId": "DrtCyclic",
                     "purposeEnumId": "DrpMonitoring",
                     "routerEnumId": router_enum_id,
@@ -881,13 +859,13 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
 
             if output_signals:
                 request_name = request_name_for_transport(
-                    f"{root_device_id}_{domain_id}_OutputsWrite",
+                    f"{controller_device_id}_{domain_id}_OutputsWrite",
                     transport_tag,
                     transport_count,
                 )
                 request_attrs = {
                     "requestName": request_name,
-                    "deviceId": root_device_id,
+                    "deviceId": controller_device_id,
                     "requestTypeEnumId": "DrtWrite",
                     "purposeEnumId": "DrpControl",
                     "routerEnumId": router_enum_id,
@@ -999,14 +977,26 @@ def main() -> int:
     parser.add_argument("--root-device-id", help="Optional explicit root Device ID")
     parser.add_argument("--output", type=Path, help="Optional output path")
     parser.add_argument("--output-name", help="Output file name when writing into the session seed-data directory")
+    parser.add_argument("--draft", action="store_true", help="Render a review draft without approval gates")
     args = parser.parse_args()
 
     session_dir = args.session_dir.resolve()
     validate_upstream_surveys(session_dir)
     model = load_upstream_survey_model(session_dir)
     model["fsm_model"] = validate_fsm_surveys(session_dir, model)
-    root_device_id = args.root_device_id or infer_root_device_id(model, session_dir)
+    if not args.draft:
+        required = ("device_model_approved", "device_groups_approved", "seed_generation_approved")
+        missing = [name for name in required if not model["approvals"].get(name)]
+        if missing:
+            raise SystemExit("Final seed generation requires approvals: " + ", ".join(missing))
+        if not model["approvals"].get("approved_by") or not model["approvals"].get("approved_at"):
+            raise SystemExit("Final seed generation requires approved_by and approved_at provenance.")
+    root_device_id = args.root_device_id or next(
+        (row["controller_device_id"] for row in model["controllers"] if row["controller_device_id"]),
+        infer_root_device_id(model, session_dir),
+    )
     xml_root = render_seed(model, root_device_id)
+    validate_generated_model_references(xml_root)
     validate_generated_enum_references(
         xml_root,
         load_enum_ids(

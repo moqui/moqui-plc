@@ -33,6 +33,83 @@ DIRS = [
 
 
 STANDARD_SURVEY_FILES = {
+    "controller-topology-survey.yaml": """# One PhysicalDevice per hardware CPU or CODESYS Application.
+machine_device_id: ""
+controllers:
+  - controller_device_id: ""
+    controller_name: ""
+    controller_kind: ""
+    application_id: ""
+    device_type_enum_id: "DtPLC"
+    parent_device_id: ""
+    notes: ""
+""",
+    "device-groups-survey.yaml": """# Explicit group model decided by the PLC developer; no groups are inferred.
+device_groups:
+  - group_device_id: ""
+    group_name: ""
+    parent_device_id: ""
+    device_type_enum_id: "DgtControl"
+    purpose_enum_id: "DepProcessControl"
+    notes: ""
+device_group_members:
+  - group_device_id: ""
+    member_device_id: ""
+    purpose_enum_id: ""
+    sequence_num: 10
+    notes: ""
+""",
+    "device-config-survey.yaml": """# Atomic configurations composed by ordered DeviceRuleSet/DeviceRule rows.
+device_configs:
+  - device_config_id: ""
+    parent_config_id: ""
+    config_name: ""
+    config_type_enum_id: "DctApplyConfig"
+    purpose_enum_id: "DcpRunConfig"
+    device_type_enum_id: ""
+    control_method_enum_id: ""
+    approximated_function_id: ""
+    parameters:
+      - parameter_id: ""
+        parameter_def_id: ""
+        parameter_alias: ""
+        sequence_num: 10
+        numeric_value: ""
+        symbolic_value: ""
+        parameter_enum_id: ""
+    notes: ""
+device_rule_sets:
+  - device_rule_set_id: ""
+    parent_rule_set_id: ""
+    root_device_id: ""
+    purpose_enum_id: "DrspConfiguration"
+    sequence_num: 10
+    rule_set_name: ""
+    rules:
+      - device_rule_id: ""
+        parent_rule_id: ""
+        device_config_id: ""
+        target_device_id: ""
+        rule_type_enum_id: "DrtApplyConfig"
+        rule_name: ""
+        priority: 10
+        run_device: false
+        service_name: ""
+        status_id: ""
+        status_flow_id: ""
+        notes: ""
+    notes: ""
+""",
+    "approval-survey.yaml": """# Human approval provenance. Final artifacts are blocked until approved.
+approvals:
+  device_model_approved: false
+  device_groups_approved: false
+  seed_generation_approved: false
+  hivemind_project_approved: false
+  approved_by: ""
+  approved_at: ""
+  notes: ""
+""",
     "system-decomposition-survey.yaml": """# System decomposition survey
 project_scope:
   machine_name: ""
@@ -86,6 +163,7 @@ signals:
     "sampling-domains-survey.yaml": """# Sampling domains survey
 domains:
   - domain_id: ""
+    controller_device_id: ""
     domain_name: ""
     natural_frequency_class: ""
     scan_time: ""
@@ -251,6 +329,10 @@ def build_session(session_id: str, project_name: str, customer_name: str) -> dic
             "attachments": [],
             "surveys": [
                 "survey-answers/system-decomposition-survey.yaml",
+                "survey-answers/controller-topology-survey.yaml",
+                "survey-answers/device-groups-survey.yaml",
+                "survey-answers/device-config-survey.yaml",
+                "survey-answers/approval-survey.yaml",
                 "survey-answers/elementary-device-classification-survey.yaml",
                 "survey-answers/signal-catalog-survey.yaml",
                 "survey-answers/sampling-domains-survey.yaml",

@@ -1,0 +1,14 @@
+device_groups:
+  - group_device_id: DG_SS_CURE
+    group_name: Cure Cell
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+device_group_members:
+  - group_device_id: DG_SS_CURE
+    member_device_id: UV_DIRECT_PLC
+    purpose_enum_id: DgmpProcessPLC
+    sequence_num: 10
+  - group_device_id: DG_SS_CURE
+    member_device_id: UV_LAMP_01
+    purpose_enum_id: DgmpControlledDevice
+    sequence_num: 20

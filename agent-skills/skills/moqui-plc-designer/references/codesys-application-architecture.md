@@ -5,6 +5,11 @@ CODESYS permits multiple uniquely named Application objects below one PLC device
 each Application contains its own POUs, libraries, global variables and Task
 Configuration.
 
+In the Moqui model each Application is a distinct `Device` plus
+`PhysicalDevice`, analogous to a separate CPU in a hardware PLC rack. A rack or
+project may therefore contain several controller PhysicalDevices. Sampling
+domains and gateway requests must identify the owning controller explicitly.
+
 For every generated Application:
 
 - include one dedicated copy of `iec61131/moqui/framework`;

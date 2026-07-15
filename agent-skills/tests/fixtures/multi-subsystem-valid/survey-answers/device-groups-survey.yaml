@@ -1,0 +1,37 @@
+device_groups:
+  - group_device_id: DG_CURE_CELL
+    group_name: Cure Cell
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+  - group_device_id: DG_SS_TRANSPORT
+    group_name: Transport
+    parent_device_id: DG_CURE_CELL
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+  - group_device_id: DG_SS_CURE
+    group_name: Cure
+    parent_device_id: DG_CURE_CELL
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+  - group_device_id: DG_SS_CURE_LAMPS
+    group_name: Cure Lamps
+    parent_device_id: DG_SS_CURE
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+  - group_device_id: DG_SS_CURE_MONITOR
+    group_name: Cure Monitor
+    parent_device_id: DG_SS_CURE
+    device_type_enum_id: DgtControl
+    purpose_enum_id: DepProcessControl
+device_group_members:
+  - {group_device_id: DG_CURE_CELL, member_device_id: DG_SS_TRANSPORT, purpose_enum_id: DgmpSubsystem, sequence_num: 10}
+  - {group_device_id: DG_CURE_CELL, member_device_id: DG_SS_CURE, purpose_enum_id: DgmpSubsystem, sequence_num: 20}
+  - {group_device_id: DG_SS_TRANSPORT, member_device_id: TRANSPORT_PLC, purpose_enum_id: DgmpProcessPLC, sequence_num: 10}
+  - {group_device_id: DG_SS_TRANSPORT, member_device_id: CONVEYOR_MOTOR, purpose_enum_id: DgmpControlledDevice, sequence_num: 20}
+  - {group_device_id: DG_SS_CURE, member_device_id: DG_SS_CURE_LAMPS, purpose_enum_id: DgmpSubsystem, sequence_num: 10}
+  - {group_device_id: DG_SS_CURE, member_device_id: DG_SS_CURE_MONITOR, purpose_enum_id: DgmpSubsystem, sequence_num: 20}
+  - {group_device_id: DG_SS_CURE, member_device_id: CURE_CELL_PLC, purpose_enum_id: DgmpProcessPLC, sequence_num: 30}
+  - {group_device_id: DG_SS_CURE, member_device_id: GW_EDGE_CURE_01, purpose_enum_id: DgmpEdgeGateway, sequence_num: 40}
+  - {group_device_id: DG_SS_CURE, member_device_id: CONVEYOR_MOTOR, purpose_enum_id: DgmpControlledDevice, sequence_num: 50}
+  - {group_device_id: DG_SS_CURE, member_device_id: UV_LAMP_BANK, purpose_enum_id: DgmpControlledDevice, sequence_num: 60}
+  - {group_device_id: DG_SS_CURE_LAMPS, member_device_id: UV_LAMP_BANK, purpose_enum_id: DgmpControlledDevice, sequence_num: 10}

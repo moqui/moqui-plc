@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 import json
+import csv
 from pathlib import Path
 
 
@@ -113,6 +114,7 @@ class SkillRegressionTest(unittest.TestCase):
         seed_text = seed_path.read_text(encoding="utf-8")
         guide_text = guide_path.read_text(encoding="utf-8")
         self.assertIn('deviceTypeEnumId="DtEdgeGateway"', seed_text)
+        self.assertIn('deviceId="UV_LINE_PLC" deviceName="UV Line CODESYS Application" softwareApplication="UvApplication"', seed_text)
         self.assertIn('purposeEnumId="DgmpProcessPLC"', seed_text)
         self.assertIn('parameterDefId="PD_LAMP_01_ENABLE_REQUEST"', seed_text)
         self.assertIn('parameterId="P_LAMP_01_ENABLE_REQUEST"', seed_text)
@@ -125,6 +127,9 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn('query="UV_LINE_PLC_FAST_OutputsWrite"', seed_text)
         self.assertIn('query="moqui-plc"', seed_text)
         self.assertIn('query="moqui/parameters/live"', seed_text)
+        self.assertIn('deviceConfigId="CFG_LAMP_01_PRODUCTION"', seed_text)
+        self.assertIn('deviceRuleSetId="DRS_UV_LINE_PRODUCTION"', seed_text)
+        self.assertIn('deviceRuleId="DR_UV_LINE_LAMP_010"', seed_text)
         self.assertIn("UV_LINE_PLC_FAST_OutputsWrite", guide_text)
         self.assertIn("GW_EDGE_01", guide_text)
         self.assertIn("PLC log request", guide_text)
@@ -315,6 +320,51 @@ plc4j_projection:
         self.assertIn("TransportFsm", dossier_text)
         self.assertIn("Prove FAT/SAT", dossier_text)
         self.assertIn('workEffortId="PLC_CURE_CELL"', wiki_seed)
+        self.assertIn('workEffortTypeEnumId="WetProject"', wiki_seed)
+        self.assertIn('workEffortTypeEnumId="WetMilestone"', wiki_seed)
+        self.assertIn('workEffortTypeEnumId="WetTask"', wiki_seed)
+        self.assertEqual(wiki_seed.count('workEffortAssocTypeEnumId="WeatMilestone"'), 8)
+
+    def test_final_seed_requires_explicit_approvals_but_draft_is_available(self) -> None:
+        session_dir = self.init_session_from_fixture("gateway-valid")
+        approval_path = session_dir / "survey-answers" / "approval-survey.yaml"
+        approval_path.write_text(approval_path.read_text(encoding="utf-8").replace(
+            "seed_generation_approved: true", "seed_generation_approved: false"
+        ), encoding="utf-8")
+        result = run_fail(PYTHON, "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+                          "--session-dir", str(session_dir))
+        self.assertIn("seed_generation_approved", result.stderr)
+        run_ok(PYTHON, "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+               "--session-dir", str(session_dir), "--draft")
+
+    def test_eplan_extractor_preserves_source_rows_without_classifying_devices(self) -> None:
+        tmp_root = Path(tempfile.mkdtemp(prefix="eplan-extractor-test-"))
+        self.addCleanup(lambda: shutil.rmtree(tmp_root, ignore_errors=True))
+        csv_path = tmp_root / "panel.csv"
+        properties = [""] * 267
+        properties[167] = "P_INSTANCE_PAGEFULLNAME"
+        properties[184] = "P_FUNC_DEVICETAG_FULLNAME"
+        properties[261] = "P_ARTICLE_TYPENR"
+        properties[262] = "P_ARTICLE_ORDERNR"
+        properties[263] = "P_ARTICLE_DESCR1"
+        properties[264] = "P_ARTICLE_DESCR2"
+        properties[265] = "P_ARTICLE_DESCR3"
+        properties[266] = "P_ARTICLE_MANUFACTURER"
+        values = [""] * 267
+        values[167], values[184], values[262], values[266] = "=A/1", "=A+R1-K1", "6ES7-TEST", "SIE"
+        with csv_path.open("w", encoding="utf-16", newline="") as stream:
+            writer = csv.writer(stream, delimiter=";")
+            writer.writerow(["device/part"] * 267)
+            writer.writerow(properties)
+            writer.writerow(values)
+        output_dir = tmp_root / "review"
+        run_ok(PYTHON, "skills/moqui-plant-designer/scripts/analyze_eplan_sources.py",
+               "--csv", str(csv_path), "--output-dir", str(output_dir))
+        payload = json.loads((output_dir / "eplan-review-candidates.json").read_text(encoding="utf-8"))
+        self.assertFalse(payload["authoritative"])
+        self.assertEqual(payload["candidates"][0]["source_row"], 3)
+        self.assertEqual(payload["candidates"][0]["device_tag"], "=A+R1-K1")
+        self.assertEqual(payload["candidates"][0]["proposed_device_class"], "")
 
     def test_plc4j_valid_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("plc4j-valid")

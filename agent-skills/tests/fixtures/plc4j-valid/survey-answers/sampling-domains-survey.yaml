@@ -1,5 +1,6 @@
 domains:
   - domain_id: FAST_IO
+    controller_device_id: UV_DIRECT_PLC
     domain_name: Fast IO
     natural_frequency_class: fast
     scan_time: T#250ms

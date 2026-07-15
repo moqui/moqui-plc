@@ -109,15 +109,29 @@ for demos, manual validation, and automated test execution.
 
 The project is composed of the canonical IEC 61131-3 implementation and its derived platform-specific ports, alongside developer workflow utilities:
 
-- **[iec61131](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iec61131/moqui)**: The canonical source of truth for the PLC framework and runtime components, exported as a clean, vendor-neutral IEC 61131-3 reference tree.
-- **[simatic-ax](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/simatic-ax)**: The SIMATIC AX port, generated from the canonical `iec61131` tree with AX-specific overrides.
-- **[iot-firmware](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iot-firmware)**: The embedded ESP32/FreeRTOS port, compiled into binary outputs, also derived from the canonical `iec61131` tree.
-- **[agent-skills](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/agent-skills)**: A model-first, data-driven low-code/no-code solution for the industrial automation world. Starting from the [moqui-device](https://github.com/moqui/moqui-device) and [moqui-math](https://github.com/moqui/moqui-math) data models, it encapsulates skills, templates, and scripts to automate repetitive system-engineering decomposition, survey validation, Moqui XML seed rendering, and PLC artifact generation.
+- **[iec61131](iec61131/moqui)**: The canonical source of truth for the PLC framework and runtime components, exported as a clean, vendor-neutral IEC 61131-3 reference tree.
+- **[simatic-ax](simatic-ax)**: The SIMATIC AX port, generated from the canonical `iec61131` tree with AX-specific overrides.
+- **[iot-firmware](iot-firmware)**: The embedded ESP32/FreeRTOS port, compiled into binary outputs, also derived from the canonical `iec61131` tree.
+- **[agent-skills](agent-skills)**: A model-first, data-driven low-code/no-code solution for system decomposition, survey validation, Moqui XML seed rendering, HiveMind project setup, and reviewed PLC artifact generation.
 
 For details, requirements, and guides specific to each of these sub-projects, please refer to their respective documentation:
-- [simatic-ax README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/simatic-ax/README.md)
-- [iot-firmware README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/iot-firmware/README.md)
-- [agent-skills README](file:///home/igor/development/projects/moqui/tests/repositories/moqui-plc/agent-skills/README.md)
+- [simatic-ax README](simatic-ax/README.md)
+- [iot-firmware README](iot-firmware/README.md)
+- [agent-skills README](agent-skills/README.md)
+
+### Controller and application model
+
+Every hardware CPU and every CODESYS Application is modeled as a distinct
+Moqui `Device`/`PhysicalDevice`. A CODESYS project may contain multiple
+Applications, each with its own framework copy, runtime component, task
+configuration and manually configured device tree. FSMs inside one Application
+execute sequentially in the developer-approved invocation order.
+
+`DeviceConfig` is atomic. Multi-device configuration is composed by an ordered
+`DeviceRuleSet`/`DeviceRule` graph rooted at an explicitly modeled Device or
+DeviceGroup. DeviceGroup membership and approval are developer decisions; the
+agent validates and materializes them without inferring redundancy or safety
+behavior.
 
 ### Canonical Source of Truth
 

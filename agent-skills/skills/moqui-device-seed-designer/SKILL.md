@@ -13,16 +13,14 @@ Produce `entity-facade-xml` seed files for:
 
 - `Device`
 - `PhysicalDevice`
-- `DeviceGroup` when simple
-- `DeviceGroupMember` when simple
+- `DeviceGroup` from an explicit developer-approved survey
+- `DeviceGroupMember` from an explicit developer-approved survey
 - `ParameterDef`
 - `Parameter`
 - `DeviceConnection`
 - `DeviceRequest`
 - `DeviceRequestItem`
 - `DeviceConfig`
-- `DeviceConfigSet`
-- `DeviceConfigSetMember`
 - `DeviceRuleSet`
 - `DeviceRule`
 - `StatusType`
@@ -65,6 +63,9 @@ Useful helper scripts:
   - validates multi-FSM surveys and materializes StatusType/StatusItem/StatusFlow topology
   - assigns each FSM to its owning subsystem Device and preserves the physical device parent tree
   - generates executable gateway-side MQTT/OPC UA requests plus their Moqui-side REST dispatch wrappers
+  - emits one `PhysicalDevice` per hardware CPU or CODESYS Application
+  - requires explicit DeviceGroup membership and final approval gates (or `--draft`)
+  - composes atomic `DeviceConfig` records through ordered `DeviceRuleSet`/`DeviceRule` rows
 
 ## Validation Principle
 
@@ -100,8 +101,6 @@ The primary modelling effort belongs to:
 - `ParameterDef`
 - `Parameter`
 - `DeviceConfig`
-- `DeviceConfigSet`
-- `DeviceConfigSetMember`
 - `DeviceRuleSet`
 - `DeviceRule`
 
@@ -133,13 +132,11 @@ For recipe-oriented authoring, the workflow should explicitly cover:
 1. `DeviceConfig`
    - reusable config template for one `deviceTypeEnumId`
    - compatible with any `Device` of the same `deviceTypeEnumId`
-2. `DeviceConfigSet`
-   - reusable config-set template for one `DeviceGroup`
-   - a set of member `DeviceConfig` rows grouped through `DeviceConfigSetMember`
-3. `DeviceRuleSet`
-   - ordered sequence of `DeviceRule`
-4. `DeviceRule`
-   - binds one `DeviceConfig` to one specific logical `Device`
+2. `DeviceRuleSet`
+   - composition boundary rooted at one Device or DeviceGroup
+   - orders all atomic configuration operations by `DeviceRule.priority`
+3. `DeviceRule`
+   - binds one `DeviceConfig` to one target Device inside the root scope
    - compatibility rule:
      - `DeviceRule.deviceId` must point to a `Device` whose `deviceTypeEnumId`
        matches the `DeviceConfig.deviceTypeEnumId`
@@ -148,8 +145,8 @@ This means:
 
 - `DeviceConfig` is type-level
 - `DeviceRule` is instance-level
-- `DeviceConfigSet` is the group-level analogue of `DeviceConfig`
-- `DeviceRuleSet` sequences the actual application or validation rules
+- `DeviceRuleSet` is the only multi-device composition mechanism
+- each rule target must remain inside the root Device/DeviceGroup scope
 
 For atomic-device `DeviceConfig` templates, derive the field list from the
 underlying `moqui-plc` FB code:
@@ -192,7 +189,6 @@ underlying `moqui-plc` FB code:
 - `references/device-config-semantics.md`
 - `references/device-config-load-workflow.md`
 - `references/device-config-template.xml`
-- `references/device-config-set-template.xml`
 - `references/actuator-device-config-template.xml`
 - `references/actuator-group-device-config-template.xml`
 - `references/process-pid-device-config-template.xml`
@@ -204,3 +200,4 @@ underlying `moqui-plc` FB code:
 - `references/gateway-wrapper-request-seed-template.xml`
 - `references/framework-ec-seed-template.xml`
 - `references/framework-ec-requests.md`
+- `references/mqtt-live-parameter-contract.md`

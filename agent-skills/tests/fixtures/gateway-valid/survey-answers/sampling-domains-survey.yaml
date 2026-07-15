@@ -1,5 +1,6 @@
 domains:
   - domain_id: FAST
+    controller_device_id: UV_LINE_PLC
     domain_name: Fast
     natural_frequency_class: fast
     scan_time: T#100ms

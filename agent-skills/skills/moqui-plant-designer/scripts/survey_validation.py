@@ -212,6 +212,110 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         "transport-architecture-survey.yaml",
         "# Transport architecture survey\ntransport_architecture:\n  primary_transport_mode: \"\"\n",
     )
+    controller_doc = _load_yaml_document(session_dir, "controller-topology-survey.yaml")
+    groups_doc = _load_yaml_document(session_dir, "device-groups-survey.yaml")
+    config_doc = _load_yaml_document(session_dir, "device-config-survey.yaml")
+    approval_doc = _load_yaml_document(session_dir, "approval-survey.yaml")
+
+    controllers = []
+    for block in _as_list_of_dicts(controller_doc, "controllers", "controller-topology-survey.yaml"):
+        controllers.append({
+            "controller_device_id": _as_str(block.get("controller_device_id")),
+            "controller_name": _as_str(block.get("controller_name")),
+            "controller_kind": _as_str(block.get("controller_kind")).lower(),
+            "application_id": _as_str(block.get("application_id")),
+            "device_type_enum_id": _as_str(block.get("device_type_enum_id")) or "DtPLC",
+            "parent_device_id": _as_str(block.get("parent_device_id")),
+            "notes": _as_str(block.get("notes")),
+        })
+
+    device_groups = []
+    for block in _as_list_of_dicts(groups_doc, "device_groups", "device-groups-survey.yaml"):
+        device_groups.append({
+            "group_device_id": _as_str(block.get("group_device_id")),
+            "group_name": _as_str(block.get("group_name")),
+            "parent_device_id": _as_str(block.get("parent_device_id")),
+            "device_type_enum_id": _as_str(block.get("device_type_enum_id")) or "DgtControl",
+            "purpose_enum_id": _as_str(block.get("purpose_enum_id")) or "DepProcessControl",
+            "notes": _as_str(block.get("notes")),
+        })
+    device_group_members = []
+    for block in _as_list_of_dicts(groups_doc, "device_group_members", "device-groups-survey.yaml"):
+        device_group_members.append({
+            "group_device_id": _as_str(block.get("group_device_id")),
+            "member_device_id": _as_str(block.get("member_device_id")),
+            "purpose_enum_id": _as_str(block.get("purpose_enum_id")),
+            "sequence_num": _as_str(block.get("sequence_num")) or "10",
+            "notes": _as_str(block.get("notes")),
+        })
+
+    device_configs = []
+    for block in _as_list_of_dicts(config_doc, "device_configs", "device-config-survey.yaml"):
+        parameters = []
+        for row in block.get("parameters") or []:
+            if not isinstance(row, dict):
+                raise SystemExit("device-config-survey.yaml: parameters entries must be mappings.")
+            parameters.append({
+                "parameter_id": _as_str(row.get("parameter_id")),
+                "parameter_def_id": _as_str(row.get("parameter_def_id")),
+                "parameter_alias": _as_str(row.get("parameter_alias")),
+                "sequence_num": _as_str(row.get("sequence_num")) or "10",
+                "numeric_value": _as_str(row.get("numeric_value")),
+                "symbolic_value": _as_str(row.get("symbolic_value")),
+                "parameter_enum_id": _as_str(row.get("parameter_enum_id")),
+            })
+        device_configs.append({
+            "device_config_id": _as_str(block.get("device_config_id")),
+            "parent_config_id": _as_str(block.get("parent_config_id")),
+            "config_name": _as_str(block.get("config_name")),
+            "config_type_enum_id": _as_str(block.get("config_type_enum_id")) or "DctApplyConfig",
+            "purpose_enum_id": _as_str(block.get("purpose_enum_id")) or "DcpRunConfig",
+            "device_type_enum_id": _as_str(block.get("device_type_enum_id")),
+            "control_method_enum_id": _as_str(block.get("control_method_enum_id")),
+            "approximated_function_id": _as_str(block.get("approximated_function_id")),
+            "parameters": parameters,
+            "notes": _as_str(block.get("notes")),
+        })
+    device_rule_sets = []
+    for block in _as_list_of_dicts(config_doc, "device_rule_sets", "device-config-survey.yaml"):
+        rules = []
+        for row in block.get("rules") or []:
+            if not isinstance(row, dict):
+                raise SystemExit("device-config-survey.yaml: rules entries must be mappings.")
+            rules.append({
+                "device_rule_id": _as_str(row.get("device_rule_id")),
+                "parent_rule_id": _as_str(row.get("parent_rule_id")),
+                "device_config_id": _as_str(row.get("device_config_id")),
+                "target_device_id": _as_str(row.get("target_device_id")),
+                "rule_type_enum_id": _as_str(row.get("rule_type_enum_id")) or "DrtApplyConfig",
+                "rule_name": _as_str(row.get("rule_name")),
+                "priority": _as_str(row.get("priority")) or "10",
+                "run_device": _as_bool(row.get("run_device"), default=False),
+                "service_name": _as_str(row.get("service_name")),
+                "status_id": _as_str(row.get("status_id")),
+                "status_flow_id": _as_str(row.get("status_flow_id")),
+                "notes": _as_str(row.get("notes")),
+            })
+        device_rule_sets.append({
+            "device_rule_set_id": _as_str(block.get("device_rule_set_id")),
+            "parent_rule_set_id": _as_str(block.get("parent_rule_set_id")),
+            "root_device_id": _as_str(block.get("root_device_id")),
+            "purpose_enum_id": _as_str(block.get("purpose_enum_id")) or "DrspConfiguration",
+            "sequence_num": _as_str(block.get("sequence_num")) or "10",
+            "rule_set_name": _as_str(block.get("rule_set_name")),
+            "rules": rules,
+            "notes": _as_str(block.get("notes")),
+        })
+    approval_map = _mapping(approval_doc, "approvals", "approval-survey.yaml")
+    approvals = {
+        "device_model_approved": _as_bool(approval_map.get("device_model_approved"), False),
+        "device_groups_approved": _as_bool(approval_map.get("device_groups_approved"), False),
+        "seed_generation_approved": _as_bool(approval_map.get("seed_generation_approved"), False),
+        "hivemind_project_approved": _as_bool(approval_map.get("hivemind_project_approved"), False),
+        "approved_by": _as_str(approval_map.get("approved_by")),
+        "approved_at": _as_str(approval_map.get("approved_at")),
+        "notes": _as_str(approval_map.get("notes")),
+    }
 
     project_scope_map = _mapping(decomposition_doc, "project_scope", "system-decomposition-survey.yaml")
     project_scope = {
@@ -301,6 +405,7 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         domains.append(
             {
                 "domain_id": _as_str(block.get("domain_id")),
+                "controller_device_id": _as_str(block.get("controller_device_id")),
                 "domain_name": _as_str(block.get("domain_name")),
                 "natural_frequency_class": _as_str(block.get("natural_frequency_class")),
                 "scan_time": _as_str(block.get("scan_time")),
@@ -438,6 +543,13 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         )
 
     return {
+        "machine_device_id": _as_str(controller_doc.get("machine_device_id")),
+        "controllers": controllers,
+        "device_groups": device_groups,
+        "device_group_members": device_group_members,
+        "device_configs": device_configs,
+        "device_rule_sets": device_rule_sets,
+        "approvals": approvals,
         "project_scope": project_scope,
         "system_tree": system_tree,
         "devices": devices,
@@ -595,6 +707,7 @@ def validate_fsm_surveys(session_dir: Path, upstream_model: dict | None = None) 
     upstream_model = upstream_model or load_upstream_survey_model(session_dir)
     subsystem_ids = {row["subsystem_id"] for row in upstream_model["system_tree"]}
     device_ids = {row["device_id"] for row in upstream_model["devices"]}
+    application_ids = {row["application_id"] for row in upstream_model["controllers"] if row["application_id"]}
     errors: list[str] = []
     fsm_ids: set[str] = set()
     flow_ids: set[str] = set()
@@ -616,6 +729,8 @@ def validate_fsm_surveys(session_dir: Path, upstream_model: dict | None = None) 
         owner_ids.add(fsm["owner_subsystem_id"])
         if fsm["owner_subsystem_id"] not in subsystem_ids:
             errors.append(f"FSM {label} references unknown owner_subsystem_id {fsm['owner_subsystem_id']}.")
+        if fsm["application_id"] not in application_ids:
+            errors.append(f"FSM {label} must reference an Application mapped to a PhysicalDevice in controller-topology-survey.yaml.")
         if fsm["composition"] not in SUPPORTED_FSM_COMPOSITIONS:
             errors.append(f"FSM {label} composition must be flat or nested.")
         state_ids = [state["status_id"] for state in fsm["states"]]
@@ -731,6 +846,27 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
             continue
         subsystem_ids.add(subsystem_id)
 
+    meaningful_controllers = [row for row in model["controllers"] if row["controller_device_id"] or row["controller_name"]]
+    if not meaningful_controllers:
+        errors.append("Controller topology must define at least one hardware CPU or CODESYS Application.")
+    controller_ids: set[str] = set()
+    application_ids: set[str] = set()
+    for index, row in enumerate(meaningful_controllers, start=1):
+        controller_id = row["controller_device_id"]
+        if not controller_id or not row["controller_name"] or row["controller_kind"] not in {"hardware_cpu", "codesys_application"}:
+            errors.append(
+                f"Controller topology entry #{index} must define controller_device_id, controller_name, and controller_kind as hardware_cpu or codesys_application."
+            )
+        if controller_id in controller_ids:
+            errors.append(f"Duplicate controller_device_id {controller_id}.")
+        controller_ids.add(controller_id)
+        if row["controller_kind"] == "codesys_application" and not row["application_id"]:
+            errors.append(f"CODESYS controller {controller_id} must define application_id.")
+        if row["application_id"]:
+            if row["application_id"] in application_ids:
+                errors.append(f"Duplicate application_id {row['application_id']} in controller topology.")
+            application_ids.add(row["application_id"])
+
     if not model["devices"]:
         errors.append("Elementary device classification survey must define at least one device.")
     device_ids: set[str] = set()
@@ -763,6 +899,104 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
                 f"Elementary device {device_id} must declare expected_actuation_signals or expected_feedback_signals."
             )
         device_ids.add(device_id)
+
+    group_ids: set[str] = set()
+    meaningful_groups = [row for row in model["device_groups"] if row["group_device_id"] or row["group_name"]]
+    if not meaningful_groups:
+        errors.append("Device group survey must explicitly define at least one DeviceGroup.")
+    for index, row in enumerate(meaningful_groups, start=1):
+        if not row["group_device_id"] or not row["group_name"]:
+            errors.append(f"Device group entry #{index} must define group_device_id and group_name.")
+        if row["group_device_id"] in group_ids:
+            errors.append(f"Duplicate group_device_id {row['group_device_id']}.")
+        group_ids.add(row["group_device_id"])
+    if model["machine_device_id"] not in group_ids:
+        errors.append("controller-topology-survey.yaml machine_device_id must reference an explicit DeviceGroup.")
+    for row in meaningful_groups:
+        if row["parent_device_id"] and row["parent_device_id"] not in group_ids:
+            errors.append(f"DeviceGroup {row['group_device_id']} references unknown parent group {row['parent_device_id']}.")
+    for row in meaningful_controllers:
+        if row["parent_device_id"] not in group_ids:
+            errors.append(f"Controller {row['controller_device_id']} must reference an explicit parent DeviceGroup.")
+
+    known_device_ids = device_ids | controller_ids | group_ids | {
+        row["gateway_device_id"] for row in model["gateways"] if row["gateway_device_id"]
+    }
+    membership: dict[str, set[str]] = {group_id: set() for group_id in group_ids}
+    meaningful_members = [row for row in model["device_group_members"] if row["group_device_id"] or row["member_device_id"]]
+    for index, row in enumerate(meaningful_members, start=1):
+        if row["group_device_id"] not in group_ids:
+            errors.append(f"DeviceGroupMember #{index} references unknown group {row['group_device_id']}.")
+        if row["member_device_id"] not in known_device_ids:
+            errors.append(f"DeviceGroupMember #{index} references unknown member {row['member_device_id']}.")
+        if not row["purpose_enum_id"]:
+            errors.append(f"DeviceGroupMember #{index} must define purpose_enum_id.")
+        membership.setdefault(row["group_device_id"], set()).add(row["member_device_id"])
+    member_roles = {(row["member_device_id"], row["purpose_enum_id"]) for row in meaningful_members}
+    for device_id in device_ids:
+        if not any(member_id == device_id for member_id, _ in member_roles):
+            errors.append(f"Elementary Device {device_id} must belong to an explicit DeviceGroup.")
+    for controller_id in controller_ids:
+        if (controller_id, "DgmpProcessPLC") not in member_roles:
+            errors.append(f"Controller {controller_id} must have an explicit DgmpProcessPLC membership.")
+    for gateway in (row for row in model["gateways"] if row["gateway_device_id"]):
+        if (gateway["gateway_device_id"], gateway["gateway_member_purpose_enum_id"] or "DgmpEdgeGateway") not in member_roles:
+            errors.append(f"Gateway {gateway['gateway_device_id']} must have an explicit gateway-role membership.")
+
+    config_ids: set[str] = set()
+    parameter_ids: set[str] = set()
+    for index, config in enumerate(row for row in model["device_configs"] if row["device_config_id"] or row["config_name"]):
+        if not config["device_config_id"] or not config["config_name"] or not config["device_type_enum_id"]:
+            errors.append(f"DeviceConfig #{index + 1} must define device_config_id, config_name, and device_type_enum_id.")
+        if config["device_config_id"] in config_ids:
+            errors.append(f"Duplicate device_config_id {config['device_config_id']}.")
+        config_ids.add(config["device_config_id"])
+        for parameter in config["parameters"]:
+            if not parameter["parameter_id"] or not parameter["parameter_def_id"]:
+                errors.append(f"DeviceConfig {config['device_config_id']} parameters need parameter_id and parameter_def_id.")
+            if parameter["parameter_id"] in parameter_ids:
+                errors.append(f"Duplicate configuration parameter_id {parameter['parameter_id']}.")
+            parameter_ids.add(parameter["parameter_id"])
+            values = [parameter["numeric_value"], parameter["symbolic_value"], parameter["parameter_enum_id"]]
+            if sum(bool(value) for value in values) != 1:
+                errors.append(f"Configuration parameter {parameter['parameter_id']} must define exactly one value field.")
+
+    def group_scope(root_id: str) -> set[str]:
+        result = {root_id}
+        pending = [root_id]
+        while pending:
+            current = pending.pop()
+            for member in membership.get(current, set()):
+                if member not in result:
+                    result.add(member)
+                    if member in group_ids:
+                        pending.append(member)
+        return result
+
+    rule_set_ids: set[str] = set()
+    for index, rule_set in enumerate(row for row in model["device_rule_sets"] if row["device_rule_set_id"] or row["rule_set_name"]):
+        root_id = rule_set["root_device_id"]
+        if not rule_set["device_rule_set_id"] or not root_id or not rule_set["rule_set_name"]:
+            errors.append(f"DeviceRuleSet #{index + 1} must define device_rule_set_id, root_device_id, and rule_set_name.")
+        if root_id not in known_device_ids:
+            errors.append(f"DeviceRuleSet {rule_set['device_rule_set_id']} references unknown root_device_id {root_id}.")
+        if rule_set["device_rule_set_id"] in rule_set_ids:
+            errors.append(f"Duplicate device_rule_set_id {rule_set['device_rule_set_id']}.")
+        rule_set_ids.add(rule_set["device_rule_set_id"])
+        scope = group_scope(root_id) if root_id in group_ids else {root_id}
+        priorities: set[int] = set()
+        for rule in rule_set["rules"]:
+            if not rule["device_rule_id"] or not rule["rule_name"] or rule["device_config_id"] not in config_ids:
+                errors.append(f"Rules in {rule_set['device_rule_set_id']} need device_rule_id, rule_name, and a known device_config_id.")
+            if rule["target_device_id"] not in scope:
+                errors.append(f"DeviceRule {rule['device_rule_id']} target {rule['target_device_id']} is outside root scope {root_id}.")
+            try:
+                priority = int(rule["priority"])
+                if priority in priorities:
+                    errors.append(f"DeviceRuleSet {rule_set['device_rule_set_id']} has duplicate priority {priority}.")
+                priorities.add(priority)
+            except ValueError:
+                errors.append(f"DeviceRule {rule['device_rule_id']} priority must be an integer.")
 
     if not model["signals"]:
         errors.append("Signal catalog survey must define at least one signal.")
@@ -802,6 +1036,8 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
                 f"Sampling domain #{index} must define domain_id, domain_name, natural_frequency_class, and scan_time."
             )
             continue
+        if row["controller_device_id"] not in controller_ids:
+            errors.append(f"Sampling domain {domain_id} must reference a known controller_device_id.")
         if not devices and not signals:
             errors.append(f"Sampling domain {domain_id} must reference at least one device or signal.")
         for device_id in devices:

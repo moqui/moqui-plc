@@ -93,13 +93,12 @@ DeviceConfig rule:
 Recipe-loading rule:
 
 - `DeviceConfig` is always type-level, keyed by `deviceTypeEnumId`
-- `DeviceConfigSet` is the analogous grouped template for a `DeviceGroup`
-- `DeviceConfigSetMember` composes the grouped template
 - `DeviceRule` is always instance-level, binding one `DeviceConfig` to one
   specific `Device`
 - compatibility must be checked:
   - `Device.deviceTypeEnumId` must match `DeviceConfig.deviceTypeEnumId`
-- `DeviceRuleSet` sequences the resulting application or validation rules
+- `DeviceRuleSet` is the composition boundary and sequences the resulting
+  application or validation rules inside its root Device/DeviceGroup scope
 
 Composition helper:
 

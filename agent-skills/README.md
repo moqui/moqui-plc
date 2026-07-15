@@ -34,10 +34,11 @@ This repository is meant to host:
 
 Current design direction:
 
-- seed-first generation using Moqui XML seed data as the single source of truth
+- seed-first generation for the persistent device, configuration, transport and StatusFlow model
 - upstream system-engineering decomposition and device/signal classification as
   prerequisites for complete seed authoring
 - PLC artifact generation from seed data plus PLC-side templates
+- PLC code remains authoritative for predicates, output functions, interlocks and FSM invocation order
 - physical wiring and protocol-specific signal mapping kept manual
 
 Current top-level skills:
@@ -59,6 +60,8 @@ Current scope:
   - elementary device classification
   - signal naming/catalog
   - sampling domains
+  - one PhysicalDevice per hardware CPU or CODESYS Application
+  - explicit developer-owned DeviceGroup membership
 - generate or guide seed data design for devices, parameters, requests, and status flows
 - persist a resumable session workspace that can be zipped, copied, and committed
 - generate PLC code skeletons for:
@@ -70,14 +73,14 @@ Current scope:
   - `MainRuleEngine`
 - treat `DeviceFacade`, `DeviceManager`, and `DeviceDiagnostics` as the stable
   generated layer for supported atomic moqui-plc FB types
-- keep `Main` and `MainRuleEngine` in standby until real project test cases are
-  available to derive the final behavioral generation rules
+- generate reviewed `Main`, `MainRuleEngine` and sequential subsystem controllers from approved FSM surveys
 - keep `InputSignalUpdate` and `OutputSignalUpdate` manual in V1
 - keep complex `DeviceGroup` redundancy / standby roles out of scope in V1
+- generate atomic `DeviceConfig` plus ordered `DeviceRuleSet`/`DeviceRule` composition
+- enforce separate approval gates for the device model, group model, final seed and HiveMind project
+- extract traceable, non-authoritative review candidates from EPLAN CSV/PDF sources
 - prefer Moqui seed data in XML format for data creation/update workflows
-- keep Moqui seed/model data as the source of truth and treat generated PLC
-  artifacts as reviewable runtime projections that must be cross-checked back
-  against seed data before use
+- keep physical binding, CODESYS device trees, task configuration and source merges manual
 
 Relevant references currently moved here:
 

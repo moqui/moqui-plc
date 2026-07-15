@@ -1,0 +1,14 @@
+machine_device_id: DG_CURE_CELL
+controllers:
+  - controller_device_id: TRANSPORT_PLC
+    controller_name: Transport CODESYS Application
+    controller_kind: codesys_application
+    application_id: TransportApplication
+    device_type_enum_id: DtPLC
+    parent_device_id: DG_SS_TRANSPORT
+  - controller_device_id: CURE_CELL_PLC
+    controller_name: Cure CODESYS Application
+    controller_kind: codesys_application
+    application_id: CureApplication
+    device_type_enum_id: DtPLC
+    parent_device_id: DG_SS_CURE

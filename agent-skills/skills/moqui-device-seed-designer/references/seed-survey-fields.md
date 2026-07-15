@@ -344,17 +344,16 @@ framework-facing variables exposed in `ec.gvl`, including:
 - initial state
 - ordered `StatusFlowTransition`
 
-## DeviceConfig / DeviceConfigSet / DeviceRuleSet / DeviceRule
+## DeviceConfig / DeviceRuleSet / DeviceRule
 
 Semantics:
 
 - `DeviceConfig` is a reusable template compatible with one `deviceTypeEnumId`
-- `DeviceConfigSet` is the analogous reusable template container for a device group
 - `Parameter.deviceConfigId` holds the parameter instances of that template
 - the first generated config should normally be a `TEMPLATE`
 - `DeviceRule` applies or asserts one config on one logical `Device`, which may
   correspond either to a `PhysicalDevice` or to a `DeviceGroup`
-- `DeviceRuleSet` sequences multiple rules
+- `DeviceRuleSet` composes and sequences multiple atomic configs within one root scope
 
 For `DeviceConfig`:
 
@@ -368,24 +367,10 @@ For `DeviceConfig`:
 - optional `controlMethodEnumId`
 - optional `approximatedFunctionId`
 
-For `DeviceConfigSet`:
-
-- `deviceConfigId`
-- `configSetName`
-- optional but recommended parent `DeviceConfig.deviceTypeEnumId` consistency note
-- one or more `DeviceConfigSetMember`
-
-For each `DeviceConfigSetMember`:
-
-- `deviceConfigId`
-- `memberConfigId`
-- optional `sequenceNum`
-- optional `description`
-
 Recipe-loading compatibility questions:
 
 - which `deviceTypeEnumId` does each `DeviceConfig` target?
-- which `DeviceGroup` does each `DeviceConfigSet` represent?
+- which root Device or DeviceGroup bounds each `DeviceRuleSet`?
 - for each `DeviceRule`, does `Device.deviceTypeEnumId` match the bound
   `DeviceConfig.deviceTypeEnumId`?
 - for each `DeviceRuleSet`, what is the intended processing priority order?

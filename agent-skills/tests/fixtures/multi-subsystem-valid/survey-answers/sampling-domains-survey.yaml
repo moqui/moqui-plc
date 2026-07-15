@@ -1,5 +1,6 @@
 domains:
   - domain_id: FAST_CTRL
+    controller_device_id: CURE_CELL_PLC
     domain_name: Fast Control
     natural_frequency_class: fast
     scan_time: T#50ms
@@ -12,6 +13,7 @@ domains:
       - SIG_LAMP_ENABLE
     notes: ""
   - domain_id: FAST_FB
+    controller_device_id: CURE_CELL_PLC
     domain_name: Fast Feedback
     natural_frequency_class: fast
     scan_time: T#50ms

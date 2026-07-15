@@ -80,16 +80,18 @@ The workspace should be:
 4. Classify each elementary device by logical model and actuation/feedback pattern.
 5. Derive and persist physical signal naming rules plus the normalized signal catalog.
 6. Group devices/signals by natural frequency and sampling domain.
-7. Define one FSM for each system/subsystem that needs an independently visible state. Prefer flat FSMs; use nested flows only when a real push-down behavior is required.
-8. Record whether the plant projects onto `moqui-device-gateway`, `moqui-plc4j`, or both.
-9. Run `moqui-device-seed-designer` and keep the reviewed seed XML in `seed-data/`.
+7. Define every hardware CPU or CODESYS Application as a distinct `PhysicalDevice`.
+8. Have the developer define DeviceGroups and membership explicitly; never infer redundancy or operational roles.
+9. Define one FSM for each system/subsystem that needs an independently visible state. Prefer flat FSMs; use nested flows only when a real push-down behavior is required.
+10. Record whether the plant projects onto `moqui-device-gateway`, `moqui-plc4j`, or both.
+11. Run `moqui-device-seed-designer` and keep the reviewed seed XML in `seed-data/`.
    Prefer session-aware helpers such as `render_seed_bundle.py --session-dir ...`.
-9. Run `moqui-plc-designer` only against the seed XML saved in the workspace.
-10. Run `moqui-device-config-designer` only against the same seed XML and generated PLC artifacts.
-11. Optionally run `moqui-plc-config` for `MoquiConf.gvl`.
-12. Optionally run `moqui-device-gateway-startup` to generate a first-startup checklist from the reviewed seed.
-13. Update `session.json` after each step so the workflow can resume cleanly.
-14. Export the session as a zip when the user wants backup, transfer, or archival.
+12. Run `moqui-plc-designer` only against the seed XML saved in the workspace.
+13. Run `moqui-device-config-designer` only against the same seed XML and generated PLC artifacts.
+14. Optionally run `moqui-plc-config` for `MoquiConf.gvl`.
+15. Optionally run `moqui-device-gateway-startup` to generate a first-startup checklist from the reviewed seed.
+16. Update `session.json` after each step so the workflow can resume cleanly.
+17. Export the session as a zip when the user wants backup, transfer, or archival.
 
 ## Required Behavior
 
@@ -115,13 +117,18 @@ The workspace should be:
   - zips a saved session and writes a manifest with checksums
 - `scripts/render_engineering_dossier.py`
   - consolidates approved surveys into Markdown
-  - optionally emits WikiSpace/WikiPage/WikiPageWorkEffort seed for an existing HiveMind project
+  - optionally emits a complete approved HiveMind WorkEffort project with milestones, tasks and linked WikiPage
+- `scripts/analyze_eplan_sources.py`
+  - parses EPLAN UTF-16 semicolon CSV exports with two header rows
+  - records PDF/CSV provenance and emits review candidates without deciding physical binding or safety semantics
 
 ## References
 
 - `references/session-layout.md`
 - `references/session-schema.json`
 - `references/workflow-order.md`
+- `references/controller-and-group-model.md`
+- `references/eplan-source-workflow.md`
 - `scripts/README.txt`
 
 ## Output Style

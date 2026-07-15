@@ -95,7 +95,13 @@ def render_markdown(model: dict, fsm_model: dict) -> str:
     return "\n".join(sections)
 
 
-def render_wiki_seed(wiki_space_id: str, wiki_page_id: str, page_path: str, work_effort_id: str) -> str:
+def render_hivemind_project_seed(model: dict, work_effort_id: str) -> str:
+    """Create a fresh HiveMind project tree using the canonical WorkEffort/Wiki pattern."""
+    project_slug = slug(work_effort_id)
+    wiki_space_id = f"WIKI_{project_slug}"
+    wiki_page_id = f"WIKI_{project_slug}_SPEC"
+    page_path = f"component://moqui-plc/WikiSpace/{project_slug}.md"
+    project_name = model["project_scope"]["machine_name"] or work_effort_id
     root = ET.Element("entity-facade-xml", {"type": "seed"})
     ET.SubElement(root, "moqui.resource.wiki.WikiSpace", {
         "wikiSpaceId": wiki_space_id,
@@ -107,12 +113,45 @@ def render_wiki_seed(wiki_space_id: str, wiki_page_id: str, page_path: str, work
     ET.SubElement(root, "moqui.resource.wiki.WikiPage", {
         "wikiPageId": wiki_page_id,
         "wikiSpaceId": wiki_space_id,
-        "pagePath": "",
+        "pagePath": "Engineering specification",
+    })
+    ET.SubElement(root, "mantle.work.effort.WorkEffort", {
+        "workEffortId": work_effort_id,
+        "workEffortName": f"PLC engineering - {project_name}",
+        "workEffortTypeEnumId": "WetProject",
+        "statusId": "WeInPlanning",
+        "description": "Developer-owned machine automation project generated from approved engineering surveys.",
     })
     ET.SubElement(root, "mantle.work.effort.WikiPageWorkEffort", {
         "wikiPageId": wiki_page_id,
         "workEffortId": work_effort_id,
     })
+    for index, milestone_name in enumerate(MILESTONES, start=1):
+        milestone_id = f"{project_slug}_MS_{index:02d}"
+        task_id = f"{project_slug}_T_{index:02d}"
+        ET.SubElement(root, "mantle.work.effort.WorkEffort", {
+            "workEffortId": milestone_id,
+            "workEffortName": milestone_name,
+            "rootWorkEffortId": work_effort_id,
+            "workEffortTypeEnumId": "WetMilestone",
+            "statusId": "WeInPlanning",
+        })
+        ET.SubElement(root, "mantle.work.effort.WorkEffort", {
+            "workEffortId": task_id,
+            "workEffortName": f"Eseguire e documentare: {milestone_name}",
+            "rootWorkEffortId": work_effort_id,
+            "workEffortTypeEnumId": "WetTask",
+            "purposeEnumId": "WepTask",
+            "statusId": "WeInPlanning",
+            "description": "Attivita da completare, verificare e chiudere dal developer PLC; il tool non certifica il risultato.",
+        })
+        ET.SubElement(root, "mantle.work.effort.WorkEffortAssoc", {
+            "workEffortId": milestone_id,
+            "toWorkEffortId": task_id,
+            "workEffortAssocTypeEnumId": "WeatMilestone",
+            "fromDate": "2026-01-01 00:00:00",
+            "sequenceNum": "1",
+        })
     ET.indent(root, space="    ")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")
 
@@ -133,16 +172,13 @@ def main() -> int:
     output.write_text(render_markdown(model, fsm_model), encoding="utf-8")
     print(f"Wrote engineering dossier to {output}")
     if args.work_effort_id:
+        if not model["approvals"].get("hivemind_project_approved"):
+            raise SystemExit("HiveMind project generation requires hivemind_project_approved: true.")
         project_slug = slug(args.work_effort_id)
         wiki_output = args.wiki_seed_output or session_dir / "seed-data" / "engineering-wiki-seed.xml"
         wiki_output.parent.mkdir(parents=True, exist_ok=True)
         wiki_output.write_text(
-            render_wiki_seed(
-                f"WIKI_{project_slug}",
-                f"WIKI_{project_slug}_ROOT",
-                f"component://moqui-plc/WikiSpace/{project_slug}.md",
-                args.work_effort_id,
-            ),
+            render_hivemind_project_seed(model, args.work_effort_id),
             encoding="utf-8",
         )
         print(f"Wrote optional Wiki association seed to {wiki_output}")
