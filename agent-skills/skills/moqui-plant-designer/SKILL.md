@@ -1,11 +1,6 @@
 ---
 name: moqui-plant-designer
-description: Use when orchestrating the full AI-assisted workflow for a machine or plant: create and resume a saved project session, drive Moqui seed-data authoring, generate PLC code from seed XML, and derive PLC config or recipe templates from the same seed source of truth.
-compatibility: Requires Python 3.14+
-license: ../../LICENSE.md
-metadata:
-  author: moqui-induatrial
-  version: "1.0"
+description: "Use when orchestrating the full AI-assisted workflow for a machine or plant: create and resume a saved project session, drive Moqui seed-data authoring, generate PLC code from seed XML, and derive PLC config or recipe templates from the same source model."
 ---
 
 # Moqui Plant Designer
@@ -18,7 +13,9 @@ interruption.
 
 ## Source Of Truth
 
-The single source of truth is the Moqui seed XML generated during the session.
+Moqui seed XML is authoritative for the device tree, parameters, transport
+requests, StatusFlow states, and transition topology. PLC source is authoritative
+for predicates, state output functions, interlocks, and deterministic call order.
 
 Do not treat direct database reads as part of the primary workflow. If existing
 data must be imported, convert it into seed XML and keep working from the saved
@@ -83,8 +80,9 @@ The workspace should be:
 4. Classify each elementary device by logical model and actuation/feedback pattern.
 5. Derive and persist physical signal naming rules plus the normalized signal catalog.
 6. Group devices/signals by natural frequency and sampling domain.
-7. Record whether the plant projects onto `moqui-device-gateway`, `moqui-plc4j`, or both.
-8. Run `moqui-device-seed-designer` and keep the reviewed seed XML in `seed-data/`.
+7. Define one FSM for each system/subsystem that needs an independently visible state. Prefer flat FSMs; use nested flows only when a real push-down behavior is required.
+8. Record whether the plant projects onto `moqui-device-gateway`, `moqui-plc4j`, or both.
+9. Run `moqui-device-seed-designer` and keep the reviewed seed XML in `seed-data/`.
    Prefer session-aware helpers such as `render_seed_bundle.py --session-dir ...`.
 9. Run `moqui-plc-designer` only against the seed XML saved in the workspace.
 10. Run `moqui-device-config-designer` only against the same seed XML and generated PLC artifacts.
@@ -115,6 +113,9 @@ The workspace should be:
   - asks only for missing contextual data, not for logical parameters already fixed by the chosen atomic component
 - `scripts/export_session_bundle.py`
   - zips a saved session and writes a manifest with checksums
+- `scripts/render_engineering_dossier.py`
+  - consolidates approved surveys into Markdown
+  - optionally emits WikiSpace/WikiPage/WikiPageWorkEffort seed for an existing HiveMind project
 
 ## References
 

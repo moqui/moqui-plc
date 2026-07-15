@@ -30,7 +30,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from survey_validation import (
+    load_fsm_survey_model,
     load_upstream_survey_model,
+    validate_fsm_surveys,
     validate_upstream_surveys,
     _gateway_row_is_meaningful,
     _plc4j_connection_row_is_meaningful,
@@ -276,6 +278,72 @@ def add_elem(parent: ET.Element, tag: str, **attrs: str) -> ET.Element:
     return ET.SubElement(parent, tag, cleaned)
 
 
+def append_statusflow_seed(root: ET.Element, fsm_model: dict) -> dict[str, dict]:
+    """Materialize only FSM topology. Predicates, actions, and call order stay in PLC code."""
+    fsms = fsm_model.get("fsms", [])
+    by_fsm_id = {fsm["fsm_id"]: fsm for fsm in fsms}
+    owner_map: dict[str, dict] = {}
+    emitted_statuses: dict[str, tuple[str, str]] = {}
+    for fsm in fsms:
+        owner_map[fsm["owner_subsystem_id"]] = fsm
+        add_elem(
+            root,
+            "moqui.basic.StatusType",
+            statusTypeId=fsm["status_type_id"],
+            description=f"Status type for {fsm['component_name']}.",
+        )
+        parent_flow_id = ""
+        if fsm["parent_fsm_id"]:
+            parent_flow_id = by_fsm_id[fsm["parent_fsm_id"]]["status_flow_id"]
+        add_elem(
+            root,
+            "moqui.basic.StatusFlow",
+            statusFlowId=fsm["status_flow_id"],
+            statusTypeId=fsm["status_type_id"],
+            parentStatusFlowId=parent_flow_id,
+            description=fsm["notes"] or f"Survey-derived FSM for {fsm['component_name']}.",
+        )
+        for state in sorted(fsm["states"], key=lambda item: (item["sequence"], item["status_id"])):
+            signature = (fsm["status_type_id"], state["name"])
+            previous = emitted_statuses.get(state["status_id"])
+            if previous and previous != signature:
+                raise SystemExit(
+                    f"Global StatusItem ID {state['status_id']} is reused with conflicting type/name; use globally stable status IDs."
+                )
+            if not previous:
+                add_elem(
+                    root,
+                    "moqui.basic.StatusItem",
+                    statusId=state["status_id"],
+                    statusTypeId=fsm["status_type_id"],
+                    sequenceNum=str(state["sequence"]),
+                    description=state["name"],
+                )
+                emitted_statuses[state["status_id"]] = signature
+            add_elem(
+                root,
+                "moqui.basic.StatusFlowItem",
+                statusFlowId=fsm["status_flow_id"],
+                statusId=state["status_id"],
+                isInitial="Y" if state["initial"] else "N",
+            )
+        for transition in sorted(
+            fsm["transitions"], key=lambda item: (item["from_status_id"], item["precedence"], item["to_status_id"])
+        ):
+            target_fsm = by_fsm_id[transition["to_fsm_id"] or fsm["fsm_id"]]
+            add_elem(
+                root,
+                "moqui.basic.StatusFlowTransition",
+                statusFlowId=fsm["status_flow_id"],
+                statusId=transition["from_status_id"],
+                toStatusFlowId=target_fsm["status_flow_id"],
+                toStatusId=transition["to_status_id"],
+                transitionSequence=str(transition["precedence"]),
+                transitionName=transition["name"] or f"{transition['from_status_id']} to {transition['to_status_id']}",
+            )
+    return owner_map
+
+
 def load_enum_ids(xml_paths: list[Path]) -> set[str]:
     enum_ids: set[str] = set()
     for xml_path in xml_paths:
@@ -414,6 +482,7 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
     root = ET.Element("entity-facade-xml", {"type": "seed"})
     root.append(ET.Comment("Survey-derived draft seed. Review enums, request routing, and subsystem grouping before use."))
     atomic_library = load_catalog(ATOMIC_COMPONENT_LIBRARY_PATH)
+    fsm_by_subsystem = append_statusflow_seed(root, model.get("fsm_model", {}))
 
     project_scope = model["project_scope"]
     add_elem(
@@ -447,6 +516,10 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             subsystem_group_device_id(parent_subsystem_id) if parent_subsystem_id else root_device_id
         )
         description = subsystem.get("notes", "") or subsystem.get("control_responsibility", "")
+        owner_fsm = fsm_by_subsystem.get(subsystem_id)
+        initial_status_id = ""
+        if owner_fsm:
+            initial_status_id = next(state["status_id"] for state in owner_fsm["states"] if state["initial"])
         add_elem(
             root,
             "moqui.device.Device",
@@ -454,8 +527,8 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             parentDeviceId=parent_group_device_id,
             deviceTypeEnumId=SUBSYSTEM_GROUP_DEVICE_TYPE,
             purposeEnumId="DepProcessControl",
-            statusFlowId="",
-            statusId="",
+            statusFlowId=owner_fsm["status_flow_id"] if owner_fsm else "",
+            statusId=initial_status_id,
             description=description or f"Survey-derived subsystem group for {subsystem['subsystem_name']}.",
         )
         add_elem(
@@ -471,7 +544,7 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             root,
             "moqui.device.Device",
             deviceId=device["device_id"],
-            parentDeviceId=root_device_id,
+            parentDeviceId=subsystem_group_device_id(device["parent_subsystem_id"]),
             deviceTypeEnumId=device_type_for_logical_model(device["logical_model"]),
             purposeEnumId="DepProcessControl",
             controlMethodEnumId=control_method,
@@ -811,6 +884,7 @@ def main() -> int:
     session_dir = args.session_dir.resolve()
     validate_upstream_surveys(session_dir)
     model = load_upstream_survey_model(session_dir)
+    model["fsm_model"] = validate_fsm_surveys(session_dir, model)
     root_device_id = args.root_device_id or infer_root_device_id(model, session_dir)
     xml_root = render_seed(model, root_device_id)
     validate_generated_enum_references(

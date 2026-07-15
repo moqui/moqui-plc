@@ -19,6 +19,7 @@ SUPPORTED_SIGNAL_DIRECTIONS = {"input", "output"}
 SUPPORTED_IEC_TYPES = {"BOOL", "BYTE", "WORD", "DWORD", "LWORD", "INT", "UINT", "DINT", "UDINT", "REAL", "LREAL", "TIME", "STRING"}
 SUPPORTED_TRANSPORT_MODES = {"gateway", "plc4j", "hybrid"}
 SUPPORTED_DOMAIN_TRANSPORT_SCOPES = {"", "gateway", "plc4j", "both", "hybrid"}
+SUPPORTED_FSM_COMPOSITIONS = {"flat", "nested"}
 PLC4J_RUN_SERVICE = "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
 
 
@@ -98,6 +99,12 @@ def _as_str(value: object) -> str:
     raise SystemExit(f"Expected scalar string-like value, got {type(value).__name__}.")
 
 
+def _as_st(value: object) -> str:
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    return _as_str(value)
+
+
 def _as_bool(value: object, default: bool = False) -> bool:
     if value is None:
         return default
@@ -150,6 +157,25 @@ def _mapping(document: dict, key: str, filename: str) -> dict:
     if not isinstance(value, dict):
         raise SystemExit(f"{filename}: {key} must be a YAML mapping.")
     return value
+
+
+def _assignment_rows(value: object, filename: str, field_name: str) -> list[dict]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise SystemExit(f"{filename}: {field_name} must be a YAML list.")
+    rows: list[dict] = []
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            raise SystemExit(f"{filename}: {field_name}[{index}] must be a YAML mapping.")
+        rows.append(
+            {
+                "target": _as_str(item.get("target")),
+                "expression": _as_st(item.get("expression")),
+                "comment": _as_str(item.get("comment")),
+            }
+        )
+    return rows
 
 
 def load_upstream_survey_model(session_dir: Path) -> dict:
@@ -378,6 +404,265 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         "transport_architecture": transport_architecture,
         "plc4j_connections": plc4j_connections,
     }
+
+
+def load_fsm_survey_model(session_dir: Path) -> dict:
+    """Load the optional PLC orchestration surveys without moving code semantics into Moqui."""
+    fsm_doc = _load_yaml_document(session_dir, "main-fsm-survey.yaml", "fsms:\n")
+    rule_doc = _load_yaml_document(session_dir, "main-rule-engine-survey.yaml", "fsms:\n")
+
+    # Accept the original single-FSM draft so saved sessions remain readable.
+    fsm_rows = _as_list_of_dicts(fsm_doc, "fsms", "main-fsm-survey.yaml")
+    if not fsm_rows and _as_str(fsm_doc.get("status_flow_id")):
+        fsm_rows = [fsm_doc]
+    rule_rows = _as_list_of_dicts(rule_doc, "fsms", "main-rule-engine-survey.yaml")
+    if not rule_rows and _as_str(rule_doc.get("status_flow_id")):
+        rule_rows = [rule_doc]
+
+    rules_by_key: dict[str, dict] = {}
+    for row in rule_rows:
+        key = _as_str(row.get("fsm_id")) or _as_str(row.get("status_flow_id"))
+        if key:
+            rules_by_key[key] = row
+
+    fsms: list[dict] = []
+    for row in fsm_rows:
+        status_flow_id = _as_str(row.get("status_flow_id"))
+        fsm_id = _as_str(row.get("fsm_id")) or status_flow_id
+        raw_states = row.get("states") or []
+        if not (fsm_id or status_flow_id or _as_str(row.get("owner_subsystem_id"))) and not any(
+            isinstance(state, dict) and (_as_str(state.get("status_id")) or _as_str(state.get("status")))
+            for state in raw_states
+        ):
+            continue
+        rule_row = rules_by_key.get(fsm_id) or rules_by_key.get(status_flow_id) or {}
+        states: list[dict] = []
+        for index, state in enumerate(raw_states, start=1):
+            if not isinstance(state, dict):
+                raise SystemExit(f"main-fsm-survey.yaml: states[{index}] must be a YAML mapping.")
+            status_id = _as_str(state.get("status_id")) or _as_str(state.get("status"))
+            activate = state.get("activate") or {}
+            deactivate = state.get("deactivate") or {}
+            if not isinstance(activate, dict) or not isinstance(deactivate, dict):
+                raise SystemExit("main-fsm-survey.yaml: activate and deactivate must be YAML mappings.")
+            states.append(
+                {
+                    "status_id": status_id,
+                    "name": _as_str(state.get("name")) or status_id,
+                    "initial": _as_bool(state.get("initial"), default=index == 1),
+                    "sequence": int(state.get("sequence", index) or index),
+                    "activate": {
+                        "device_groups": _as_list_of_strings(activate.get("device_groups"), "main-fsm-survey.yaml", "activate.device_groups"),
+                        "physical_devices": _as_list_of_strings(activate.get("physical_devices"), "main-fsm-survey.yaml", "activate.physical_devices"),
+                        "request_flags": _as_list_of_strings(activate.get("request_flags"), "main-fsm-survey.yaml", "activate.request_flags"),
+                    },
+                    "deactivate": {
+                        "device_groups": _as_list_of_strings(deactivate.get("device_groups"), "main-fsm-survey.yaml", "deactivate.device_groups"),
+                        "physical_devices": _as_list_of_strings(deactivate.get("physical_devices"), "main-fsm-survey.yaml", "deactivate.physical_devices"),
+                        "request_flags": _as_list_of_strings(deactivate.get("request_flags"), "main-fsm-survey.yaml", "deactivate.request_flags"),
+                    },
+                    "output_assignments": _assignment_rows(
+                        state.get("output_assignments"), "main-fsm-survey.yaml", "output_assignments"
+                    ),
+                    "outputs_reviewed": _as_bool(state.get("outputs_reviewed"), default=False),
+                    "consume_transition_requests": _as_list_of_strings(
+                        state.get("consume_transition_requests"), "main-fsm-survey.yaml", "consume_transition_requests"
+                    ),
+                    "notes": _as_str(state.get("notes")),
+                }
+            )
+        transitions: list[dict] = []
+        for index, transition in enumerate(rule_row.get("transitions") or [], start=1):
+            if not isinstance(transition, dict):
+                raise SystemExit(f"main-rule-engine-survey.yaml: transitions[{index}] must be a YAML mapping.")
+            transitions.append(
+                {
+                    "from_status_id": _as_str(transition.get("from_status_id")) or _as_str(transition.get("from_status")),
+                    "to_status_id": _as_str(transition.get("to_status_id")) or _as_str(transition.get("to_status")),
+                    "to_fsm_id": _as_str(transition.get("to_fsm_id")),
+                    "name": _as_str(transition.get("name")),
+                    "condition": _as_st(transition.get("condition")),
+                    "consume_condition": _as_st(transition.get("consume_condition")),
+                    "request_assignments": _assignment_rows(
+                        transition.get("request_assignments"),
+                        "main-rule-engine-survey.yaml",
+                        "request_assignments",
+                    ),
+                    "apply_assignments": _assignment_rows(
+                        transition.get("apply_assignments"),
+                        "main-rule-engine-survey.yaml",
+                        "apply_assignments",
+                    ),
+                    "precedence": int(transition.get("precedence", index) or index),
+                    "notes": _as_str(transition.get("notes")),
+                }
+            )
+        predicates: list[dict] = []
+        for index, predicate in enumerate(rule_row.get("predicates") or [], start=1):
+            if isinstance(predicate, str):
+                predicates.append({"name": predicate.strip(), "expression": "", "comment": ""})
+            elif isinstance(predicate, dict):
+                predicates.append(
+                    {
+                        "name": _as_str(predicate.get("name")),
+                        "expression": _as_st(predicate.get("expression")),
+                        "comment": _as_str(predicate.get("comment")),
+                    }
+                )
+            else:
+                raise SystemExit(f"main-rule-engine-survey.yaml: predicates[{index}] must be a string or mapping.")
+        fsms.append(
+            {
+                "fsm_id": fsm_id,
+                "owner_subsystem_id": _as_str(row.get("owner_subsystem_id")),
+                "component_name": _as_str(row.get("component_name")) or fsm_id,
+                "status_flow_id": status_flow_id,
+                "status_type_id": _as_str(row.get("status_type_id")) or f"{status_flow_id}Type",
+                "composition": (_as_str(row.get("composition")) or "flat").lower(),
+                "parent_fsm_id": _as_str(row.get("parent_fsm_id")),
+                "application_id": _as_str(row.get("application_id")),
+                "call_sequence": int(row.get("call_sequence", len(fsms) + 1) or len(fsms) + 1),
+                "enable_condition": _as_st(row.get("enable_condition")) or "TRUE",
+                "completion_condition": _as_st(row.get("completion_condition")),
+                "fault_status_id": _as_str(row.get("fault_status_id")),
+                "code_generation_approved": _as_bool(row.get("code_generation_approved"), default=False),
+                "states": states,
+                "predicates": predicates,
+                "transitions": transitions,
+                "global_overrides": {
+                    "fault_condition": _as_st((rule_row.get("global_overrides") or {}).get("fault_condition")),
+                    "reset_condition": _as_st((rule_row.get("global_overrides") or {}).get("reset_condition")),
+                    "notes": _as_str((rule_row.get("global_overrides") or {}).get("notes")),
+                } if isinstance(rule_row.get("global_overrides") or {}, dict) else {},
+                "notes": _as_str(row.get("notes")),
+            }
+        )
+    return {"fsms": fsms}
+
+
+def validate_fsm_surveys(session_dir: Path, upstream_model: dict | None = None) -> dict:
+    """Validate FSM topology and traceability; conditions/actions remain code-owned review inputs."""
+    model = load_fsm_survey_model(session_dir)
+    fsms = model["fsms"]
+    if not fsms:
+        return model
+    upstream_model = upstream_model or load_upstream_survey_model(session_dir)
+    subsystem_ids = {row["subsystem_id"] for row in upstream_model["system_tree"]}
+    device_ids = {row["device_id"] for row in upstream_model["devices"]}
+    errors: list[str] = []
+    fsm_ids: set[str] = set()
+    flow_ids: set[str] = set()
+    owner_ids: set[str] = set()
+    for fsm in fsms:
+        label = fsm["fsm_id"] or fsm["status_flow_id"] or "<unnamed>"
+        if not fsm["fsm_id"] or not fsm["status_flow_id"] or not fsm["owner_subsystem_id"]:
+            errors.append(f"FSM {label} must define fsm_id, status_flow_id, and owner_subsystem_id.")
+        if fsm["fsm_id"] in fsm_ids:
+            errors.append(f"Duplicate fsm_id {fsm['fsm_id']}.")
+        if fsm["status_flow_id"] in flow_ids:
+            errors.append(f"Duplicate status_flow_id {fsm['status_flow_id']}.")
+        if fsm["owner_subsystem_id"] in owner_ids:
+            errors.append(
+                f"Subsystem {fsm['owner_subsystem_id']} owns multiple FSMs; create a child logical subsystem for each independently visible FSM."
+            )
+        fsm_ids.add(fsm["fsm_id"])
+        flow_ids.add(fsm["status_flow_id"])
+        owner_ids.add(fsm["owner_subsystem_id"])
+        if fsm["owner_subsystem_id"] not in subsystem_ids:
+            errors.append(f"FSM {label} references unknown owner_subsystem_id {fsm['owner_subsystem_id']}.")
+        if fsm["composition"] not in SUPPORTED_FSM_COMPOSITIONS:
+            errors.append(f"FSM {label} composition must be flat or nested.")
+        state_ids = [state["status_id"] for state in fsm["states"]]
+        if not state_ids or any(not value for value in state_ids):
+            errors.append(f"FSM {label} must define non-empty status_id values.")
+        if len(state_ids) != len(set(state_ids)):
+            errors.append(f"FSM {label} contains duplicate status_id values.")
+        if fsm["fault_status_id"] and fsm["fault_status_id"] not in state_ids:
+            errors.append(f"FSM {label} references unknown fault_status_id {fsm['fault_status_id']}.")
+        initial_count = sum(1 for state in fsm["states"] if state["initial"])
+        if initial_count != 1:
+            errors.append(f"FSM {label} must define exactly one initial state; found {initial_count}.")
+        for state in fsm["states"]:
+            for action_name in ("activate", "deactivate"):
+                action = state[action_name]
+                for subsystem_id in action["device_groups"]:
+                    if subsystem_id not in subsystem_ids and subsystem_id not in device_ids:
+                        errors.append(
+                            f"FSM {label} state {state['status_id']} {action_name} references unknown device group {subsystem_id}."
+                        )
+                for device_id in action["physical_devices"]:
+                    if device_id not in device_ids:
+                        errors.append(
+                            f"FSM {label} state {state['status_id']} {action_name} references unknown device {device_id}."
+                        )
+            for assignment in state["output_assignments"]:
+                if not assignment["target"] or not assignment["expression"]:
+                    errors.append(
+                        f"FSM {label} state {state['status_id']} output assignments need target and expression."
+                    )
+        predicate_names: set[str] = set()
+        for predicate in fsm["predicates"]:
+            if not predicate["name"] or not predicate["expression"]:
+                errors.append(f"FSM {label} predicates need name and expression.")
+            if predicate["name"] in predicate_names:
+                errors.append(f"FSM {label} contains duplicate predicate {predicate['name']}.")
+            predicate_names.add(predicate["name"])
+    by_id = {fsm["fsm_id"]: fsm for fsm in fsms}
+    for fsm in fsms:
+        label = fsm["fsm_id"]
+        if fsm["parent_fsm_id"]:
+            if fsm["composition"] != "nested":
+                errors.append(f"FSM {label} has parent_fsm_id but composition is not nested.")
+            if fsm["parent_fsm_id"] not in by_id:
+                errors.append(f"FSM {label} references unknown parent_fsm_id {fsm['parent_fsm_id']}.")
+            else:
+                seen = {label}
+                ancestor_id = fsm["parent_fsm_id"]
+                while ancestor_id and ancestor_id in by_id:
+                    if ancestor_id in seen:
+                        errors.append(f"FSM parent cycle detected at {label}.")
+                        break
+                    seen.add(ancestor_id)
+                    ancestor_id = by_id[ancestor_id]["parent_fsm_id"]
+        source_states = {state["status_id"] for state in fsm["states"]}
+        precedence_by_source: set[tuple[str, int]] = set()
+        for transition in fsm["transitions"]:
+            target_fsm = by_id.get(transition["to_fsm_id"] or label)
+            if transition["from_status_id"] not in source_states:
+                errors.append(f"FSM {label} transition starts from unknown state {transition['from_status_id']}.")
+            if not target_fsm:
+                errors.append(f"FSM {label} transition references unknown to_fsm_id {transition['to_fsm_id']}.")
+            elif transition["to_status_id"] not in {state["status_id"] for state in target_fsm["states"]}:
+                errors.append(f"FSM {label} transition points to unknown state {transition['to_status_id']} in {target_fsm['fsm_id']}.")
+            elif target_fsm["fsm_id"] != label and not (
+                target_fsm["parent_fsm_id"] == label or fsm["parent_fsm_id"] == target_fsm["fsm_id"]
+            ):
+                errors.append(
+                    f"FSM {label} cross-flow transition may target only its direct parent or child flow, not {target_fsm['fsm_id']}."
+                )
+            if target_fsm and target_fsm["fsm_id"] != label and not transition["consume_condition"]:
+                errors.append(
+                    f"FSM {label} cross-flow transition {transition['from_status_id']} -> {transition['to_status_id']} needs consume_condition."
+                )
+            key = (transition["from_status_id"], transition["precedence"])
+            if key in precedence_by_source:
+                errors.append(f"FSM {label} has duplicate precedence {transition['precedence']} from {transition['from_status_id']}.")
+            precedence_by_source.add(key)
+            if not transition["condition"]:
+                errors.append(f"FSM {label} transition {transition['from_status_id']} -> {transition['to_status_id']} needs a code-owned boolean condition.")
+            for assignment in transition["request_assignments"]:
+                if not assignment["target"] or not assignment["expression"]:
+                    errors.append(
+                        f"FSM {label} transition {transition['from_status_id']} -> {transition['to_status_id']} request assignments need target and expression."
+                    )
+            for assignment in transition["apply_assignments"]:
+                if not assignment["target"] or not assignment["expression"]:
+                    errors.append(
+                        f"FSM {label} transition {transition['from_status_id']} -> {transition['to_status_id']} apply assignments need target and expression."
+                    )
+    if errors:
+        raise SystemExit("FSM survey validation failed:\n- " + "\n- ".join(errors))
+    return model
 
 
 def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:

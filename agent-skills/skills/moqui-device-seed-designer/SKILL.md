@@ -1,11 +1,6 @@
 ---
 name: moqui-device-seed-designer
 description: Use when creating or validating Moqui seed XML for devices, parameters, parameter definitions, device requests, device request items, and status flows. This skill runs a survey-style workflow, accepts structured user input or imported files, checks completeness against Moqui entity models, and emits seed data ready for review before optional copy into a Moqui component.
-compatibility: Requires Python 3.14+
-license: ../../LICENSE.md
-metadata:
-  author: moqui-induatrial
-  version: "1.0"
 ---
 
 # Moqui Device Seed Designer
@@ -66,6 +61,9 @@ Useful helper scripts:
   - composes a final seed XML from reusable fragments such as `base`, `mqtt`, `gateway_wrapper`, and `framework_ec`
   - also supports `opcua` as an auxiliary direct-transport reference fragment when needed
   - in a session workflow, prefer `--session-dir` so the seed is written under the session workspace and `session.json` is updated
+- `scripts/render_seed_from_surveys.py`
+  - validates multi-FSM surveys and materializes StatusType/StatusItem/StatusFlow topology
+  - assigns each FSM to its owning subsystem Device and preserves the physical device parent tree
 
 ## Validation Principle
 
@@ -78,6 +76,9 @@ The skill should verify:
 - enumerations and purpose fields are coherent
 - request items point to existing parameters
 - status flows contain ordered states and valid transitions
+- every system/subsystem owns at most one directly visible FSM Device projection
+- flat FSMs remain independent; nested transitions use `toStatusFlowId` only when explicitly requested
+- `conditionExpression` remains empty because transition conditions are code-owned
 - the seed can serve downstream skills such as `moqui-plc-designer`
 
 ## Standard DeviceRequest Philosophy

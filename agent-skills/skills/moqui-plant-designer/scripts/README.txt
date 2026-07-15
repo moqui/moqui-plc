@@ -51,3 +51,7 @@ python3 scripts/export_session_bundle.py \
 python3 scripts/validate_upstream_surveys.py \
   ../../output/sessions/plant-demo-001
 ```
+render_engineering_dossier.py
+  Renders the approved surveys as a Markdown engineering dossier. With
+  --work-effort-id it also emits optional WikiSpace/WikiPage/WikiPageWorkEffort
+  seed data for an existing HiveMind project.

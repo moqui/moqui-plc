@@ -135,37 +135,60 @@ plc4j_connections:
     scoped_domain_ids: []
     notes: ""
 """,
-    "main-fsm-survey.yaml": """# Main FSM survey
-component_name: ""
-main_status_enum: MainStatus
-status_flow_id: ""
-states:
-  - status: ""
-    activate:
-      device_groups: []
-      physical_devices: []
-      request_flags: []
-    deactivate:
-      device_groups: []
-      physical_devices: []
-      request_flags: []
-    consume_transition_requests: []
+    "main-fsm-survey.yaml": """# PLC FSM topology and state-output survey. Flat FSMs are the default.
+fsms:
+  - fsm_id: ""
+    owner_subsystem_id: ""
+    component_name: ""
+    status_flow_id: ""
+    status_type_id: ""
+    composition: flat
+    parent_fsm_id: ""
+    application_id: ""
+    call_sequence: 0
+    enable_condition: "TRUE"
+    completion_condition: ""
+    fault_status_id: ""
+    code_generation_approved: false
+    states:
+      - status_id: ""
+        name: ""
+        initial: true
+        sequence: 1
+        activate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        consume_transition_requests: []
+        output_assignments: []
+        outputs_reviewed: false
+        notes: ""
     notes: ""
 """,
-    "main-rule-engine-survey.yaml": """# MainRuleEngine survey
-component_name: ""
-status_flow_id: ""
-predicates: []
-transitions:
-  - from_status: ""
-    to_status: ""
-    condition: ""
-    precedence: 0
-    notes: ""
-global_overrides:
-  fault_condition: ""
-  reset_condition: ""
-  notes: ""
+    "main-rule-engine-survey.yaml": """# Code-owned predicates and transition policy; never persisted as executable DB expressions.
+fsms:
+  - fsm_id: ""
+    status_flow_id: ""
+    predicates: []
+    transitions:
+      - from_status_id: ""
+        to_status_id: ""
+        to_fsm_id: ""
+        name: ""
+        condition: ""
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: ""
+    global_overrides:
+      fault_condition: ""
+      reset_condition: ""
+      notes: ""
 """,
 }
 

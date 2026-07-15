@@ -1,14 +1,20 @@
-# MainRuleEngine survey
-component_name: ""
-status_flow_id: ""
-predicates: []
-transitions:
-  - from_status: ""
-    to_status: ""
-    condition: ""
-    precedence: 0
-    notes: ""
-global_overrides:
-  fault_condition: ""
-  reset_condition: ""
-  notes: ""
+# Code-owned predicates and transition policy; never persisted as executable DB expressions.
+fsms:
+  - fsm_id: ""
+    status_flow_id: ""
+    predicates: []
+    transitions:
+      - from_status_id: ""
+        to_status_id: ""
+        to_fsm_id: ""
+        name: ""
+        condition: ""
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: ""
+    global_overrides:
+      fault_condition: ""
+      reset_condition: ""
+      notes: ""
