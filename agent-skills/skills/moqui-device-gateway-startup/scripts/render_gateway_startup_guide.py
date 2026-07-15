@@ -16,6 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+GATEWAY_RUN_SERVICE = "moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -193,6 +196,16 @@ def analyze_model(model: dict) -> dict:
             if request.get("routerEnumId") == "DrrMoquiDeviceGateway"
             and request.get("deviceId")
             and request.get("deviceId") not in scoped_devices
+            and request.get("runServiceName") != GATEWAY_RUN_SERVICE
+        )
+        dispatch_wrappers = sorted(
+            (
+                request
+                for request in requests.values()
+                if request.get("deviceId") == gateway_id
+                and request.get("runServiceName") == GATEWAY_RUN_SERVICE
+            ),
+            key=request_name_of,
         )
 
         if not scoped_request_names:
@@ -206,6 +219,7 @@ def analyze_model(model: dict) -> dict:
                 "group_ids": group_ids,
                 "scoped_devices": [scoped_devices[key] for key in sorted(scoped_devices)],
                 "requests": [requests[name] for name in scoped_request_names],
+                "dispatch_wrappers": dispatch_wrappers,
                 "request_items_by_name": request_items_by_name,
                 "out_of_scope_request_names": out_of_scope_request_names,
             }
@@ -343,6 +357,15 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
         else:
             lines.append("- No in-scope gateway-routed requests were found.")
         lines.append("")
+
+        if gateway["dispatch_wrappers"]:
+            lines.append("### Moqui REST dispatch wrappers")
+            lines.append("")
+            for request in gateway["dispatch_wrappers"]:
+                lines.append(
+                    f"- `{request_name_of(request)}` invokes `{request.get('query', '')}` through `{request.get('brokerUri', '')}`."
+                )
+            lines.append("")
 
         first_write = next(
             (request for request in gateway["requests"] if request.get("requestTypeEnumId") == "DrtWrite"),

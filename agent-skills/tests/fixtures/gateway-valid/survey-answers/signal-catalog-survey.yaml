@@ -13,5 +13,6 @@ signals:
     signal_kind: digital
     iec_type: BOOL
     source_rule: SA-NO actuation
+    gateway_query: moqui/uv-line/lamp01/cmd
     reverse_logic: false
     notes: ""

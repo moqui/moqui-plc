@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 PL4J_RUN_SERVICE = "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
+GATEWAY_RUN_SERVICE = "moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
 
 
 def local_name(tag: str) -> str:
@@ -105,10 +106,31 @@ def validate_transport_projection(model: dict) -> dict[str, int]:
 
         if router == "DrrMoquiDeviceGateway":
             gateway_requests.append(request_name)
-            if request.get("deviceId") not in process_plc_ids:
-                errors.append(
-                    f"Gateway request {request_name} targets deviceId {request.get('deviceId', '')} that is not modeled as DgmpProcessPLC."
-                )
+            if run_service == GATEWAY_RUN_SERVICE:
+                if request.get("deviceId") not in gateway_ids:
+                    errors.append(
+                        f"Gateway dispatch wrapper {request_name} must target a DgmpEdgeGateway device."
+                    )
+                target_request_name = request.get("query", "")
+                if not target_request_name or target_request_name not in requests:
+                    errors.append(
+                        f"Gateway dispatch wrapper {request_name} query must reference an existing gateway-side DeviceRequest."
+                    )
+                if not request.get("brokerUri", ""):
+                    errors.append(f"Gateway dispatch wrapper {request_name} must define the gateway REST brokerUri.")
+            else:
+                if request.get("deviceId") not in process_plc_ids:
+                    errors.append(
+                        f"Gateway field request {request_name} targets deviceId {request.get('deviceId', '')} that is not modeled as DgmpProcessPLC."
+                    )
+                if not request.get("brokerUri", "") and not connection_name:
+                    errors.append(
+                        f"Gateway field request {request_name} must define MQTT brokerUri or OPC UA connectionName."
+                    )
+                if connection_name and connection_name not in connections:
+                    errors.append(
+                        f"Gateway field request {request_name} references missing DeviceConnection {connection_name}."
+                    )
 
         if run_service == PL4J_RUN_SERVICE:
             plc4j_requests.append(request_name)

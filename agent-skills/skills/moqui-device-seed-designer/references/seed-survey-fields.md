@@ -71,6 +71,7 @@ For each elementary device:
   - `iecType`
   - optional `reverseLogic`
   - source classification rule
+  - explicit `gatewayQuery` (MQTT topic or OPC UA node ID) when the signal is projected through the gateway
   - notes
 
 ## Sampling domains
@@ -112,6 +113,8 @@ Optional but strongly recommended when the application also uses
 - `gatewayName`
 - optional `gatewayDeviceTypeEnumId`
 - optional `gatewayMemberPurposeEnumId`
+- `restBaseUri` used by Moqui to invoke the standalone gateway
+- positive `restTimeoutSeconds`
 - `scopedSubsystemIds`
 - optional `scopedDeviceIds`
 - optional notes
@@ -146,6 +149,25 @@ Required before declaring the seed complete:
 - default PLC4J `runServiceName`
 - connection strategy notes
 - rationale / constraints
+- one `gatewayTransports` row per runtime transport:
+  - stable `transportId`
+  - owning `gatewayDeviceId`
+  - protocol: `mqtt` or `opcua`
+  - explicitly scoped sampling-domain IDs
+  - MQTT Camel base `brokerUri`, or OPC UA connection/driver/transport fields
+  - optional ownership and topic of the single PLC-log and live-parameter MQTT channels
+
+The MQTT base URI must leave the topic portion empty so the gateway can append
+each `DeviceRequestItem.query`, for example
+`paho-mqtt5:?brokerUrl=tcp://artemis:1883&qos=1`. Credentials are deployment
+configuration, not generated seed data.
+
+`MqttParameterSub` subscribes to one configured live-parameter topic. Therefore
+all items in the generated live-parameter request use that same topic;
+`mqttKey` remains the application-level JSON mapping key recorded as
+`DeviceRequestItem.requestItemName`. The PLC-side JSON mapper must explicitly
+support the gateway payload contract; seed generation does not infer or validate
+that Structured Text mapping.
 
 This survey is where the workflow captures the non-optional fact that the
 model must project onto at least one runtime transport layer:

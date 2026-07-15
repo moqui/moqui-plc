@@ -13,6 +13,7 @@ signals:
     signal_kind: digital
     iec_type: BOOL
     source_rule: SA-NO actuation
+    gateway_query: moqui/cure/conveyor/enable
     reverse_logic: false
     notes: ""
   - signal_id: SIG_LAMP_ENABLE
@@ -22,6 +23,7 @@ signals:
     signal_kind: digital
     iec_type: BOOL
     source_rule: SA-NO actuation
+    gateway_query: moqui/cure/lamp/enable
     reverse_logic: false
     notes: ""
   - signal_id: SIG_LAMP_READY
@@ -31,5 +33,6 @@ signals:
     signal_kind: digital
     iec_type: BOOL
     source_rule: readiness feedback
+    gateway_query: moqui/cure/lamp/ready
     reverse_logic: false
     notes: ""

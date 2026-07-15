@@ -78,6 +78,7 @@ signals:
     signal_kind: ""
     iec_type: ""
     source_rule: ""
+    gateway_query: ""
     plc4j_query: ""
     reverse_logic: false
     notes: ""
@@ -109,6 +110,8 @@ gateways:
     gateway_name: ""
     gateway_device_type_enum_id: "DtEdgeGateway"
     gateway_member_purpose_enum_id: "DgmpEdgeGateway"
+    rest_base_uri: ""
+    rest_timeout_seconds: 30
     scoped_subsystem_ids: []
     scoped_device_ids: []
     notes: ""
@@ -121,6 +124,22 @@ transport_architecture:
 gateway_projection:
   required: false
   rationale: ""
+gateway_transports:
+  - transport_id: ""
+    gateway_device_id: ""
+    protocol: ""
+    broker_uri: ""
+    connection_name: ""
+    driver_enum_id: ""
+    transport_enum_id: ""
+    transport_config: ""
+    options: ""
+    scoped_domain_ids: []
+    supports_plc_logs: false
+    plc_log_topic: ""
+    supports_live_parameters: false
+    live_parameter_topic: ""
+    notes: ""
 plc4j_projection:
   required: false
   default_run_service_name: "moqui.plc4j.Plc4jServices.run#Plc4jRequest"

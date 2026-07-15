@@ -221,6 +221,35 @@ def build_guided_questions(model: dict, atomic_library: dict) -> dict:
                 "why": "Serve per generare Device, PhysicalDevice e DeviceGroupMember del gateway.",
             }
         )
+    if transport["gateway_required"]:
+        for gateway in model["gateways"]:
+            if gateway["gateway_device_id"] and not gateway["rest_base_uri"]:
+                questions.append(
+                    {
+                        "stage": "transport_architecture",
+                        "question": f"Qual e il REST base URI del gateway {gateway['gateway_device_id']} usato da Moqui per il dispatch?",
+                        "why": "Il wrapper DeviceRequest Moqui-side deve raggiungere il servizio standalone senza incorporare credenziali nel seed.",
+                    }
+                )
+        if not any(row["transport_id"] for row in model["gateway_transports"]):
+            questions.append(
+                {
+                    "stage": "transport_architecture",
+                    "question": "Quali trasporti MQTT o OPC UA esegue il gateway e quali domini di campionamento appartengono a ciascuno?",
+                    "why": "Ogni richiesta field-side deve avere un brokerUri MQTT oppure una DeviceConnection OPC UA non ambigua.",
+                }
+            )
+        missing_gateway_queries = [
+            signal["signal_id"] for signal in model["signals"] if not signal["gateway_query"]
+        ]
+        if missing_gateway_queries:
+            questions.append(
+                {
+                    "stage": "transport_architecture",
+                    "question": "Quali topic MQTT o node ID OPC UA corrispondono ai segnali: " + ", ".join(missing_gateway_queries) + "?",
+                    "why": "Il binding di trasporto del gateway deve essere esplicito nei DeviceRequestItem; il binding fisico del device tree PLC resta manuale.",
+                }
+            )
     if transport["plc4j_required"] and not any(
         row["connection_name"] for row in model["plc4j_connections"]
     ):

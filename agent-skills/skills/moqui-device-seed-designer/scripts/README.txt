@@ -26,13 +26,14 @@ Current scripts:
   - materializes:
     - root PLC/controller `Device` + `PhysicalDevice`
     - optional survey-derived gateway `Device` + `PhysicalDevice`
-    - optional survey-derived `DeviceConnection` rows for `moqui-plc4j`
+    - optional survey-derived `DeviceConnection` rows for OPC UA gateway transports and `moqui-plc4j`
     - survey-derived elementary child `Device` + `PhysicalDevice` rows
     - subsystem and gateway `DeviceGroupMember` rows
     - signal-derived `ParameterDef` + `Parameter` rows
     - grouped physical I/O `DeviceRequest` + `DeviceRequestItem` rows for:
-      - `moqui-device-gateway` using signal names / MQTT semantics
+      - `moqui-device-gateway` using explicit MQTT topics or OPC UA node IDs
       - `moqui-plc4j` using explicit `plc4j_query` values from the surveys
+    - Moqui-side REST dispatch wrappers linked to gateway-side requests through `DeviceRequest.query`
   - runs the upstream survey validation first, so partial surveys block generation
   - keeps the output explicitly reviewable rather than pretending that all enums or grouping decisions are final
 

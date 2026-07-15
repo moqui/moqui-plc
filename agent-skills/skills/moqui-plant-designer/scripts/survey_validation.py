@@ -19,6 +19,7 @@ SUPPORTED_SIGNAL_DIRECTIONS = {"input", "output"}
 SUPPORTED_IEC_TYPES = {"BOOL", "BYTE", "WORD", "DWORD", "LWORD", "INT", "UINT", "DINT", "UDINT", "REAL", "LREAL", "TIME", "STRING"}
 SUPPORTED_TRANSPORT_MODES = {"gateway", "plc4j", "hybrid"}
 SUPPORTED_DOMAIN_TRANSPORT_SCOPES = {"", "gateway", "plc4j", "both", "hybrid"}
+SUPPORTED_GATEWAY_PROTOCOLS = {"mqtt", "opcua"}
 SUPPORTED_FSM_COMPOSITIONS = {"flat", "nested"}
 PLC4J_RUN_SERVICE = "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
 
@@ -30,6 +31,17 @@ def _gateway_row_is_meaningful(row: dict) -> bool:
         or row.get("scoped_subsystem_ids")
         or row.get("scoped_device_ids")
         or row.get("notes")
+    )
+
+
+def _gateway_transport_row_is_meaningful(row: dict) -> bool:
+    return bool(
+        row.get("transport_id")
+        or row.get("gateway_device_id")
+        or row.get("protocol")
+        or row.get("broker_uri")
+        or row.get("connection_name")
+        or row.get("transport_config")
     )
 
 
@@ -277,6 +289,7 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
                 "signal_kind": _as_str(block.get("signal_kind")),
                 "iec_type": _as_str(block.get("iec_type")),
                 "source_rule": _as_str(block.get("source_rule")),
+                "gateway_query": _as_str(block.get("gateway_query")),
                 "plc4j_query": _as_str(block.get("plc4j_query")),
                 "reverse_logic": _as_bool(block.get("reverse_logic"), default=False),
                 "notes": _as_str(block.get("notes")),
@@ -328,6 +341,8 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
                 "gateway_name": _as_str(block.get("gateway_name")),
                 "gateway_device_type_enum_id": _as_str(block.get("gateway_device_type_enum_id")),
                 "gateway_member_purpose_enum_id": _as_str(block.get("gateway_member_purpose_enum_id")),
+                "rest_base_uri": _as_str(block.get("rest_base_uri")),
+                "rest_timeout_seconds": _as_str(block.get("rest_timeout_seconds")) or "30",
                 "scoped_subsystem_ids": _as_list_of_strings(
                     block.get("scoped_subsystem_ids"),
                     "gateway-topology-survey.yaml",
@@ -370,6 +385,36 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         "plc4j_notes": _as_str(plc4j_projection_map.get("notes")),
     }
 
+    gateway_transports = []
+    for block in _as_list_of_dicts(
+        transport_doc,
+        "gateway_transports",
+        "transport-architecture-survey.yaml",
+    ):
+        gateway_transports.append(
+            {
+                "transport_id": _as_str(block.get("transport_id")),
+                "gateway_device_id": _as_str(block.get("gateway_device_id")),
+                "protocol": _as_str(block.get("protocol")).lower(),
+                "broker_uri": _as_str(block.get("broker_uri")),
+                "connection_name": _as_str(block.get("connection_name")),
+                "driver_enum_id": _as_str(block.get("driver_enum_id")),
+                "transport_enum_id": _as_str(block.get("transport_enum_id")),
+                "transport_config": _as_str(block.get("transport_config")),
+                "options": _as_str(block.get("options")),
+                "scoped_domain_ids": _as_list_of_strings(
+                    block.get("scoped_domain_ids"),
+                    "transport-architecture-survey.yaml",
+                    "scoped_domain_ids",
+                ),
+                "plc_log_topic": _as_str(block.get("plc_log_topic")),
+                "live_parameter_topic": _as_str(block.get("live_parameter_topic")),
+                "supports_plc_logs": _as_bool(block.get("supports_plc_logs"), default=False),
+                "supports_live_parameters": _as_bool(block.get("supports_live_parameters"), default=False),
+                "notes": _as_str(block.get("notes")),
+            }
+        )
+
     plc4j_connections = []
     for block in _as_list_of_dicts(
         transport_doc,
@@ -402,6 +447,7 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         "live_parameters": live_parameters,
         "gateways": gateways,
         "transport_architecture": transport_architecture,
+        "gateway_transports": gateway_transports,
         "plc4j_connections": plc4j_connections,
     }
 
@@ -835,6 +881,83 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
     if transport["gateway_required"] and not meaningful_gateways:
         errors.append("Gateway projection is required, but gateway-topology-survey.yaml does not define any gateway.")
 
+    gateway_ids = {row["gateway_device_id"] for row in meaningful_gateways}
+    for gateway in meaningful_gateways:
+        if not gateway["rest_base_uri"]:
+            errors.append(f"Gateway topology {gateway['gateway_device_id']} must define rest_base_uri.")
+        if not gateway["rest_timeout_seconds"].isdigit() or int(gateway["rest_timeout_seconds"]) <= 0:
+            errors.append(
+                f"Gateway topology {gateway['gateway_device_id']} rest_timeout_seconds must be a positive integer."
+            )
+
+    meaningful_gateway_transports = [
+        row for row in model["gateway_transports"] if _gateway_transport_row_is_meaningful(row)
+    ]
+    if transport["gateway_required"] and not meaningful_gateway_transports:
+        errors.append(
+            "Gateway projection is required, but transport-architecture-survey.yaml does not define any gateway_transports."
+        )
+    domain_ids = {row["domain_id"] for row in model["domains"]}
+    for index, row in enumerate(model["gateway_transports"], start=1):
+        if not _gateway_transport_row_is_meaningful(row):
+            continue
+        label = row["transport_id"] or f"#{index}"
+        if not row["transport_id"] or not row["gateway_device_id"] or not row["protocol"]:
+            errors.append(f"Gateway transport {label} must define transport_id, gateway_device_id, and protocol.")
+            continue
+        if row["gateway_device_id"] not in gateway_ids:
+            errors.append(f"Gateway transport {label} references unknown gateway_device_id {row['gateway_device_id']}.")
+        if not row["scoped_domain_ids"] and not row["supports_plc_logs"] and not row["supports_live_parameters"]:
+            errors.append(
+                f"Gateway transport {label} must scope at least one sampling domain or support a declared PLC log/live-parameter channel."
+            )
+        if row["protocol"] not in SUPPORTED_GATEWAY_PROTOCOLS:
+            errors.append(f"Gateway transport {label} uses unsupported protocol {row['protocol']}.")
+        if row["protocol"] == "mqtt" and not row["broker_uri"]:
+            errors.append(f"MQTT gateway transport {label} must define broker_uri.")
+        if row["protocol"] == "opcua":
+            if not row["connection_name"] or not row["transport_config"]:
+                errors.append(f"OPC UA gateway transport {label} must define connection_name and transport_config.")
+            if row["driver_enum_id"] and row["driver_enum_id"] != "DcdOpcUa":
+                errors.append(f"OPC UA gateway transport {label} must use driver_enum_id DcdOpcUa.")
+        if row["supports_plc_logs"] and (row["protocol"] != "mqtt" or not row["plc_log_topic"]):
+            errors.append(
+                f"Gateway transport {label} with supports_plc_logs must be MQTT and define plc_log_topic."
+            )
+        if row["supports_live_parameters"] and (
+            row["protocol"] != "mqtt" or not row["live_parameter_topic"]
+        ):
+            errors.append(
+                f"Gateway transport {label} with supports_live_parameters must be MQTT and define live_parameter_topic."
+            )
+        for domain_id in row["scoped_domain_ids"]:
+            if domain_id not in domain_ids:
+                errors.append(f"Gateway transport {label} references unknown scoped_domain_id {domain_id}.")
+
+    if transport["gateway_required"]:
+        for domain in model["domains"]:
+            scope = _normalize_transport_scope(domain["transport_projection"])
+            if primary_transport_mode == "gateway" or scope in {"gateway", "both"}:
+                matches = [
+                    row for row in meaningful_gateway_transports
+                    if domain["domain_id"] in row["scoped_domain_ids"]
+                ]
+                if len(matches) != 1:
+                    errors.append(
+                        f"Gateway-scoped sampling domain {domain['domain_id']} must resolve to exactly one gateway_transport; found {len(matches)}."
+                    )
+
+    live_transport_count = sum(1 for row in meaningful_gateway_transports if row["supports_live_parameters"])
+    log_transport_count = sum(1 for row in meaningful_gateway_transports if row["supports_plc_logs"])
+    if any(any(row.values()) for row in model["live_parameters"]) and live_transport_count != 1:
+        errors.append(
+            f"Live parameters require exactly one gateway_transport with supports_live_parameters = true; found {live_transport_count}."
+        )
+    if log_transport_count > 1:
+        errors.append(
+            f"At most one gateway_transport may define supports_plc_logs = true; found {log_transport_count}."
+        )
+
     meaningful_plc4j_connections = [
         row for row in model["plc4j_connections"] if _plc4j_connection_row_is_meaningful(row)
     ]
@@ -881,6 +1004,13 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
             errors.append(
                 f"Sampling domain {domain_id} cannot require gateway transport when primary_transport_mode is plc4j."
             )
+        if primary_transport_mode == "gateway" or scope in {"gateway", "both"}:
+            for signal_id in row["signals"]:
+                signal_row = next((signal for signal in model["signals"] if signal["signal_id"] == signal_id), None)
+                if signal_row and not signal_row["gateway_query"]:
+                    errors.append(
+                        f"Signal {signal_id} belongs to gateway-scoped domain {domain_id} but does not define gateway_query."
+                    )
         if primary_transport_mode == "hybrid" and scope not in {"gateway", "plc4j", "both"}:
             errors.append(
                 f"Sampling domain {domain_id} must define transport_scope as gateway, plc4j, or both when primary_transport_mode is hybrid."

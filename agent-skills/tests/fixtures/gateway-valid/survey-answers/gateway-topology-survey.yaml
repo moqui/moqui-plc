@@ -3,6 +3,8 @@ gateways:
     gateway_name: Gateway Edge 01
     gateway_device_type_enum_id: DtEdgeGateway
     gateway_member_purpose_enum_id: DgmpEdgeGateway
+    rest_base_uri: http://gateway-edge-01:8081
+    rest_timeout_seconds: 30
     scoped_subsystem_ids:
       - SS_MAIN
     scoped_device_ids: []

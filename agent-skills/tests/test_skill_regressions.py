@@ -91,6 +91,13 @@ class SkillRegressionTest(unittest.TestCase):
             "--session-dir",
             str(session_dir),
         )
+        transport_out = run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        self.assertIn("Transport projection validated.", transport_out)
         run_ok(
             PYTHON,
             "skills/moqui-device-gateway-startup/scripts/render_gateway_startup_guide.py",
@@ -110,9 +117,89 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn('parameterDefId="PD_LAMP_01_ENABLE_REQUEST"', seed_text)
         self.assertIn('parameterId="P_LAMP_01_ENABLE_REQUEST"', seed_text)
         self.assertIn('parameterDefId="PD_LAMP_01_ENABLE_TIME"', seed_text)
+        self.assertIn('brokerUri="paho-mqtt5:?brokerUrl=tcp://artemis:1883&amp;qos=1"', seed_text)
+        self.assertIn('query="moqui/uv-line/lamp01/cmd"', seed_text)
+        self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite_GatewayDispatch"', seed_text)
+        self.assertIn('runServiceName="moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"', seed_text)
+        self.assertIn('brokerUri="http://gateway-edge-01:8081"', seed_text)
+        self.assertIn('query="UV_LINE_PLC_FAST_OutputsWrite"', seed_text)
+        self.assertIn('query="moqui-plc"', seed_text)
+        self.assertIn('query="moqui/parameters/live"', seed_text)
         self.assertIn("UV_LINE_PLC_FAST_OutputsWrite", guide_text)
         self.assertIn("GW_EDGE_01", guide_text)
         self.assertIn("PLC log request", guide_text)
+        self.assertIn("Moqui REST dispatch wrappers", guide_text)
+        self.assertNotIn("OutputsWrite_GatewayDispatch` is routed", guide_text)
+
+    def test_gateway_opcua_domain_generates_connection_and_rest_wrapper(self) -> None:
+        session_dir = self.init_session_from_fixture("gateway-valid")
+        transport_path = session_dir / "survey-answers" / "transport-architecture-survey.yaml"
+        transport_path.write_text(
+            """transport_architecture:
+  primary_transport_mode: gateway
+  allows_hybrid_projection: false
+  notes: OPC UA process transport with MQTT operational channels.
+gateway_projection:
+  required: true
+  rationale: Gateway owns OPC UA polling and writes.
+gateway_transports:
+  - transport_id: OPCUA_PLC
+    gateway_device_id: GW_EDGE_01
+    protocol: opcua
+    connection_name: UvLineOpcUa
+    driver_enum_id: DcdOpcUa
+    transport_enum_id: DctrTcp
+    transport_config: plc-uv-line:4840/moqui
+    options: securityPolicy=None
+    scoped_domain_ids: [FAST]
+    supports_plc_logs: false
+    supports_live_parameters: false
+  - transport_id: MQTT_OPERATIONS
+    gateway_device_id: GW_EDGE_01
+    protocol: mqtt
+    broker_uri: paho-mqtt5:?brokerUrl=tcp://artemis:1883&qos=1
+    scoped_domain_ids: []
+    supports_plc_logs: true
+    plc_log_topic: moqui-plc
+    supports_live_parameters: true
+    live_parameter_topic: moqui/parameters/live
+plc4j_projection:
+  required: false
+  default_run_service_name: moqui.plc4j.Plc4jServices.run#Plc4jRequest
+  connection_strategy: ""
+  notes: ""
+""",
+            encoding="utf-8",
+        )
+        signal_path = session_dir / "survey-answers" / "signal-catalog-survey.yaml"
+        signal_path.write_text(
+            signal_path.read_text(encoding="utf-8").replace(
+                "gateway_query: moqui/uv-line/lamp01/cmd",
+                "gateway_query: ns=2;s=UvLine.Lamp01.Cmd",
+            ),
+            encoding="utf-8",
+        )
+
+        run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        seed_text = (session_dir / "seed-data" / "survey-derived-seed.xml").read_text(encoding="utf-8")
+        self.assertIn('connectionName="UvLineOpcUa"', seed_text)
+        self.assertIn('driverEnumId="DcdOpcUa"', seed_text)
+        self.assertIn('transportConfig="plc-uv-line:4840/moqui"', seed_text)
+        self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite"', seed_text)
+        self.assertIn('query="ns=2;s=UvLine.Lamp01.Cmd"', seed_text)
+        self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite_GatewayDispatch"', seed_text)
+        self.assertIn('brokerUri="http://gateway-edge-01:8081"', seed_text)
 
     def test_multi_subsystem_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("multi-subsystem-valid")

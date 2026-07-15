@@ -64,6 +64,7 @@ Useful helper scripts:
 - `scripts/render_seed_from_surveys.py`
   - validates multi-FSM surveys and materializes StatusType/StatusItem/StatusFlow topology
   - assigns each FSM to its owning subsystem Device and preserves the physical device parent tree
+  - generates executable gateway-side MQTT/OPC UA requests plus their Moqui-side REST dispatch wrappers
 
 ## Validation Principle
 
@@ -75,6 +76,10 @@ The skill should verify:
 - parent/child references are resolvable
 - enumerations and purpose fields are coherent
 - request items point to existing parameters
+- each gateway sampling domain resolves to exactly one declared gateway transport
+- MQTT requests define a Camel `paho-mqtt5:` base URI and explicit topics
+- OPC UA requests reference a generated `DeviceConnection` and explicit node IDs
+- each Moqui-side dispatch wrapper targets a gateway Device and references its field-side request by `query`
 - status flows contain ordered states and valid transitions
 - every system/subsystem owns at most one directly visible FSM Device projection
 - flat FSMs remain independent; nested transitions use `toStatusFlowId` only when explicitly requested
@@ -105,6 +110,18 @@ The standard request families are normally only:
 1. framework `ec` read/write requests
 2. recipe export request
 3. one live-parameter request for values acquired by `MqttParameterSub` in [moqui/moqui-plc](https://github.com/moqui/moqui-plc)
+
+For each gateway-executed family, keep the two model rows distinct:
+
+- the field-side request targets the PLC and contains MQTT/OPC UA transport data;
+- the Moqui-side wrapper targets the gateway, uses
+  `moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest`, stores the
+  gateway REST base URL in `brokerUri`, and names the field-side request in
+  `query`.
+
+Do not put API keys, broker passwords, or OPC UA credentials in generated seed
+files. Supply credentials through deployment configuration or referenced user
+accounts.
 
 So the skill should avoid over-designing many different request families when
 the real variability belongs to the parameter model and to the request items.

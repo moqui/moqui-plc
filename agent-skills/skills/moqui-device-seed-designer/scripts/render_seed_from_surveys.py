@@ -35,6 +35,7 @@ from survey_validation import (
     validate_fsm_surveys,
     validate_upstream_surveys,
     _gateway_row_is_meaningful,
+    _gateway_transport_row_is_meaningful,
     _plc4j_connection_row_is_meaningful,
     _normalize_transport_scope,
 )
@@ -104,7 +105,8 @@ IEC_TO_REQUEST_ITEM_TYPE = {
 
 DEFAULT_GATEWAY_ROUTER_ENUM_ID = "DrrMoquiDeviceGateway"
 DEFAULT_PLC4J_ROUTER_ENUM_ID = "DrrDirect"
-DEFAULT_LOG_TOPIC = "moqui-log"
+DEFAULT_LOG_TOPIC = "moqui-plc"
+GATEWAY_RUN_SERVICE = "moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
 PLC4J_RUN_SERVICE = "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
 _start = Path(__file__).resolve()
 _repo_dir = None
@@ -361,6 +363,7 @@ def validate_generated_enum_references(root: ET.Element, enum_ids: set[str]) -> 
         "deviceTypeEnumId",
         "purposeEnumId",
         "controlMethodEnumId",
+        "connectionTypeEnumId",
         "driverEnumId",
         "transportEnumId",
         "requestTypeEnumId",
@@ -441,6 +444,59 @@ def resolve_plc4j_connection_for_domain(domain: dict, model: dict) -> dict:
         )
     raise SystemExit(
         f"Sampling domain {domain_id} matches multiple unscoped plc4j_connections; scope them explicitly by domain."
+    )
+
+
+def resolve_gateway_transport_for_domain(domain: dict, model: dict) -> dict:
+    domain_id = domain["domain_id"]
+    transports = [
+        row for row in model["gateway_transports"] if _gateway_transport_row_is_meaningful(row)
+    ]
+    matches = [
+        row for row in transports if domain_id in row["scoped_domain_ids"]
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"Sampling domain {domain_id} must resolve to exactly one gateway_transport; found {len(matches)}."
+        )
+    return matches[0]
+
+
+def gateway_by_id(model: dict, gateway_device_id: str) -> dict:
+    matches = [
+        row for row in model["gateways"]
+        if _gateway_row_is_meaningful(row) and row["gateway_device_id"] == gateway_device_id
+    ]
+    if len(matches) != 1:
+        raise SystemExit(f"Gateway device {gateway_device_id} must resolve to exactly one gateway topology row.")
+    return matches[0]
+
+
+def append_gateway_dispatch_wrapper(
+    root: ET.Element,
+    model: dict,
+    field_request_name: str,
+    request_type_enum_id: str,
+    purpose_enum_id: str,
+    transport: dict,
+    connection_name: str = "",
+) -> None:
+    gateway = gateway_by_id(model, transport["gateway_device_id"])
+    add_elem(
+        root,
+        "moqui.device.DeviceRequest",
+        requestName=f"{field_request_name}_GatewayDispatch",
+        deviceId=gateway["gateway_device_id"],
+        requestTypeEnumId=request_type_enum_id,
+        purposeEnumId=purpose_enum_id,
+        routerEnumId=DEFAULT_GATEWAY_ROUTER_ENUM_ID,
+        runServiceName=GATEWAY_RUN_SERVICE,
+        brokerUri=gateway["rest_base_uri"],
+        timeout=gateway["rest_timeout_seconds"],
+        query=field_request_name,
+        connectionName=connection_name,
+        onlyChangedParameters="N",
+        description=f"Moqui-side REST dispatch wrapper for gateway request {field_request_name}.",
     )
 
 
@@ -579,6 +635,23 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             deviceId=gateway["gateway_device_id"],
             deviceName=gateway["gateway_name"],
             softwareApplication="moqui-device-gateway",
+        )
+
+    for transport in model.get("gateway_transports", []):
+        if not _gateway_transport_row_is_meaningful(transport) or transport["protocol"] != "opcua":
+            continue
+        add_elem(
+            root,
+            "moqui.device.DeviceConnection",
+            connectionName=transport["connection_name"],
+            deviceId=root_device_id,
+            connectionTypeEnumId="DctDirectConnection",
+            purposeEnumId="DcpOperations",
+            driverEnumId=transport["driver_enum_id"] or "DcdOpcUa",
+            transportEnumId=transport["transport_enum_id"] or "DctrTcp",
+            transportConfig=transport["transport_config"],
+            options=transport["options"],
+            description=transport.get("notes", "") or f"Survey-derived OPC UA transport {transport['transport_id']}.",
         )
 
     for connection in model.get("plc4j_connections", []):
@@ -756,6 +829,7 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             router_enum_id = DEFAULT_GATEWAY_ROUTER_ENUM_ID if transport_tag == "gateway" else DEFAULT_PLC4J_ROUTER_ENUM_ID
             request_transport_suffix = title_case(transport_tag)
             connection = resolve_plc4j_connection_for_domain(domain, model) if transport_tag == "plc4j" else None
+            gateway_transport = resolve_gateway_transport_for_domain(domain, model) if transport_tag == "gateway" else None
 
             if input_signals:
                 request_name = request_name_for_transport(
@@ -777,6 +851,11 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
                     request_attrs["runServiceName"] = (
                         model["transport_architecture"].get("default_run_service_name") or PLC4J_RUN_SERVICE
                     )
+                if gateway_transport:
+                    if gateway_transport["protocol"] == "mqtt":
+                        request_attrs["brokerUri"] = gateway_transport["broker_uri"]
+                    else:
+                        request_attrs["connectionName"] = gateway_transport["connection_name"]
                 add_elem(root, "moqui.device.DeviceRequest", **request_attrs)
                 for sequence_num, signal in enumerate(input_signals, start=1):
                     add_elem(
@@ -786,8 +865,18 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
                         parameterId=f"P_{normalize_identifier(signal['signal_id'])}",
                         sequenceNum=str(sequence_num),
                         requestItemName=signal["signal_name"],
-                        query=signal["plc4j_query"] if transport_tag == "plc4j" else signal["signal_name"],
+                        query=signal["plc4j_query"] if transport_tag == "plc4j" else signal["gateway_query"],
                         itemTypeEnumId=request_item_type_for_signal(signal),
+                    )
+                if gateway_transport:
+                    append_gateway_dispatch_wrapper(
+                        root,
+                        model,
+                        request_name,
+                        "DrtCyclic",
+                        "DrpMonitoring",
+                        gateway_transport,
+                        gateway_transport["connection_name"] if gateway_transport["protocol"] == "opcua" else "",
                     )
 
             if output_signals:
@@ -810,6 +899,11 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
                     request_attrs["runServiceName"] = (
                         model["transport_architecture"].get("default_run_service_name") or PLC4J_RUN_SERVICE
                     )
+                if gateway_transport:
+                    if gateway_transport["protocol"] == "mqtt":
+                        request_attrs["brokerUri"] = gateway_transport["broker_uri"]
+                    else:
+                        request_attrs["connectionName"] = gateway_transport["connection_name"]
                 add_elem(root, "moqui.device.DeviceRequest", **request_attrs)
                 for sequence_num, signal in enumerate(output_signals, start=1):
                     add_elem(
@@ -819,25 +913,47 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
                         parameterId=f"P_{normalize_identifier(signal['signal_id'])}",
                         sequenceNum=str(sequence_num),
                         requestItemName=signal["signal_name"],
-                        query=signal["plc4j_query"] if transport_tag == "plc4j" else signal["signal_name"],
+                        query=signal["plc4j_query"] if transport_tag == "plc4j" else signal["gateway_query"],
                         itemTypeEnumId=request_item_type_for_signal(signal),
                     )
+                if gateway_transport:
+                    append_gateway_dispatch_wrapper(
+                        root,
+                        model,
+                        request_name,
+                        "DrtWrite",
+                        "DrpControl",
+                        gateway_transport,
+                        gateway_transport["connection_name"] if gateway_transport["protocol"] == "opcua" else "",
+                    )
 
-    if model["transport_architecture"]["gateway_required"]:
+    log_transports = [
+        row for row in model["gateway_transports"] if row.get("supports_plc_logs")
+    ]
+    if model["transport_architecture"]["gateway_required"] and log_transports:
+        log_transport = log_transports[0]
+        log_request_name = f"{root_device_id}_PlcLogSubscribe"
         add_elem(
             root,
             "moqui.device.DeviceRequest",
-            requestName=f"{root_device_id}_PlcLogSubscribe",
+            requestName=log_request_name,
             deviceId=root_device_id,
             requestTypeEnumId="DrtSubscribe",
             purposeEnumId="DrpLogging",
             routerEnumId=DEFAULT_GATEWAY_ROUTER_ENUM_ID,
-            query=DEFAULT_LOG_TOPIC,
+            brokerUri=log_transport["broker_uri"],
+            query=log_transport["plc_log_topic"] or DEFAULT_LOG_TOPIC,
             description="Standard PLC LoggerFacade/LogDispatcher subscription; DeviceRequestItems are intentionally omitted.",
+        )
+        append_gateway_dispatch_wrapper(
+            root, model, log_request_name, "DrtSubscribe", "DrpLogging", log_transport
         )
 
     live_rows = [row for row in model["live_parameters"] if any(row.values())]
     if live_rows and model["transport_architecture"]["gateway_required"]:
+        live_transport = next(
+            row for row in model["gateway_transports"] if row.get("supports_live_parameters")
+        )
         request_name = f"{root_device_id}_LiveParametersWrite"
         add_elem(
             root,
@@ -847,6 +963,7 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
             requestTypeEnumId="DrtWrite",
             purposeEnumId="DrpControl",
             routerEnumId=DEFAULT_GATEWAY_ROUTER_ENUM_ID,
+            brokerUri=live_transport["broker_uri"],
             onlyChangedParameters="Y",
             description="Survey-derived live-parameter write request for MqttParameterSub / JSON parameter mapping.",
         )
@@ -858,10 +975,13 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
                 requestName=request_name,
                 parameterId=row["parameter_id"],
                 sequenceNum=str(sequence_num),
-                requestItemName=row["parameter_name"],
-                query=row["mqtt_key"],
+                requestItemName=row["mqtt_key"],
+                query=live_transport["live_parameter_topic"],
                 itemTypeEnumId=request_item_type_for_signal(signal_like),
             )
+        append_gateway_dispatch_wrapper(
+            root, model, request_name, "DrtWrite", "DrpControl", live_transport
+        )
 
     root.append(ET.Comment("Sampling-domain summary"))
     for domain in model["domains"]:
