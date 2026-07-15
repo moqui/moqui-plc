@@ -1,11 +1,6 @@
 ---
 name: moqui-plc-designer
 description: Use when generating or refining PLC code from Moqui automation data. This skill reads devices, parameters, device requests, status flows, and related metadata, then fills reusable templates for IOFacade, DeviceFacade, DeviceManager, DeviceDiagnostics, MainStatus, Main, and MainRuleEngine.
-compatibility: Requires Python 3.14+
-license: ../../LICENSE.md
-metadata:
-  author: moqui-induatrial
-  version: "1.0"
 ---
 
 # Moqui PLC Designer
@@ -46,20 +41,30 @@ Use this skill when the task is to define or generate a data-driven automation m
 
 ## Output Layout
 
-Generated PLC files should be written into an `output/<component-name>/` tree that mirrors the `mantle-hvac` structure in [moqui/moqui-plc](https://github.com/moqui/moqui-plc).
+Generate one isolated bundle for each top-level CODESYS Application. Each bundle
+contains a dedicated framework copy and one runtime component that mirrors
+`mantle-hvac`.
 
 In a saved parent session, prefer:
 
-- `output/sessions/<session-id>/generated-plc/<component-name>/...`
+- `output/sessions/<session-id>/generated-plc/codesys-applications/<application-id>/...`
 
-Preferred layout:
+Application layout:
 
-- `output/<component-name>/data/`
-- `output/<component-name>/src/main/<namespace>/<component-name>/`
+- `framework/`
+- `runtime/component/<component-name>/data/`
+- `runtime/component/<component-name>/src/main/<namespace>/<component-name>/`
+- `application-manifest.json`
+- `plc-traceability.md`
+
+Runtime component layout:
+
+- `data/`
+- `src/main/<namespace>/<component-name>/`
   - `MainStatus.dut`
   - `Main.pou`
   - `MainRuleEngine.pou`
-- `output/<component-name>/src/main/org/moqui/device/`
+- `src/main/org/moqui/device/`
   - `IOFacade.dut`
   - `DeviceFacade.dut`
   - `DeviceManager.pou`
@@ -88,22 +93,26 @@ CODESYS device-tree objects remain external to the Moqui seed model:
 - `InputSignalUpdate` and `OutputSignalUpdate` stay manual
 - `DeviceManager` and `DeviceDiagnostics` are auto-generable only when every listed device is blocking for the machine
 - complex redundancy, backup, standby, or non-blocking `DeviceGroup` roles are out of scope
-- `Main.pou` and `MainRuleEngine.pou` intentionally remain in standby until real project test cases are available to validate the final generation rules
+- `MainRuleEngine.pou` computes boolean transition requests; `Main.pou` alone consumes those requests and applies same-flow state changes
+- every top-level controlled system is generated as a separate CODESYS Application with its own framework copy
+- subsystem controllers execute sequentially by unique ascending `call_sequence`; `DeviceManager` executes once afterwards
+- cross-flow transitions require reviewed `request_assignments` and `apply_assignments`; generation stops if either side is missing
 - the repository should currently be treated as a semilavorato/base framework that each development team may further specialize
 
 ## Workflow
 
 1. Read the seed XML and related Moqui model files.
 2. Decompose the machine into subsystems and levels.
-3. Identify the main orchestration FSM and the atomic devices at the last level.
+3. Identify the flat orchestration FSMs owned by systems/subsystems; introduce nesting only when required.
 4. Collect or derive the physical signal catalog for `IOFacade`.
 5. Collect or derive the logical parameter and device catalog for `DeviceFacade`.
 6. Select or derive the `StatusFlow`.
 7. Run a guided survey for each FSM state to collect the output function of `Main`.
 8. Run a guided survey for each `StatusFlowTransition` to collect predicates, boolean conditions, and precedence for `MainRuleEngine`.
-9. Fill the PLC code templates.
-10. Write the generated files into the component output tree instead of a flat scratch directory.
-11. Cross-check the generated PLC artifacts back against the seed-derived catalog before treating them as reviewable output.
+9. Require `outputs_reviewed: true` for every state and `code_generation_approved: true` for every FSM.
+10. Generate one Application per top-level system and order its subsystem controllers by `call_sequence`.
+11. Fill the PLC code templates without unresolved orchestration placeholders.
+12. Cross-check the generated PLC artifacts back against the seed-derived catalog before treating them as reviewable output.
 
 Useful helper scripts:
 
@@ -114,6 +123,10 @@ Useful helper scripts:
   - both helpers support `--session-dir` for session-aware output and status updates
 - `scripts/validate_generated_plc_against_seed.py`
   - verifies that the generated PLC declarations still match the seed-derived device, parameter, request, and status-flow catalog
+- `scripts/render_codesys_applications.py`
+  - generates all isolated CODESYS Application bundles from the reviewed session
+  - copies the framework unless `--no-copy-framework` is used
+  - validates orchestration fields and writes invocation-order traceability
 
 Important distinction:
 
@@ -216,6 +229,7 @@ Read these files when generating code or collecting inputs:
 - `references/plc-codegen-templates/MainRuleEngine.template.pou`
 - `references/main-rule-engine-input-schema.md`
 - `references/main-rule-engine-input-schema.yaml`
+- `references/codesys-application-architecture.md`
 - `references/device-manager-full-call-signatures.md`
 - `references/moqui-seed-xml-workflow.md`
 - `references/moqui-seed-template.xml`

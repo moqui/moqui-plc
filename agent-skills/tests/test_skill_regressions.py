@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import json
@@ -10,6 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
+PYTHON = sys.executable
 
 
 def run_ok(*args: str) -> str:
@@ -47,7 +49,7 @@ class SkillRegressionTest(unittest.TestCase):
         tmp_root = Path(tempfile.mkdtemp(prefix="agent-skills-tests-"))
         session_id = fixture_name
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/init_session.py",
             session_id,
             "--root",
@@ -64,7 +66,7 @@ class SkillRegressionTest(unittest.TestCase):
     def init_blank_session(self, session_id: str = "blank-session") -> Path:
         tmp_root = Path(tempfile.mkdtemp(prefix="agent-skills-tests-"))
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/init_session.py",
             session_id,
             "--root",
@@ -77,20 +79,20 @@ class SkillRegressionTest(unittest.TestCase):
         session_dir = self.init_session_from_fixture("gateway-valid")
 
         validate_out = run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
         self.assertIn("Upstream engineering surveys validated.", validate_out)
 
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
             "--session-dir",
             str(session_dir),
         )
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-gateway-startup/scripts/render_gateway_startup_guide.py",
             "--session-dir",
             str(session_dir),
@@ -116,18 +118,18 @@ class SkillRegressionTest(unittest.TestCase):
         session_dir = self.init_session_from_fixture("multi-subsystem-valid")
 
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
             "--session-dir",
             str(session_dir),
         )
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-gateway-startup/scripts/render_gateway_startup_guide.py",
             "--session-dir",
             str(session_dir),
@@ -138,6 +140,10 @@ class SkillRegressionTest(unittest.TestCase):
 
         self.assertIn('deviceId="DG_SS_TRANSPORT"', seed_text)
         self.assertIn('deviceId="DG_SS_CURE"', seed_text)
+        self.assertIn('statusFlowId="TransportStatusFlow" statusId="TrStopped"', seed_text)
+        self.assertIn('statusFlowId="CureStatusFlow" statusId="CuStandby"', seed_text)
+        self.assertIn('toStatusFlowId="TransportStatusFlow"', seed_text)
+        self.assertNotIn("conditionExpression=", seed_text)
         self.assertIn('memberDeviceId="CONVEYOR_MOTOR"', seed_text)
         self.assertIn('memberDeviceId="UV_LAMP_BANK"', seed_text)
         self.assertIn('parameterDefId="PD_CONVEYOR_MOTOR_ENABLE_REQUEST"', seed_text)
@@ -151,22 +157,94 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn("CURE_CELL_PLC_FAST_CTRL_OutputsWrite", guide_text)
         self.assertIn("CURE_CELL_PLC_FAST_FB_InputsRead", guide_text)
 
+        framework_fixture = session_dir / "attachments" / "framework-fixture"
+        (framework_fixture / "src" / "main").mkdir(parents=True, exist_ok=True)
+        (framework_fixture / "src" / "main" / "FrameworkMarker.st").write_text("TYPE FrameworkMarker : BOOL; END_TYPE\n", encoding="utf-8")
+        run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/render_codesys_applications.py",
+            "--session-dir",
+            str(session_dir),
+            "--framework-source",
+            str(framework_fixture),
+        )
+        applications_root = session_dir / "generated-plc" / "codesys-applications"
+        project_manifest = json.loads((applications_root / "codesys-project-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {row["applicationId"] for row in project_manifest["applications"]},
+            {"TransportApplication", "CureApplication"},
+        )
+        cure_component = applications_root / "CureApplication" / "runtime" / "component" / "cure"
+        cure_main = (cure_component / "src" / "main" / "mantle" / "cure" / "Main.pou").read_text(encoding="utf-8")
+        cure_controller = (cure_component / "src" / "main" / "mantle" / "cure" / "CureLampController.pou").read_text(encoding="utf-8")
+        cure_facade = (cure_component / "src" / "main" / "org" / "moqui" / "device" / "DeviceFacade.dut").read_text(encoding="utf-8")
+        cure_manifest = json.loads((applications_root / "CureApplication" / "application-manifest.json").read_text(encoding="utf-8"))
+        self.assertIn("dev.uvLampBankGroupEnable := TRUE;", cure_main)
+        self.assertIn("(* No fault state defined for this FSM. *)", cure_main)
+        self.assertNotIn("IF dev.faultRequest THEN dev.status := MainStatus.Curing", cure_main)
+        self.assertIn("dev.cureLampStatus := CureLampStatus.Active;", cure_controller)
+        self.assertIn("uvLampBank : ActuatorGroup;", cure_facade)
+        self.assertNotIn("${", cure_main + cure_controller + cure_facade)
+        self.assertEqual([row["callSequence"] for row in cure_manifest["fsmInvocationOrder"]], [0, 10, 20])
+        self.assertTrue((applications_root / "CureApplication" / "plc-traceability.md").is_file())
+        self.assertTrue((applications_root / "CureApplication" / "framework" / "src" / "main" / "FrameworkMarker.st").is_file())
+        self.assertLess(cure_main.index("cureLampController("), cure_main.index("cureMonitorController("))
+        generated_sources = list((applications_root / "CureApplication").glob("**/*.pou")) + list(
+            (applications_root / "CureApplication").glob("**/*.dut")
+        )
+        for generated_source in generated_sources:
+            generated_text = generated_source.read_text(encoding="utf-8")
+            self.assertNotIn("${", generated_text, generated_source)
+            self.assertNotIn("__COND_", generated_text, generated_source)
+
+        run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/render_statusflow_templates.py",
+            str(session_dir / "seed-data" / "survey-derived-seed.xml"),
+            "TransportStatusFlow",
+            "--session-dir",
+            str(session_dir),
+            "--component-name",
+            "transport",
+        )
+        component_dir = session_dir / "generated-plc" / "transport" / "src" / "main" / "mantle" / "transport"
+        main_text = (component_dir / "Main.pou").read_text(encoding="utf-8")
+        rule_text = (component_dir / "MainRuleEngine.pou").read_text(encoding="utf-8")
+        self.assertIn("IF dev.runningRequest THEN", main_text)
+        self.assertNotIn("__COND_STOPPED_TO_RUNNING__", main_text)
+        self.assertIn("IF dev.startTransportAllowed THEN", rule_text)
+        self.assertIn("dev.runningRequest := TRUE;", rule_text)
+
+        run_ok(
+            PYTHON,
+            "skills/moqui-plant-designer/scripts/render_engineering_dossier.py",
+            "--session-dir",
+            str(session_dir),
+            "--work-effort-id",
+            "PLC_CURE_CELL",
+        )
+        dossier_text = (session_dir / "notes" / "engineering-specification.md").read_text(encoding="utf-8")
+        wiki_seed = (session_dir / "seed-data" / "engineering-wiki-seed.xml").read_text(encoding="utf-8")
+        self.assertIn("TransportFsm", dossier_text)
+        self.assertIn("Prove FAT/SAT", dossier_text)
+        self.assertIn('workEffortId="PLC_CURE_CELL"', wiki_seed)
+
     def test_plc4j_valid_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("plc4j-valid")
 
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
             "--session-dir",
             str(session_dir),
         )
         projection_out = run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",
             "--session-dir",
             str(session_dir),
@@ -181,6 +259,25 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn('query="coil:1:BOOL"', seed_text)
         self.assertIn('query="discrete-input:1:BOOL"', seed_text)
         self.assertIn("PLC4J requests: 2", projection_out)
+
+    def test_codesys_application_generation_rejects_duplicate_fsm_call_sequence(self) -> None:
+        session_dir = self.init_session_from_fixture("multi-subsystem-valid")
+        run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        fsm_path = session_dir / "survey-answers" / "main-fsm-survey.yaml"
+        fsm_path.write_text(fsm_path.read_text(encoding="utf-8").replace("call_sequence: 20", "call_sequence: 10"), encoding="utf-8")
+        result = run_fail(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/render_codesys_applications.py",
+            "--session-dir",
+            str(session_dir),
+            "--no-copy-framework",
+        )
+        self.assertIn("duplicate subsystem call_sequence", result.stderr)
 
     def test_atomic_component_library_catalog_covers_all_atomic_models(self) -> None:
         catalog_path = REPO_ROOT / "skills" / "moqui-device-seed-designer" / "references" / "atomic-component-library.json"
@@ -201,7 +298,7 @@ class SkillRegressionTest(unittest.TestCase):
         spec_path = tmp_root / "actuator-template-spec.json"
 
         run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/render_atomic_component_template.py",
             "actuator",
             "--include-config",
@@ -233,7 +330,7 @@ class SkillRegressionTest(unittest.TestCase):
     def test_guided_questions_for_blank_session_start_with_system_decomposition(self) -> None:
         session_dir = self.init_blank_session()
         output = run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/render_guided_questions.py",
             "--session-dir",
             str(session_dir),
@@ -262,7 +359,7 @@ class SkillRegressionTest(unittest.TestCase):
             encoding="utf-8",
         )
         result = run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/render_guided_questions.py",
             "--session-dir",
             str(session_dir),
@@ -275,11 +372,9 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn("parametri logici dell'atomic component sono gia fissati dal modello", joined)
 
     def test_transport_projection_accepts_real_plc4j_seed(self) -> None:
-        plc4j_seed = Path(
-            "/home/igor/development/projects/moqui/tests/repositories/moqui-plc4j/data/Plc4jTestData.xml"
-        )
+        plc4j_seed = REPO_ROOT.parents[1] / "moqui-plc4j" / "data" / "Plc4jTestData.xml"
         output = run_ok(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",
             "--seed",
             str(plc4j_seed),
@@ -301,7 +396,7 @@ class SkillRegressionTest(unittest.TestCase):
             encoding="utf-8",
         )
         result = run_fail(
-            "python3",
+            PYTHON,
             "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",
             "--seed",
             str(seed_path),
@@ -326,7 +421,7 @@ plc4j_projection:
             encoding="utf-8",
         )
         result = run_fail(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
@@ -340,7 +435,7 @@ plc4j_projection:
         )
 
         result = run_fail(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
@@ -363,7 +458,7 @@ plc4j_projection:
         )
 
         result = run_fail(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )
@@ -387,7 +482,7 @@ signals:
         )
 
         result = run_fail(
-            "python3",
+            PYTHON,
             "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
             str(session_dir),
         )

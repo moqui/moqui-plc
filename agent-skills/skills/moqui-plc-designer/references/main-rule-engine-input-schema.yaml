@@ -1,70 +1,22 @@
-context:
-  component_name: hvac
-  status_enum: MainStatus
-  main_status_flow_id: HvacMainStatusFlow
-  initial_state: Standby
-
-request_reset_block:
-  assignments:
-    - "dev.faultRequest := FALSE;"
-    - "dev.standbyRequest := TRUE;"
-    - "dev.heatingRequest := FALSE;"
-    - "dev.coolingRequest := FALSE;"
-    - "dev.ventilationRequest := FALSE;"
-    - "dev.dryingRequest := FALSE;"
-    - "dev.surfaceThawingRequest := FALSE;"
-    - "dev.coreThawingRequest := FALSE;"
-
-predicate_groups:
-  process:
-    - name: tempInRange
-      target: dev.tempInRange
-      expression: "(dev.tempFeedback >= dev.tempMin + dev.tempHysteresis) AND (dev.tempFeedback <= dev.tempMax - dev.tempHysteresis)"
-      comment: "Process temperature inside operating window"
-      depends_on: [dev.tempFeedback, dev.tempMin, dev.tempMax, dev.tempHysteresis]
-    - name: tempOverMax
-      target: dev.tempOverMax
-      expression: "dev.tempFeedback > dev.tempMax"
-      comment: "Process temperature above maximum"
-      depends_on: [dev.tempFeedback, dev.tempMax]
-  safety:
-    - name: ductTempOverMax
-      target: dev.ductTempOverMax
-      expression: "dev.ductTempFeedback > dev.ductTempMax"
-      comment: "Supply air too hot"
-      depends_on: [dev.ductTempFeedback, dev.ductTempMax]
-
-transitions:
-  - from_status: Standby
-    to_status: Cooling
-    transition_name: Cooling
-    priority: 20
-    condition: "(dev.lastStatus = MainStatus.Cooling OR dev.lastStatus = MainStatus.Standby) AND dev.tempOverMax"
-    request_assignments:
-      - "dev.standbyRequest := FALSE;"
-      - "dev.coolingRequest := TRUE;"
-    comment: "Temperature above limit -> start/resume cooling"
-
-  - from_status: Standby
-    to_status: Heating
-    transition_name: Heating
-    priority: 30
-    condition: "(dev.lastStatus = MainStatus.Heating OR dev.lastStatus = MainStatus.Standby) AND dev.tempUnderMin"
-    request_assignments:
-      - "dev.standbyRequest := FALSE;"
-      - "dev.heatingRequest := TRUE;"
-    comment: "Temperature below limit -> start/resume heating"
-
-  - from_status: Cooling
-    to_status: Standby
-    transition_name: Standby
-    priority: 10
-    condition: "dev.tempUnderMin OR dev.isCompleted"
-    request_assignments:
-      - "dev.standbyRequest := TRUE;"
-    comment: "Cooling target reached or work complete"
-
-global_fault_gate:
-  expression: "error OR ((dev.signalMgmt.cumulativeOutputAction AND SignalOutputAction.ImmediateStop) <> 0)"
-  assignment: "dev.faultRequest := TRUE;"
-  return_after_fault: true
+fsms:
+  - fsm_id: ExampleFsm
+    status_flow_id: ExampleStatusFlow
+    predicates:
+      - name: startAllowed
+        expression: dev.enableRequest AND NOT dev.faultRequest
+        comment: Reviewed start permission
+    transitions:
+      - from_status_id: ExStandby
+        to_status_id: ExRunning
+        to_fsm_id: ""
+        name: Start
+        condition: dev.startAllowed
+        consume_condition: ""
+        precedence: 10
+        request_assignments: []
+        apply_assignments: []
+        notes: Same-flow transitions use the generated target-state request by default.
+    global_overrides:
+      fault_condition: error OR ((dev.signalMgmt.cumulativeOutputAction AND SignalOutputAction.ImmediateStop) <> 0)
+      reset_condition: ""
+      notes: ""

@@ -1,0 +1,61 @@
+fsms:
+  - fsm_id: TransportFsm
+    status_flow_id: TransportStatusFlow
+    predicates:
+      - name: startTransportAllowed
+        expression: "TRUE"
+      - name: transportStopRequired
+        expression: "FALSE"
+    transitions:
+      - from_status_id: TrStopped
+        to_status_id: TrRunning
+        condition: dev.startTransportAllowed
+        precedence: 1
+      - from_status_id: TrRunning
+        to_status_id: TrStopped
+        condition: dev.transportStopRequired
+        precedence: 1
+  - fsm_id: CureFsm
+    status_flow_id: CureStatusFlow
+    predicates:
+      - name: startCureAllowed
+        expression: "TRUE"
+      - name: cureComplete
+        expression: "FALSE"
+    transitions:
+      - from_status_id: CuStandby
+        to_status_id: CuCuring
+        condition: dev.startCureAllowed
+        precedence: 1
+      - from_status_id: CuCuring
+        to_status_id: CuStandby
+        condition: dev.cureComplete
+        precedence: 1
+  - fsm_id: CureLampFsm
+    status_flow_id: CureLampStatusFlow
+    predicates:
+      - name: cureLampSequenceEnabled
+        expression: dev.uvLampBankGroupEnable
+    transitions:
+      - from_status_id: ClIdle
+        to_status_id: ClActive
+        condition: dev.cureLampSequenceEnabled
+        precedence: 1
+      - from_status_id: ClActive
+        to_status_id: ClIdle
+        condition: NOT dev.cureLampSequenceEnabled
+        precedence: 1
+  - fsm_id: CureMonitorFsm
+    status_flow_id: CureMonitorStatusFlow
+    predicates:
+      - name: cureObservationRequested
+        expression: "TRUE"
+    transitions:
+      - from_status_id: CmIdle
+        to_status_id: CmObserve
+        condition: dev.cureObservationRequested
+        precedence: 1
+      - from_status_id: CmObserve
+        to_status_id: CmIdle
+        condition: NOT dev.cureObservationRequested
+        precedence: 1

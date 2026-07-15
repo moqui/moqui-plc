@@ -1,0 +1,7 @@
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE ${SUBSYSTEM_STATUS_TYPE} :
+(
+${SUBSYSTEM_STATUS_ITEMS}
+);
+END_TYPE

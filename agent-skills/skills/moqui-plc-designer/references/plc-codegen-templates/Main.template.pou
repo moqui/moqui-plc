@@ -31,7 +31,7 @@ VAR
     logger : LoggerFacade;
     (* FSM transition logic *)
     ruleEngine : MainRuleEngine;
-    (* Optional: define one or more FSMs for managing subsystems, if needed *)
+${SUBSYSTEM_CONTROLLER_DECLARATIONS}
     (* HAL manager *)
     deviceManager : DeviceManager;
 END_VAR
@@ -39,7 +39,7 @@ END_VAR
 (* Logger facade init *)
 logger.enable := TRUE; logger.loggerName := componentName;
 
-IF NOT enable THEN RETURN; END_IF
+IF NOT enable THEN RETURN; END_IF;
 
 (* Init: device setup and configuration *)
 IF (operationType = OperatingMode.Init) THEN
@@ -53,6 +53,7 @@ IF (operationType = OperatingMode.Init) THEN
     dev.lastStatus := ${INITIAL_STATUS};
     done := FALSE;
 ${INIT_ASSIGNMENTS}
+${SUBSYSTEM_CONTROLLER_INIT_CALLS}
 ELSE
     (* FSM transition-condition rule engine *)
     logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
@@ -61,8 +62,8 @@ END_IF;
 
 dev.lastStatus := dev.status;
 
-(* Fault overrides any other state *)
-IF dev.faultRequest THEN dev.status := ${FAULT_STATUS}; END_IF;
+(* Optional fault-state override; emitted only when the reviewed FSM defines one. *)
+${FAULT_OVERRIDE}
 
 (* Main FSM - Output function + State-update function *)
 logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
@@ -70,15 +71,11 @@ CASE dev.status OF
 ${MAIN_FSM_CASE_BLOCKS}
 END_CASE;
 
-done := dev.isCompleted;
+(* Subsystem FSMs execute after the supervisor output/state update and before the HAL. *)
+${SUBSYSTEM_CONTROLLER_CALLS}
+
+${DONE_ASSIGNMENT}
 
 (* Device orchestration (HAL) *)
 logger(message := 'Update devices.', level := LogLevel.DEBUG);
 deviceManager(operationType := operationType);
-
-(* Questions for the skill/user:
- * 1. Which StatusFlow drives this Main FSM?
- * 2. What is the initial state and what is the fault state?
- * 3. For each state, which output requests must be asserted or cleared?
- * 4. For each state, which next-state requests may be consumed here?
- *)

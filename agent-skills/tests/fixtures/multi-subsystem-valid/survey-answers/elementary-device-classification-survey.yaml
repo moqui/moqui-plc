@@ -11,7 +11,7 @@ devices:
     expected_feedback_signals: []
     notes: ""
   - device_id: UV_LAMP_BANK
-    parent_subsystem_id: SS_CURE
+    parent_subsystem_id: SS_CURE_LAMPS
     physical_device_name: UV Lamp Bank
     logical_model: ActuatorGroup
     actuation_feedback_class: SA-NO

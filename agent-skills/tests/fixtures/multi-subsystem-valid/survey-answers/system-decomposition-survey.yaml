@@ -19,3 +19,17 @@ system_tree:
     control_responsibility: UV curing
     candidate_fsm: CureMain
     notes: ""
+  - subsystem_id: SS_CURE_LAMPS
+    parent_subsystem_id: SS_CURE
+    subsystem_name: Cure Lamps
+    subsystem_type: Subsystem
+    control_responsibility: Lamp sequencing
+    candidate_fsm: CureLampSequence
+    notes: ""
+  - subsystem_id: SS_CURE_MONITOR
+    parent_subsystem_id: SS_CURE
+    subsystem_name: Cure Monitor
+    subsystem_type: Subsystem
+    control_responsibility: Process monitoring sequence
+    candidate_fsm: CureMonitorSequence
+    notes: ""

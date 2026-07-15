@@ -1,5 +1,10 @@
 Helper scripts for moqui-plc-designer.
 
+- `render_codesys_applications.py`
+  - renders one isolated CODESYS Application bundle per top-level system
+  - copies a dedicated framework, renders the runtime component, orders subsystem
+    controllers by `call_sequence`, and writes manifest/traceability files
+
 Current scripts:
 
 - `render_statusflow_templates.py`
@@ -14,8 +19,7 @@ Current scripts:
     - `src/main/org/moqui/device/DeviceFacade.dut`
   - `src/main/org/moqui/device/DeviceManager.pou`
   - `src/main/org/moqui/device/DeviceDiagnostics.pou`
-  - fills structural placeholders only
-  - leaves process predicates and transition semantics as TODO placeholders
+  - with --session-dir, fills reviewed output functions, predicates, transition conditions, and precedence
   - uses the default convention `StatusName -> statusNameRequest`
   - accepts an optional JSON request map only for exceptional overrides
   - supports optional explicit `--fault-state` and `--break-state`
@@ -23,7 +27,7 @@ Current scripts:
   - validates the selected `StatusFlow` before rendering:
     - exactly one initial state
     - no missing `StatusItem` rows
-    - no transition targets outside the selected flow
+    - cross-flow targets require explicit reviewed request/apply assignments
     - no enum-name normalization collisions
 
 Example:
@@ -116,10 +120,9 @@ Current boundary:
 
 - treat `DeviceFacade`, `DeviceManager`, and `DeviceDiagnostics` as the stable
   generated catalog/orchestration layer for supported atomic moqui-plc FB types
-- treat `Main` and `MainRuleEngine` as intentionally unfinished behavior-layer
-  artifacts pending extraction of final rules from real test cases
-- treat the repository as a semilavorato/base framework that project teams may
-  specialize further
+- generate `Main`, `MainRuleEngine`, and ordered subsystem controllers only from
+  reviewed survey semantics
+- keep device-tree binding, task configuration, and physical I/O verification manual
 
 Example:
 

@@ -1,0 +1,97 @@
+fsms:
+  - fsm_id: TransportFsm
+    owner_subsystem_id: SS_TRANSPORT
+    component_name: transport
+    status_flow_id: TransportStatusFlow
+    status_type_id: TransportStatus
+    composition: flat
+    parent_fsm_id: ""
+    application_id: TransportApplication
+    call_sequence: 0
+    enable_condition: "TRUE"
+    code_generation_approved: true
+    states:
+      - status_id: TrStopped
+        name: Stopped
+        initial: true
+        sequence: 1
+        deactivate:
+          physical_devices: [CONVEYOR_MOTOR]
+        outputs_reviewed: true
+      - status_id: TrRunning
+        name: Running
+        initial: false
+        sequence: 2
+        activate:
+          physical_devices: [CONVEYOR_MOTOR]
+        outputs_reviewed: true
+  - fsm_id: CureFsm
+    owner_subsystem_id: SS_CURE
+    component_name: cure
+    status_flow_id: CureStatusFlow
+    status_type_id: CureStatus
+    composition: flat
+    parent_fsm_id: ""
+    application_id: CureApplication
+    call_sequence: 0
+    enable_condition: "TRUE"
+    code_generation_approved: true
+    states:
+      - status_id: CuStandby
+        name: Standby
+        initial: true
+        sequence: 1
+        deactivate:
+          device_groups: [SS_CURE_LAMPS]
+        outputs_reviewed: true
+      - status_id: CuCuring
+        name: Curing
+        initial: false
+        sequence: 2
+        activate:
+          device_groups: [SS_CURE_LAMPS]
+        outputs_reviewed: true
+  - fsm_id: CureLampFsm
+    owner_subsystem_id: SS_CURE_LAMPS
+    component_name: cureLamp
+    status_flow_id: CureLampStatusFlow
+    status_type_id: CureLampStatus
+    composition: flat
+    parent_fsm_id: ""
+    application_id: CureApplication
+    call_sequence: 10
+    enable_condition: dev.cureLampSequenceEnabled
+    code_generation_approved: true
+    states:
+      - status_id: ClIdle
+        name: Idle
+        initial: true
+        sequence: 1
+        outputs_reviewed: true
+      - status_id: ClActive
+        name: Active
+        initial: false
+        sequence: 2
+        outputs_reviewed: true
+  - fsm_id: CureMonitorFsm
+    owner_subsystem_id: SS_CURE_MONITOR
+    component_name: cureMonitor
+    status_flow_id: CureMonitorStatusFlow
+    status_type_id: CureMonitorStatus
+    composition: flat
+    parent_fsm_id: ""
+    application_id: CureApplication
+    call_sequence: 20
+    enable_condition: "TRUE"
+    code_generation_approved: true
+    states:
+      - status_id: CmIdle
+        name: Idle
+        initial: true
+        sequence: 1
+        outputs_reviewed: true
+      - status_id: CmObserve
+        name: Observe
+        initial: false
+        sequence: 2
+        outputs_reviewed: true

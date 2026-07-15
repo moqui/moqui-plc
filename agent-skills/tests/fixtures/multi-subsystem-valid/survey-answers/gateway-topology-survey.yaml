@@ -6,5 +6,7 @@ gateways:
     scoped_subsystem_ids:
       - SS_TRANSPORT
       - SS_CURE
+      - SS_CURE_LAMPS
+      - SS_CURE_MONITOR
     scoped_device_ids: []
     notes: Primary edge gateway

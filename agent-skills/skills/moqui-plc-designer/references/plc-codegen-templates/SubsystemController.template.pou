@@ -1,0 +1,33 @@
+{attribute 'no_assign'}
+(* Subsystem controller generated from reviewed FSM survey data. *)
+FUNCTION_BLOCK ${SUBSYSTEM_CONTROLLER_TYPE}
+VAR_EXTERNAL
+    dev : DeviceFacade;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Init;
+    enable : BOOL := TRUE;
+END_VAR
+VAR CONSTANT
+    componentName : STRING := '${SUBSYSTEM_COMPONENT_NAME}';
+END_VAR
+VAR
+    logger : LoggerFacade;
+END_VAR
+
+logger.enable := TRUE; logger.loggerName := componentName;
+
+IF operationType = OperatingMode.Init THEN
+    dev.${SUBSYSTEM_STATUS_FIELD} := ${SUBSYSTEM_STATUS_TYPE}.${SUBSYSTEM_INITIAL_STATUS};
+    dev.${SUBSYSTEM_LAST_STATUS_FIELD} := ${SUBSYSTEM_STATUS_TYPE}.${SUBSYSTEM_INITIAL_STATUS};
+    RETURN;
+END_IF;
+
+IF NOT enable THEN RETURN; END_IF;
+
+dev.${SUBSYSTEM_LAST_STATUS_FIELD} := dev.${SUBSYSTEM_STATUS_FIELD};
+${SUBSYSTEM_PREDICATE_ASSIGNMENTS}
+CASE dev.${SUBSYSTEM_STATUS_FIELD} OF
+${SUBSYSTEM_CASE_BLOCKS}
+END_CASE;
+END_FUNCTION_BLOCK

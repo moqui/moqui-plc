@@ -1,3 +1,3 @@
 display_name: Moqui PLC Designer
-short_description: Generate PLC skeletons and supporting code from Moqui devices, parameters, requests, and status flows.
-default_prompt: Generate or refine PLC code from Moqui Device, Parameter, DeviceRequest, and StatusFlow data using the bundled templates and scripts.
+short_description: Generate isolated CODESYS Application bundles from reviewed Moqui PLC models.
+default_prompt: Generate and validate one isolated CODESYS Application per top-level system, with reviewed supervisor logic and sequential subsystem FSM controllers.

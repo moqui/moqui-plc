@@ -1,88 +1,15 @@
-# MainRuleEngine Input Schema
+# MainRuleEngine input
 
-Questo schema definisce i dati minimi necessari per generare:
+Use `main-rule-engine-survey.yaml` as the code-owned semantic input paired with
+the topology in `main-fsm-survey.yaml`.
 
-- `${SENSOR_PREDICATES}`
-- `${STATE_TRANSITION_CASES}`
-
-nel template:
-
-- `references/plc-codegen-templates/MainRuleEngine.template.pou`
-
-## Obiettivo
-
-Separare chiaramente:
-
-- topologia della FSM, derivabile da `StatusFlow`
-- semantica dei predicati, da fornire o confermare
-- precedenza delle transizioni
-
-## Struttura
-
-Lo schema YAML di esempio e' in:
-
-- [main-rule-engine-input-schema.yaml](./main-rule-engine-input-schema.yaml)
-
-## Sezioni principali
-
-### `context`
-
-Informazioni generali:
-
-- `component_name`
-- `status_enum`
-- `main_status_flow_id`
-- `initial_state`
-
-### `request_reset_block`
-
-Elenca quali request vanno resettate all'inizio di ogni scan.
-
-### `predicate_groups`
-
-Raggruppa i predicati per dominio:
-
-- `process`
-- `environment`
-- `safety`
-- `timing`
-- `custom`
-
-Ogni predicato ha:
-
-- `name`
-- `target`
-- `expression`
-- `comment`
-- `depends_on`
-
-### `transitions`
-
-Una voce per ogni arco di `StatusFlowTransition`.
-
-Campi principali:
-
-- `from_status`
-- `to_status`
-- `transition_name`
-- `priority`
-- `condition`
-- `request_assignments`
-- `comment`
-
-### `global_fault_gate`
-
-Specifica eventuali condizioni globali che causano `faultRequest`.
-
-## Regole di generazione
-
-- `${SENSOR_PREDICATES}` si genera concatenando i `predicate_groups`
-- `${STATE_TRANSITION_CASES}` si genera raggruppando le `transitions` per `from_status`
-- l'ordine degli `ELSIF` deriva da `priority`
-- se manca `condition`, lo skill deve chiedere chiarimenti all'utente
-- lo skill puo' precompilare parti dello schema leggendo:
-  - seed XML `StatusFlowItem`
-  - seed XML `StatusFlowTransition`
-  - seed XML `ParameterDef`
-  - seed XML `Parameter`
-  - seed XML `DeviceRequestItem`
+- Define every predicate with an Application-global `name` and IEC 61131-3 ST
+  `expression`.
+- Define every transition condition and unique precedence for its source state.
+- For same-flow transitions, omit `request_assignments` to use the generated
+  target-state request.
+- For cross-flow transitions, provide `consume_condition` plus reviewed
+  `request_assignments` and `apply_assignments`; generation must stop when any
+  part is absent.
+- Keep these expressions in the saved session and generated PLC source. Do not
+  persist them in `StatusFlowTransition.conditionExpression`.

@@ -138,10 +138,15 @@ def normalize_enum_name(status_id: str, description: str) -> str:
 def to_lower_camel(raw: str) -> str:
     if not raw:
         return "value"
-    parts = re.findall(r"[A-Za-z0-9]+", raw)
+    chunks = re.findall(r"[A-Za-z0-9]+", raw)
+    parts = [
+        word
+        for chunk in chunks
+        for word in re.findall(r"[A-Z]+(?=[A-Z][a-z]|\d|$)|[A-Z]?[a-z]+|\d+", chunk)
+    ]
     if not parts:
         return "value"
-    head = parts[0][:1].lower() + parts[0][1:]
+    head = parts[0].lower()
     tail = "".join(part[:1].upper() + part[1:] for part in parts[1:])
     return head + tail
 
@@ -184,6 +189,8 @@ def load_session(session_dir: Path) -> tuple[Path, dict]:
 
 
 def resolve_output_root(args: argparse.Namespace) -> Path:
+    if args.output_root_override:
+        return args.output_root_override
     if args.session_dir:
         session_path, session = load_session(args.session_dir)
         generated_dir_name = session.get("paths", {}).get("generatedPlcDir", "generated-plc")
@@ -362,12 +369,13 @@ def validate_seed_graph(
     request_items: list[DeviceRequestItemRec],
     status_items: dict[str, dict[str, str]],
     flow_item_initial: dict[str, bool],
+    require_physical_root: bool = True,
 ) -> None:
     errors: list[str] = []
     if root_device_id not in devices:
         errors.append(f"Root Device {root_device_id} not found.")
         fail_validation(errors)
-    if root_device_id not in physical_devices:
+    if require_physical_root and root_device_id not in physical_devices:
         errors.append(f"Root Device {root_device_id} has no matching PhysicalDevice row.")
 
     root_device = devices[root_device_id]
@@ -525,9 +533,9 @@ def render_parameter_declarations(
         else:
             digital_lines.append(line)
     if not analog_lines:
-        analog_lines.append("    (* TODO: declare REAL process/environment parameters *)")
+        analog_lines.append("    (* No REAL process/environment parameters derived from the selected seed scope. *)")
     if not digital_lines:
-        digital_lines.append("    (* TODO: declare BOOL/WORD/STRING logical parameters *)")
+        digital_lines.append("    (* No BOOL/WORD/STRING logical parameters derived from the selected seed scope. *)")
     duplicate_fields = {name: ids for name, ids in collisions.items() if len(ids) > 1}
     if duplicate_fields:
         details = [f"{name} <- {', '.join(ids)}" for name, ids in sorted(duplicate_fields.items())]
@@ -581,9 +589,9 @@ def render_io_declarations(
                 inputs.append(line)
                 seen_inputs.add(field_name)
     if not inputs:
-        inputs.append("    (* TODO: declare physical input signals from DeviceRequestItem or naming convention *)")
+        inputs.append("    (* No physical input declarations derived; device-tree binding remains manual. *)")
     if not outputs:
-        outputs.append("    (* TODO: declare physical output signals from DeviceRequestItem or naming convention *)")
+        outputs.append("    (* No physical output declarations derived; device-tree binding remains manual. *)")
     duplicate_fields = {name: ids for name, ids in collisions.items() if len(ids) > 1}
     if duplicate_fields:
         details = [f"{name} <- {', '.join(ids)}" for name, ids in sorted(duplicate_fields.items())]
@@ -979,11 +987,15 @@ def render_atomic_device_blocks(
 ) -> tuple[str, str]:
     declarations: list[str] = []
     calls: list[str] = []
-    children = direct_child_devices(root_device_id, devices)
+    scope_ids = subtree_device_ids(root_device_id, devices) - {root_device_id}
+    children = sorted(
+        (devices[device_id] for device_id in scope_ids if infer_atomic_kind(devices[device_id])),
+        key=lambda row: row.device_id,
+    )
     if not children:
         return (
-            "    (* TODO: declare Actuator/ActuatorGroup/Axis/AxisGroup/ProcessPid instances *)",
-            "(* TODO: wire and call atomic device FBs from child Device rows *)",
+            "    (* No supported atomic device instances found below the Application scope root. *)",
+            "(* No supported atomic devices found below the application root Device. *)",
         )
 
     seen_field_names: dict[str, str] = {}
@@ -1164,7 +1176,8 @@ def render_blocking_device_signal_rules(
     physical_devices: dict[str, PhysicalDeviceRec],
 ) -> str:
     lines: list[str] = []
-    for device in direct_child_devices(root_device_id, devices):
+    scope_ids = subtree_device_ids(root_device_id, devices) - {root_device_id}
+    for device in sorted((devices[device_id] for device_id in scope_ids), key=lambda row: row.device_id):
         fb_kind = infer_atomic_kind(device)
         if not fb_kind:
             continue
@@ -1213,7 +1226,7 @@ def render_blocking_device_signal_rules(
                 ]
             )
     if not lines:
-        return "(* TODO: add blocking device diagnostics rules *)"
+        return "(* No blocking-device diagnostics rules derived for this Application scope. *)"
     return "\n".join(lines)
 
 
@@ -1241,6 +1254,8 @@ def main() -> int:
         type=Path,
         help="Saved session directory; if provided, default output goes to generated-plc/ and session.json is updated",
     )
+    parser.add_argument("--output-root-override", type=Path, help="Explicit output root while retaining session validation")
+    parser.add_argument("--allow-logical-root", action="store_true", help="Allow a subsystem DeviceGroup as the Application scope root")
     args = parser.parse_args()
     if args.session_dir:
         validate_upstream_surveys(args.session_dir.resolve())
@@ -1256,6 +1271,7 @@ def main() -> int:
         request_items,
         status_items,
         flow_item_initial,
+        require_physical_root=not args.allow_logical_root,
     )
     device = devices.get(args.device_id)
     if not device:
@@ -1282,23 +1298,9 @@ def main() -> int:
         "${INITIAL_STATUS}": f"MainStatus.{initial_enum}",
         "${ANALOG_SIGNAL_DECLARATIONS}": analog_decl,
         "${DIGITAL_SIGNAL_DECLARATIONS}": digital_decl,
-        "${PREDICATE_DECLARATIONS}": "    (* TODO: declare computed predicates used by MainRuleEngine *)",
-        "${PROCESS_MODE_DECLARATIONS}": "\n".join(
-            [
-                "    estimatedRuntime : TUnit;",
-                "    minRuntime : TUnit;",
-                "    estimatedBreakDuration : TUnit;",
-                "    minBreakDuration : TUnit;",
-                "    processEstimatedDuration : TUnit;",
-                "    processMinDuration : TUnit;",
-                "    processActualDuration : TUnit;",
-                "    processRemainingDuration : TUnit;",
-                "    actualRuntime : TUnit;",
-                "    actualBreakDuration : TUnit;",
-                "    timeBreakEnabled : BOOL;",
-                "    isCompleted : BOOL;",
-            ]
-        ),
+        "${PREDICATE_DECLARATIONS}": "    (* Project predicates are generated from reviewed FSM surveys. *)",
+        "${PROCESS_MODE_DECLARATIONS}": "    (* Project-specific process fields are declared through explicit seed parameters. *)",
+        "${SUBSYSTEM_FSM_DECLARATIONS}": "    (* Subsystem FSM state fields are generated by render_codesys_applications.py. *)",
         "${STATE_REQUEST_DECLARATIONS}": state_request_declarations or "    standbyRequest : BOOL;",
         "${ATOMIC_DEVICE_DECLARATIONS}": atomic_declarations,
         "${PHYSICAL_INPUT_DECLARATIONS}": physical_inputs,
@@ -1307,7 +1309,7 @@ def main() -> int:
         "${BLOCKING_DEVICE_SIGNAL_RULES}": render_blocking_device_signal_rules(
             args.device_id, devices, physical_devices
         ),
-        "${SAFETY_SIGNAL_RULES}": "(* TODO: add environmental and safety diagnostics rules from workflow survey *)",
+        "${SAFETY_SIGNAL_RULES}": "(* Safety logic is external; only modeled fault/stop indications are observed here. *)",
     }
 
     output_root = resolve_output_root(args)
