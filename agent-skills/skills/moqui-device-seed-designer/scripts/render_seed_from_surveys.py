@@ -394,6 +394,7 @@ def validate_generated_model_references(root: ET.Element) -> None:
     config_ids = {row.get("deviceConfigId") for row in by_tag.get("DeviceConfig", [])}
     rule_set_ids = {row.get("deviceRuleSetId") for row in by_tag.get("DeviceRuleSet", [])}
     parameter_def_ids = {row.get("parameterDefId") for row in by_tag.get("ParameterDef", [])}
+    parameter_ids = {row.get("parameterId") for row in by_tag.get("Parameter", []) if row.get("deviceId")}
     device_types = {row.get("deviceId"): row.get("deviceTypeEnumId") for row in by_tag.get("Device", [])}
     config_types = {row.get("deviceConfigId"): row.get("deviceTypeEnumId") for row in by_tag.get("DeviceConfig", [])}
     errors: list[str] = []
@@ -403,6 +404,11 @@ def validate_generated_model_references(root: ET.Element) -> None:
     for row in by_tag.get("Parameter", []):
         if row.get("deviceConfigId") and row.get("parameterDefId") not in parameter_def_ids:
             errors.append(f"Config parameter {row.get('parameterId')} references unknown ParameterDef {row.get('parameterDefId')}.")
+    for row in by_tag.get("DeviceRequestItem", []):
+        if row.get("parameterId") not in parameter_ids:
+            errors.append(
+                f"DeviceRequestItem {row.get('requestName')}/{row.get('parameterId')} must reference an existing device-bound Parameter."
+            )
     for row in by_tag.get("DeviceRule", []):
         config_id, device_id = row.get("deviceConfigId"), row.get("deviceId")
         if config_id not in config_ids or row.get("deviceRuleSetId") not in rule_set_ids:
@@ -507,6 +513,28 @@ def gateway_by_id(model: dict, gateway_device_id: str) -> dict:
 def controller_for_domain(model: dict, domain_id: str, fallback: str) -> str:
     domain = next((row for row in model["domains"] if row["domain_id"] == domain_id), None)
     return domain["controller_device_id"] if domain and domain.get("controller_device_id") else fallback
+
+
+def controller_for_device(model: dict, device_id: str, fallback: str) -> str:
+    controllers = [row for row in model["controllers"] if row["controller_device_id"]]
+    if len(controllers) == 1:
+        return controllers[0]["controller_device_id"]
+    device = next((row for row in model["devices"] if row["device_id"] == device_id), None)
+    if not device:
+        raise SystemExit(f"Cannot resolve controller for live parameter device {device_id}.")
+    system_by_id = {row["subsystem_id"]: row for row in model["system_tree"]}
+    subsystem_id = device["parent_subsystem_id"]
+    while system_by_id[subsystem_id]["parent_subsystem_id"]:
+        subsystem_id = system_by_id[subsystem_id]["parent_subsystem_id"]
+    supervisor = next(
+        (row for row in model.get("fsm_model", {}).get("fsms", []) if row["owner_subsystem_id"] == subsystem_id),
+        None,
+    )
+    if supervisor:
+        matches = [row for row in controllers if row["application_id"] == supervisor["application_id"]]
+        if len(matches) == 1:
+            return matches[0]["controller_device_id"]
+    raise SystemExit(f"Live parameter device {device_id} does not resolve to exactly one controller/Application.")
 
 
 def append_gateway_dispatch_wrapper(
@@ -718,33 +746,6 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
         )
         existing_parameter_ids.add(parameter_id)
 
-    for index, live_param in enumerate(model["live_parameters"], start=1):
-        if not any(live_param.values()):
-            continue
-        parameter_id = live_param["parameter_id"]
-        if parameter_id in existing_parameter_ids:
-            continue
-        parameter_def_id = f"PD_{normalize_identifier(parameter_id)}"
-        add_elem(
-            root,
-            "moqui.math.ParameterDef",
-            parameterDefId=parameter_def_id,
-            parameterTypeEnumId=parameter_type_for_signal(live_param),
-            purposeEnumId="PpControl",
-            parameterCode=f"LIVE.{index:03d}",
-            parameterName=title_case(live_param["parameter_name"]),
-            description=live_param.get("notes", "") or "Live-change parameter admitted through MqttParameterSub.",
-        )
-        add_elem(
-            root,
-            "moqui.math.Parameter",
-            parameterId=parameter_id,
-            parameterDefId=parameter_def_id,
-            deviceId=live_param["device_id"],
-            **default_value_attrs(parameter_type_for_signal(live_param), "output"),
-        )
-        existing_parameter_ids.add(parameter_id)
-
     # DeviceConfig is atomic. Multi-device recipes are composed only by ordered rules.
     for config in model["device_configs"]:
         if not config["device_config_id"]:
@@ -932,34 +933,38 @@ def render_seed(model: dict, root_device_id: str) -> ET.Element:
         live_transport = next(
             row for row in model["gateway_transports"] if row.get("supports_live_parameters")
         )
-        request_name = f"{root_device_id}_LiveParametersWrite"
-        add_elem(
-            root,
-            "moqui.device.DeviceRequest",
-            requestName=request_name,
-            deviceId=root_device_id,
-            requestTypeEnumId="DrtWrite",
-            purposeEnumId="DrpControl",
-            routerEnumId=DEFAULT_GATEWAY_ROUTER_ENUM_ID,
-            brokerUri=live_transport["broker_uri"],
-            onlyChangedParameters="Y",
-            description="Survey-derived live-parameter write request for MqttParameterSub / JSON parameter mapping.",
-        )
-        for sequence_num, row in enumerate(live_rows, start=1):
-            signal_like = {"iec_type": row["iec_type"]}
+        parameter_devices = {
+            elem.attrib["parameterId"]: elem.attrib.get("deviceId", "")
+            for elem in root if isinstance(elem.tag, str) and local_name(elem.tag) == "Parameter"
+        }
+        rows_by_controller: dict[str, list[dict]] = {}
+        for row in live_rows:
+            if row["parameter_id"] not in parameter_devices:
+                raise SystemExit(
+                    f"Live-parameter whitelist selects unknown or non-device Parameter {row['parameter_id']}."
+                )
+            device_id = parameter_devices[row["parameter_id"]]
+            controller_id = controller_for_device(model, device_id, root_device_id)
+            rows_by_controller.setdefault(controller_id, []).append(row)
+        for controller_id, controller_rows in sorted(rows_by_controller.items()):
+            request_name = f"{controller_id}_LiveParametersWrite"
             add_elem(
                 root,
-                "moqui.device.DeviceRequestItem",
+                "moqui.device.DeviceRequest",
                 requestName=request_name,
-                parameterId=row["parameter_id"],
-                sequenceNum=str(sequence_num),
-                requestItemName=row["mqtt_key"],
-                query=live_transport["live_parameter_topic"],
-                itemTypeEnumId=request_item_type_for_signal(signal_like),
+                deviceId=controller_id,
+                requestTypeEnumId="DrtWrite",
+                purposeEnumId="DrpControl",
+                routerEnumId=DEFAULT_GATEWAY_ROUTER_ENUM_ID,
+                brokerUri=live_transport["broker_uri"],
+                onlyChangedParameters="Y",
+                description="Approved live-parameter whitelist for MqttParameterSub and the generated JSON mapper.",
             )
-        append_gateway_dispatch_wrapper(
-            root, model, request_name, "DrtWrite", "DrpControl", live_transport
-        )
+            for sequence_num, row in enumerate(controller_rows, start=1):
+                add_elem(root, "moqui.device.DeviceRequestItem", requestName=request_name,
+                    parameterId=row["parameter_id"], sequenceNum=str(sequence_num),
+                    requestItemName=row["mqtt_key"], query=live_transport["live_parameter_topic"])
+            append_gateway_dispatch_wrapper(root, model, request_name, "DrtWrite", "DrpControl", live_transport)
 
     root.append(ET.Comment("Sampling-domain summary"))
     for domain in model["domains"]:

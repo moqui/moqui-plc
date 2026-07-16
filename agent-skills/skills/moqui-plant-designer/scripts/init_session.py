@@ -176,9 +176,6 @@ domains:
     "live-parameters-survey.yaml": """# Live parameters survey
 live_parameters:
   - parameter_id: ""
-    device_id: ""
-    parameter_name: ""
-    iec_type: ""
     mqtt_key: ""
     notes: ""
 """,

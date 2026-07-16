@@ -178,6 +178,16 @@ def render_application(
         SCRIPT_DIR.parents[3],
     )
 
+    run_script(
+        "render_live_parameter_mapper.py",
+        [
+            str(seed_path), "--device-id", f"DG_{normalize_id(top_subsystem_id)}",
+            "--session-dir", str(session_dir),
+            "--output", str(component_root / "src" / "main" / "org" / "moqui" / "util" / "json" / "JsonToParametersMapper.st"),
+        ],
+        SCRIPT_DIR.parents[3],
+    )
+
     component_dir = component_root / "src" / "main" / namespace / component_name
     facade_path = component_root / "src" / "main" / "org" / "moqui" / "device" / "DeviceFacade.dut"
     main_path = component_dir / "Main.pou"

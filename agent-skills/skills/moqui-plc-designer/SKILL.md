@@ -124,6 +124,9 @@ Useful helper scripts:
 - `scripts/validate_generated_plc_against_seed.py`
   - verifies that the generated PLC declarations still match the seed-derived device, parameter, request, and status-flow catalog
 - `scripts/render_codesys_applications.py`
+- `scripts/render_live_parameter_mapper.py`
+  - resolves the approved live-parameter whitelist from the generated seed
+  - writes one typed `JsonToParametersMapper` per CODESYS Application
   - generates all isolated CODESYS Application bundles from the reviewed session
   - copies the framework unless `--no-copy-framework` is used
   - validates orchestration fields and writes invocation-order traceability

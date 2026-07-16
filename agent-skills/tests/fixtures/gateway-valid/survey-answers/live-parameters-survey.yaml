@@ -1,7 +1,4 @@
 live_parameters:
-  - parameter_id: PWR_REF
-    device_id: LAMP_01
-    parameter_name: powerReference
-    iec_type: REAL
+  - parameter_id: P_LAMP_01_REF
     mqtt_key: powerReference
     notes: ""

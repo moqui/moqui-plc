@@ -280,6 +280,9 @@ def parse_seed_files(xml_paths: list[Path]) -> tuple[
                     description=elem.attrib.get("description"),
                 )
             elif tag == TAG_PARAMETER:
+                # Configuration-scoped values are recipes, not DeviceFacade fields.
+                if not elem.attrib.get("deviceId"):
+                    continue
                 parameter_id = elem.attrib["parameterId"]
                 parameters[parameter_id] = ParameterRec(
                     parameter_id=parameter_id,

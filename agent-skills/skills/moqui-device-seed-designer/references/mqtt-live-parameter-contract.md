@@ -1,25 +1,25 @@
-# MQTT live-parameter payload decision
+# MQTT live-parameter contract
 
-The gateway currently serializes a request item as a generic parameter object,
-for example:
+After the complete device Parameter catalog is generated, ask the developer
+which existing parameters may receive temporary live updates and assign one
+unique `mqttKey` to each selection.
 
-```json
-{"parameterId":"P_TEMP_SETPOINT","numericValue":22.5}
-```
+For every selected parameter the seed generator creates a
+`DeviceRequestItem` whose `parameterId` references the existing device-bound
+Parameter and whose `requestItemName` is the reviewed JSON key. Requests are
+partitioned by owning CPU/CODESYS Application.
 
-The sample PLC mapper consumes application keys, for example:
-
-```json
-{"tempSetpoint":22.5}
-```
-
-A backward-compatible candidate is to include the reviewed `requestItemName`
-as an additional top-level key:
+The gateway publishes a backward-compatible envelope containing both model
+identity/value fields and the mapper key:
 
 ```json
 {"parameterId":"P_TEMP_SETPOINT","numericValue":22.5,"tempSetpoint":22.5}
 ```
 
-This is a serialization choice inside the existing MQTT v5 transport, not a
-new acknowledgement protocol. Do not change gateway/runtime payloads until the
-developer selects the canonical contract and its compatibility policy.
+The PLC generator resolves the selected Parameter through its `ParameterDef`,
+derives the IEC type and generated DeviceFacade field, and emits an
+Application-specific `JsonToParametersMapper`. Unknown JSON keys remain ignored.
+
+This uses the existing MQTT v5 delivery path and adds no PLC acknowledgement
+protocol. Never whitelist feedback, status or safety-related parameters unless
+the developer explicitly confirms that changing them is valid.

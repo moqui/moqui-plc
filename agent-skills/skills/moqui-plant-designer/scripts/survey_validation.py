@@ -430,9 +430,6 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
         live_parameters.append(
             {
                 "parameter_id": _as_str(block.get("parameter_id")),
-                "device_id": _as_str(block.get("device_id")),
-                "parameter_name": _as_str(block.get("parameter_name")),
-                "iec_type": _as_str(block.get("iec_type")),
                 "mqtt_key": _as_str(block.get("mqtt_key")),
                 "notes": _as_str(block.get("notes")),
             }
@@ -1051,19 +1048,22 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
         if not any(row.values()):
             continue
         parameter_id = row["parameter_id"]
-        device_id = row["device_id"]
-        parameter_name = row["parameter_name"]
-        iec_type = row["iec_type"]
         mqtt_key = row["mqtt_key"]
-        if not parameter_id or not device_id or not parameter_name or not iec_type or not mqtt_key:
+        if not parameter_id or not mqtt_key:
             errors.append(
-                f"Live-parameter entry #{index} must define parameter_id, device_id, parameter_name, iec_type, and mqtt_key."
+                f"Live-parameter entry #{index} must select an existing parameter_id and define mqtt_key."
             )
             continue
-        if device_id not in device_ids:
-            errors.append(f"Live-parameter {parameter_id} references unknown device_id {device_id}.")
-        if iec_type.upper() not in SUPPORTED_IEC_TYPES:
-            errors.append(f"Live-parameter {parameter_id} uses unsupported iec_type {iec_type}.")
+    selected_parameter_ids = [row["parameter_id"] for row in model["live_parameters"] if row["parameter_id"]]
+    selected_mqtt_keys = [row["mqtt_key"] for row in model["live_parameters"] if row["mqtt_key"]]
+    if len(selected_parameter_ids) != len(set(selected_parameter_ids)):
+        errors.append("Live-parameter whitelist contains duplicate parameter_id values.")
+    if len(selected_mqtt_keys) != len(set(selected_mqtt_keys)):
+        errors.append("Live-parameter whitelist contains duplicate mqtt_key values.")
+    reserved_mqtt_keys = {"parameterId", "numericValue", "symbolicValue", "parameterEnumId"}
+    for mqtt_key in selected_mqtt_keys:
+        if mqtt_key in reserved_mqtt_keys:
+            errors.append(f"Live-parameter mqtt_key {mqtt_key} is reserved by the gateway envelope.")
 
     for index, row in enumerate(model["gateways"], start=1):
         if not _gateway_row_is_meaningful(row):

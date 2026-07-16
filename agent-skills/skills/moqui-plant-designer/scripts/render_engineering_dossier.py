@@ -81,8 +81,8 @@ def render_markdown(model: dict, fsm_model: dict) -> str:
         "## Parametri aggiornabili live approvati",
         "",
         table(
-            ["Parametro", "Dispositivo", "Tipo IEC", "Chiave MQTT"],
-            [[r['parameter_id'], r['device_id'], r['iec_type'], r['mqtt_key']] for r in model['live_parameters'] if any(r.values())],
+            ["Parametro esistente", "Chiave MQTT"],
+            [[r['parameter_id'], r['mqtt_key']] for r in model['live_parameters'] if any(r.values())],
         ),
         "",
         "## Confine di comunicazione",

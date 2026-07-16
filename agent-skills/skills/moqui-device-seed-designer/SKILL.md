@@ -110,6 +110,11 @@ The standard request families are normally only:
 2. recipe export request
 3. one live-parameter request for values acquired by `MqttParameterSub` in [moqui/moqui-plc](https://github.com/moqui/moqui-plc)
 
+The live request is a whitelist over existing device-bound Parameters. Ask only
+which parameters may be changed and their JSON keys; do not create duplicate
+Parameter/ParameterDef rows. The PLC designer generates the corresponding
+Application-specific mapper.
+
 For each gateway-executed family, keep the two model rows distinct:
 
 - the field-side request targets the PLC and contains MQTT/OPC UA transport data;

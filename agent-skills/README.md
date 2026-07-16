@@ -77,6 +77,7 @@ Current scope:
 - keep `InputSignalUpdate` and `OutputSignalUpdate` manual in V1
 - keep complex `DeviceGroup` redundancy / standby roles out of scope in V1
 - generate atomic `DeviceConfig` plus ordered `DeviceRuleSet`/`DeviceRule` composition
+- generate an Application-specific MQTT live-parameter mapper from a whitelist of existing Parameters
 - enforce separate approval gates for the device model, group model, final seed and HiveMind project
 - extract traceable, non-authoritative review candidates from EPLAN CSV/PDF sources
 - prefer Moqui seed data in XML format for data creation/update workflows

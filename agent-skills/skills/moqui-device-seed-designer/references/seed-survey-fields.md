@@ -93,9 +93,6 @@ Optional whitelist of logical parameters admitted to live runtime changes
 through `MqttParameterSub`:
 
 - `parameterId`
-- `deviceId`
-- `parameterName`
-- `iecType`
 - `mqttKey`
 - optional notes
 
@@ -165,9 +162,10 @@ configuration, not generated seed data.
 `MqttParameterSub` subscribes to one configured live-parameter topic. Therefore
 all items in the generated live-parameter request use that same topic;
 `mqttKey` remains the application-level JSON mapping key recorded as
-`DeviceRequestItem.requestItemName`. The PLC-side JSON mapper must explicitly
-support the gateway payload contract; seed generation does not infer or validate
-that Structured Text mapping.
+`DeviceRequestItem.requestItemName`. The selected `parameterId` must already
+exist as a device-bound Parameter in the generated seed. The PLC generator
+derives its DeviceFacade field and IEC type and writes the Application-specific
+`JsonToParametersMapper`; it never creates a second Parameter definition.
 
 This survey is where the workflow captures the non-optional fact that the
 model must project onto at least one runtime transport layer:
