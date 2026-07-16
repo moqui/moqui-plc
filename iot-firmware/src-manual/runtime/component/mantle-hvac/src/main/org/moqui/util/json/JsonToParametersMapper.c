@@ -1,9 +1,6 @@
 #include "JsonToParametersMapper.h"
-#include "MoquiConf.h"
-#include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
 /*
  * MISRA C:2012 Rule 11.3 deviation: pointer casts via (uint8_t *) + offsetof
@@ -11,6 +8,10 @@
  * All casts are to the exact declared type of each field.
  */
 
+/* Application-specific mapping example (documentation only).
+ * The executable mapper is generated from the reviewed DeviceRequestItem
+ * live-parameter whitelist for each Application. */
+#if 0
 typedef enum {
     MAP_F32,
     MAP_U16,
@@ -81,6 +82,15 @@ void JsonToParametersMapper_Apply(const char *key, const char *value,
         return; /* Key matched — no need to continue */
     }
     /* Unknown key: silently ignored (non-blocking, as per ST specification). */
+}
+#endif
+
+void JsonToParametersMapper_Apply(const char *key, const char *value,
+                                  DeviceFacade *dev) {
+    (void)key;
+    (void)value;
+    (void)dev;
+    /* Intentionally non-blocking until the Application-specific mapper is generated. */
 }
 
 /*

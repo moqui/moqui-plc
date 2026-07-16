@@ -32,14 +32,32 @@ typedef struct {
 static const DevFieldDesc s_dev_fields[] = {
     /* FSM state */
     { "status",          offsetof(DeviceFacade, status),                    FIELD_I32  },
+    /* Approved HVAC live-parameter surface */
+    { "tempSetpoint",    offsetof(DeviceFacade, tempSetpoint),              FIELD_F32  },
+    { "tempHysteresis",  offsetof(DeviceFacade, tempHysteresis),            FIELD_F32  },
+    { "tempMin",         offsetof(DeviceFacade, tempMin),                   FIELD_F32  },
+    { "tempMax",         offsetof(DeviceFacade, tempMax),                   FIELD_F32  },
+    { "rhSetpoint",      offsetof(DeviceFacade, rhSetpoint),                FIELD_F32  },
+    { "rhHysteresis",    offsetof(DeviceFacade, rhHysteresis),              FIELD_F32  },
+    { "rhMin",           offsetof(DeviceFacade, rhMin),                     FIELD_F32  },
+    { "rhMax",           offsetof(DeviceFacade, rhMax),                     FIELD_F32  },
+    { "ductTempMin",     offsetof(DeviceFacade, ductTempMin),               FIELD_F32  },
+    { "ductTempMax",     offsetof(DeviceFacade, ductTempMax),               FIELD_F32  },
+    { "ductRhMax",       offsetof(DeviceFacade, ductRhMax),                 FIELD_F32  },
+    { "setPointTimeHigh", offsetof(DeviceFacade, setPointTimeHigh),         FIELD_U16  },
+    { "setPointTimeLow", offsetof(DeviceFacade, setPointTimeLow),           FIELD_U16  },
+    { "processEstimatedDuration", offsetof(DeviceFacade, processEstimatedDuration), FIELD_U32 },
+    { "processMinDuration", offsetof(DeviceFacade, processMinDuration),     FIELD_U32  },
+    { "processRemainingDuration", offsetof(DeviceFacade, processRemainingDuration), FIELD_U32 },
+    { "estimatedRuntime", offsetof(DeviceFacade, estimatedRuntime),         FIELD_U32  },
+    { "minRuntime",      offsetof(DeviceFacade, minRuntime),                FIELD_U32  },
+    { "estimatedBreakDuration", offsetof(DeviceFacade, estimatedBreakDuration), FIELD_U32 },
+    { "minBreakDuration", offsetof(DeviceFacade, minBreakDuration),         FIELD_U32  },
     /* Environment feedback */
     { "tempFb",          offsetof(DeviceFacade, tempFeedback),              FIELD_F32  },
     { "rhFb",            offsetof(DeviceFacade, rhFeedback),                FIELD_F32  },
     { "ductTempFb",      offsetof(DeviceFacade, ductTempFeedback),          FIELD_F32  },
     { "ductRhFb",        offsetof(DeviceFacade, ductRhFeedback),            FIELD_F32  },
-    /* Setpoints */
-    { "tempSp",          offsetof(DeviceFacade, tempSetpoint),              FIELD_F32  },
-    { "rhSp",            offsetof(DeviceFacade, rhSetpoint),                FIELD_F32  },
     /* Duct safety predicates */
     { "ductTmpOver",     offsetof(DeviceFacade, ductTempOverMax),           FIELD_BOOL },
     { "ductTmpUnder",    offsetof(DeviceFacade, ductTempUnderMin),          FIELD_BOOL },

@@ -10,7 +10,9 @@ FUNCTION_BLOCK JsonToParametersMapper
 	(* Args validation *)
 	IF (jsonKey = "") THEN RETURN; END_IF;
 
-	(* Mapping JSON elements to parameters, ignoring unknown keys and errors (non-blocking). *)
+	(* Application-specific mapping example (documentation only).
+	 * The agent generates the executable mapper from the reviewed
+	 * DeviceRequestItem live-parameter whitelist for each Application. *)
 
 	(* --- 6-DOF robot arm trajectory (moqui-device export#Trajectory) ---
 	 * JSON payload shape (received on MqttParameterSub topic, e.g. moqui/robot/arm1/trajectory):
@@ -33,6 +35,7 @@ FUNCTION_BLOCK JsonToParametersMapper
 	 * In Codesys adapt to the application DeviceFacade trajectory buffer.
 	 *)
 
+	(*
 	IF jsonKey = "tempSetpoint" THEN
 	    dev.tempSetpoint := TO_REAL(jsonValue.value.lrValue);
 	ELSIF jsonKey = "tempHysteresis" THEN
@@ -41,6 +44,7 @@ FUNCTION_BLOCK JsonToParametersMapper
 	    dev.coldGroupEnableRequest := jsonValue.value.xValue;
 	ELSIF jsonKey = "workEffort.workEffortName" THEN
 	    workEffort.workEffortName := LEFT(TO_STRING(jsonValue.value.wsValue), 255);
-		(* etc. *)
+		...
 	END_IF;
+	*)
 	END_FUNCTION_BLOCK

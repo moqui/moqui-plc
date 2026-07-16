@@ -4,14 +4,15 @@
 /*
  * JsonToParametersMapper — port of JsonToParametersMapper.st.
  *
- * Applies a single key/value pair from a JSON subscribe payload onto the
- * matching DeviceFacade field.  Unknown keys are silently ignored (non-blocking).
+ * Application template for applying JSON subscribe values to DeviceFacade.
+ * The checked-in implementation performs no writes until an Application-specific
+ * mapping is generated from the reviewed DeviceRequestItem whitelist.
  *
- * Adding a new mapping: one line in the s_mappings[] table in the .c file.
+ * The .c file retains a disabled mapping table as implementation documentation.
  *
- * Two entry points:
- *   - Apply()          — pre-split key + string-value (also used by DeviceConfigLoader)
- *   - ParseAndApply()  — full JSON string (parses then dispatches each pair)
+ * Two template entry points:
+ *   - Apply()          — non-writing hook for a pre-split key/value
+ *   - ParseAndApply()  — parses a flat JSON object and dispatches to Apply()
  */
 
 #include "DeviceFacade.h"

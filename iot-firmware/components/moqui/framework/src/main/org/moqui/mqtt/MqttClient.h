@@ -13,8 +13,9 @@
 #include "Actuator.h"
 #include "MoquiConf.h"
 
-/* Maximum payload bytes per enqueued pub message. */
-#define MQTT_PUB_PAYLOAD_MAX  (512U)
+/* Maximum payload bytes per enqueued pub message. Large enough for the full
+ * HVAC live-parameter and runtime-telemetry snapshot. */
+#define MQTT_PUB_PAYLOAD_MAX  (2048U)
 
 /* A single publish request placed in the mqtt_io_task queue. */
 typedef struct {

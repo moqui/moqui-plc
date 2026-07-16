@@ -2,7 +2,8 @@
 #define PARAMETERS_TO_JSON_MAPPER_H
 
 /*
- * ParametersToJsonMapper — descriptor-table driven JSON serializers.
+ * ParametersToJsonMapper — descriptor-table driven JSON serializers for the
+ * approved HVAC live-parameter surface and runtime telemetry.
  *
  * Adding a new field to the DeviceFacade telemetry snapshot requires only one
  * additional line in the s_dev_fields[] table inside the .c file.
