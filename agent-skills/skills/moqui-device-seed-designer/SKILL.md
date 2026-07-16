@@ -86,6 +86,9 @@ The skill should verify:
 - flat FSMs remain independent; nested transitions use `toStatusFlowId` only when explicitly requested
 - `conditionExpression` remains empty because transition conditions are code-owned
 - the seed can serve downstream skills such as `moqui-plc-designer`
+- `PhysicalDevice.deviceName`, `ParameterDef.parameterName`, and
+  `Parameter.parameterAlias` contain domain names only and never a leading
+  `dev.`; IEC namespace prefixes belong to downstream PLC projections
 
 ## Standard DeviceRequest Philosophy
 
@@ -171,6 +174,8 @@ underlying `moqui-plc` FB code:
 - keep stable ordering
 - group rows by entity type in a readable way
 - preserve references and naming conventions already present in Moqui
+- keep device ownership structural: use a leaf parameter alias such as
+  `enableTime`, not `dev.coldGlycolPump.enableTime`
 - stop and ask targeted follow-up questions if required data is missing
 
 ## References

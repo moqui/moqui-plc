@@ -34,6 +34,8 @@ output/sessions/<session-id>/
   - imported PDFs, spreadsheets, copied specs, diagrams
 - `notes/`
   - human-readable notes, decisions, open questions
+  - `project-architecture-context.md`: portable snapshot of the mandatory
+    architecture contract used to initialize the session
 - `exports/`
   - zip bundles and export manifests
 
@@ -81,6 +83,7 @@ constraints and guided follow-up questions.
 The workflow should always be resumable from:
 
 - `session.json`
+- `notes/project-architecture-context.md`
 - the seed XML inside `seed-data/`
 
 Downstream skills should not depend on hidden memory if the on-disk session is

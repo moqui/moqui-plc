@@ -398,10 +398,27 @@ def validate_generated_model_references(root: ET.Element) -> None:
     device_types = {row.get("deviceId"): row.get("deviceTypeEnumId") for row in by_tag.get("Device", [])}
     config_types = {row.get("deviceConfigId"): row.get("deviceTypeEnumId") for row in by_tag.get("DeviceConfig", [])}
     errors: list[str] = []
+    for row in by_tag.get("PhysicalDevice", []):
+        device_name = row.get("deviceName", "")
+        if device_name == "dev" or device_name.startswith("dev."):
+            errors.append(
+                f"PhysicalDevice {row.get('deviceId')} stores IEC namespace in deviceName {device_name}; use the logical instance name only."
+            )
+    for row in by_tag.get("ParameterDef", []):
+        parameter_name = row.get("parameterName", "")
+        if parameter_name.startswith("dev."):
+            errors.append(
+                f"ParameterDef {row.get('parameterDefId')} stores IEC namespace in parameterName {parameter_name}."
+            )
     for row in by_tag.get("DeviceGroupMember", []):
         if row.get("deviceId") not in device_ids or row.get("memberDeviceId") not in device_ids:
             errors.append(f"DeviceGroupMember {row.get('deviceId')} -> {row.get('memberDeviceId')} has an unknown Device.")
     for row in by_tag.get("Parameter", []):
+        parameter_alias = row.get("parameterAlias", "")
+        if parameter_alias.startswith("dev."):
+            errors.append(
+                f"Parameter {row.get('parameterId')} stores IEC namespace in parameterAlias {parameter_alias}."
+            )
         if row.get("deviceConfigId") and row.get("parameterDefId") not in parameter_def_ids:
             errors.append(f"Config parameter {row.get('parameterId')} references unknown ParameterDef {row.get('parameterDefId')}.")
     for row in by_tag.get("DeviceRequestItem", []):

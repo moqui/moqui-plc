@@ -31,6 +31,9 @@ DIRS = [
     "exports",
 ]
 
+ARCHITECTURE_CONTEXT_SOURCE = Path(__file__).resolve().parents[1] / "references" / "project-architecture.md"
+ARCHITECTURE_CONTEXT_TARGET = "notes/project-architecture-context.md"
+
 
 STANDARD_SURVEY_FILES = {
     "controller-topology-survey.yaml": """# One PhysicalDevice per hardware CPU or CODESYS Application.
@@ -317,6 +320,7 @@ def build_session(session_id: str, project_name: str, customer_name: str) -> dic
             "attachmentsDir": "attachments",
             "notesDir": "notes",
             "exportsDir": "exports",
+            "architectureContext": ARCHITECTURE_CONTEXT_TARGET,
         },
         "artifacts": {
             "seedData": [],
@@ -380,6 +384,11 @@ def main() -> int:
         survey_path = survey_dir / filename
         if not survey_path.exists():
             survey_path.write_text(content, encoding="utf-8")
+
+    architecture_target = session_dir / ARCHITECTURE_CONTEXT_TARGET
+    architecture_target.write_text(
+        ARCHITECTURE_CONTEXT_SOURCE.read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     session = build_session(
         session_id=args.session_id,

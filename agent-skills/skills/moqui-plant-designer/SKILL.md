@@ -11,6 +11,11 @@ This skill does not replace the specialist skills. It coordinates them, keeps
 session state on disk, and knows where the workflow should resume after an
 interruption.
 
+Before any project action, read `references/project-architecture.md` completely.
+When resuming a saved session, also read
+`notes/project-architecture-context.md`; it is the session's portable snapshot
+of the architecture contract.
+
 ## Source Of Truth
 
 Moqui seed XML is authoritative for the device tree, parameters, transport
@@ -124,6 +129,7 @@ The workspace should be:
 
 ## References
 
+- `references/project-architecture.md` (mandatory at session start/resume)
 - `references/session-layout.md`
 - `references/session-schema.json`
 - `references/workflow-order.md`

@@ -157,6 +157,10 @@ The primary input is:
 - XML model files
 - user answers collected by the workflow
 
+Treat `dev.` as generated IEC syntax. Seed device and parameter names must be
+logical names without that prefix; add it only while rendering PLC expressions,
+live-parameter assignments, and txtrecipe paths.
+
 ## Manual Boundary
 
 The following work remains manual and belongs to the field engineer / PLC engineer:

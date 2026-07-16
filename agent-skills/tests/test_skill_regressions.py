@@ -76,6 +76,19 @@ class SkillRegressionTest(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(tmp_root, ignore_errors=True))
         return tmp_root / session_id
 
+    def test_session_bootstraps_portable_architecture_context(self) -> None:
+        session_dir = self.init_blank_session("architecture-context")
+        context_path = session_dir / "notes" / "project-architecture-context.md"
+        self.assertTrue(context_path.is_file())
+        context = context_path.read_text(encoding="utf-8")
+        self.assertIn("## Naming boundary", context)
+        self.assertIn("never store `dev.coldGlycolPump`", context)
+        session = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            "notes/project-architecture-context.md",
+            session["paths"]["architectureContext"],
+        )
+
     def test_gateway_valid_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("gateway-valid")
 

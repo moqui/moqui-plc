@@ -36,6 +36,10 @@ dev.path:=value
 
 That is enough to express the PLC-side configuration surface.
 
+The leading `dev.` is added only to the generated CODESYS recipe. Never store
+that prefix in Moqui `PhysicalDevice.deviceName`, `ParameterDef.parameterName`,
+or `Parameter.parameterAlias`.
+
 Canonical PLC source repository:
 
 - [moqui/moqui-plc](https://github.com/moqui/moqui-plc)
