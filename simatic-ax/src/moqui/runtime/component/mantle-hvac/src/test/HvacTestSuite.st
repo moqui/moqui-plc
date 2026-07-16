@@ -160,7 +160,7 @@ PROGRAM HvacTestSuite
 	dev.ductRhFeedback := REAL#70.0;
 
 	(* Static HVAC device configuration *)
-	dev.coldGlycolPump.actuatorId := 'coldGlycolPump';
+	dev.coldGlycolPump.actuatorId := 'HVAC_COLD_GLYCOL_PUMP';
 	dev.coldGlycolPump.actuatorName := 'ColdGlycolPump';
 	dev.coldGlycolPump.actuationType := ActuatorActuationType#SingleActuation;
 	dev.coldGlycolPump.feedbackType := ActuatorFeedbackType#WithoutFeedback;
@@ -169,7 +169,7 @@ PROGRAM HvacTestSuite
 	dev.coldGlycolPump.disableTime := UINT#1;
 	dev.coldGlycolPump.diagnosticsEnable := FALSE;
 
-	dev.hotGlycolPump.actuatorId := 'hotGlycolPump';
+	dev.hotGlycolPump.actuatorId := 'HVAC_HOT_GLYCOL_PUMP';
 	dev.hotGlycolPump.actuatorName := 'HotGlycolPump';
 	dev.hotGlycolPump.actuationType := ActuatorActuationType#SingleActuation;
 	dev.hotGlycolPump.feedbackType := ActuatorFeedbackType#WithoutFeedback;
@@ -178,7 +178,7 @@ PROGRAM HvacTestSuite
 	dev.hotGlycolPump.disableTime := UINT#1;
 	dev.hotGlycolPump.diagnosticsEnable := FALSE;
 
-	dev.airFlow.actuatorId := 'airFlow';
+	dev.airFlow.actuatorId := 'HVAC_AIR_FLOW';
 	dev.airFlow.actuatorName := 'AirFlow';
 	dev.airFlow.actuationType := ActuatorActuationType#SingleActuation;
 	dev.airFlow.feedbackType := ActuatorFeedbackType#WithoutFeedback;
@@ -188,7 +188,7 @@ PROGRAM HvacTestSuite
 	dev.airFlow.diagnosticsEnable := FALSE;
 	dev.airFlowRef := REAL#50.0;
 
-	dev.coldGlycolValve.controlSystemId := 'coldGlycolValve';
+	dev.coldGlycolValve.controlSystemId := 'HVAC_COLD_GLYCOL_VALVE';
 	dev.coldGlycolValve.controlSystemName := 'ColdGlycolValve';
 	dev.coldGlycolValve.gain := REAL#1.0;
 	dev.coldGlycolValve.integrationTime := REAL#0.0;
@@ -200,7 +200,7 @@ PROGRAM HvacTestSuite
 	dev.coldGlycolValve.atSetpointHysteresis := T_HYS;
 	dev.coldGlycolValve.tickTime := T#100ms;
 
-	dev.hotGlycolValve.controlSystemId := 'hotGlycolValve';
+	dev.hotGlycolValve.controlSystemId := 'HVAC_HOT_GLYCOL_VALVE';
 	dev.hotGlycolValve.controlSystemName := 'HotGlycolValve';
 	dev.hotGlycolValve.gain := REAL#1.0;
 	dev.hotGlycolValve.integrationTime := REAL#0.0;
@@ -212,7 +212,7 @@ PROGRAM HvacTestSuite
 	dev.hotGlycolValve.atSetpointHysteresis := T_HYS;
 	dev.hotGlycolValve.tickTime := T#100ms;
 
-	dev.ahuFan.controlSystemId := 'ahuFan';
+	dev.ahuFan.controlSystemId := 'HVAC_AHU_FAN';
 	dev.ahuFan.controlSystemName := 'AhuFan';
 	dev.ahuFan.gain := REAL#1.0;
 	dev.ahuFan.integrationTime := REAL#0.0;
@@ -319,7 +319,7 @@ PROGRAM HvacTestSuite
 			END_IF;
 
 		UINT#9 :
-			dev.tempFeedback := T_COLD;
+			dev.tempFeedback := T_SETPOINT - T_HYS;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			IF dev.status = MainStatus#Standby THEN
 				pass[9] := TRUE;
@@ -351,7 +351,7 @@ PROGRAM HvacTestSuite
 			END_IF;
 
 		UINT#12 :
-			dev.tempFeedback := T_HOT;
+			dev.tempFeedback := T_SETPOINT + T_HYS;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			IF dev.status = MainStatus#Standby THEN
 				pass[12] := TRUE;
@@ -462,7 +462,8 @@ PROGRAM HvacTestSuite
 		UINT#22 :
 			dev.status := MainStatus#Standby;
 			dev.lastStatus := MainStatus#Cooling;
-			dev.tempFeedback := T_HOT;
+			(* Regression: T=tempMax is above the thermostat band but not over the absolute limit. *)
+			dev.tempFeedback := T_MAX;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			IF dev.status = MainStatus#Cooling THEN
 				pass[22] := TRUE;

@@ -3,7 +3,7 @@
   "projectName": "Moqui Industrial HVAC end-to-end validation",
   "customerName": "",
   "createdAt": "2026-07-16T09:57:09Z",
-  "updatedAt": "2026-07-16T12:00:00Z",
+  "updatedAt": "2026-07-16T15:26:42Z",
   "status": "in_progress",
   "currentStage": "end_to_end_validation",
   "currentSkill": "moqui-plant-designer",
@@ -56,12 +56,12 @@
       "notes": "Official HVACDemoData.xml loaded and verified in PostgreSQL: 16 HVAC devices, 33 PLC parameters and 20 live request items."
     },
     "plc_design": {
-      "status": "completed",
-      "notes": "Standard base HVAC PLC source and 20-field outbound mapper exist. Defrost/dripping was cancelled."
+      "status": "in_progress",
+      "notes": "E2E proved MQTT receipt and JSON deserialization. The approved 20-field whitelist is executable in JsonToParametersMapper. ParameterLogger and the exact Device/Parameter log identity contract are implemented in IEC, Simatic AX and both IoT source trees. AX builds pass; CODESYS projectarchive reload and live verification remain pending. Defrost/dripping remains cancelled."
     },
     "config_recipe": {
       "status": "completed",
-      "notes": "Base recipes and live-parameter whitelist modeled; inbound mapper remains intentionally Application-specific."
+      "notes": "Base recipes and live-parameter whitelist are modeled. HVAC JsonToParametersMapper implements exactly the 20 approved DeviceRequestItems. ParametersToJsonMapper is documentation-only for optional peer-PLC redundancy exchange; MqttParameterPub defaults to disabled."
     },
     "plc_framework_config": {
       "status": "in_progress",
@@ -69,7 +69,7 @@
     },
     "end_to_end_validation": {
       "status": "in_progress",
-      "notes": "Artemis, PostgreSQL, gateway REST and 20-message MQTT publication passed. CODESYS receive, PLC publish and PLC log persistence remain pending."
+      "notes": "Artemis, PostgreSQL, gateway REST, 20-message MQTT publication, CODESYS subscription and JSON deserialization passed. Gateway integration tests pass for exact DeviceLog and ParameterLog routing. Application value writes and corrected PLC log identifiers await CODESYS projectarchive reload and final live verification."
     }
   }
 }

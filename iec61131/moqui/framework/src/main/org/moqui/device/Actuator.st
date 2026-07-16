@@ -101,7 +101,8 @@ FUNCTION_BLOCK Actuator
 		END_IF;
 
 		(* Logger facade init *)
-		loggerName := concat(concat(concat(actuatorName, '['), actuatorId), ']');
+		(* actuatorId is the exact Device.deviceId; actuatorName is descriptive only. *)
+		loggerName := actuatorId;
 		logger.enable := TRUE; logger.loggerName := loggerName;
 
 		logger(message := 'Actuator initialization.', level := LogLevel.DEBUG);

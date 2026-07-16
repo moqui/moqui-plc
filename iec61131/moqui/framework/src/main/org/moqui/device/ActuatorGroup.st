@@ -211,7 +211,7 @@ FUNCTION_BLOCK ActuatorGroup
 		END_IF;
 	
 		(* Logger facade init *)
-		loggerName := concat(concat(concat(actuatorGroupName, '['), actuatorGroupId), ']');
+		loggerName := actuatorGroupId;
 		logger.enable := TRUE; logger.loggerName := loggerName;
 		init := TRUE;
 	END_IF;

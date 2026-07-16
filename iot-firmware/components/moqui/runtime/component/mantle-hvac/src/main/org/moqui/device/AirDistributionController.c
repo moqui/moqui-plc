@@ -6,7 +6,7 @@ void AirDistributionController_Update(AirDistributionController *ctrl,
                                       DeviceFacade              *dev) {
     if (!ctrl->loggerInit) {
         ctrl->logger.enable = true;
-        ctrl->logger.loggerName = "AirDistributionController";
+        ctrl->logger.loggerName = "HVAC_AIR_GROUP";
         ctrl->loggerInit = true;
     }
 

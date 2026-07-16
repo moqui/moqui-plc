@@ -34,7 +34,7 @@
 void OutputSignalUpdate_Update(OutputSignalUpdate *osu) {
     if (!osu->init) {
         osu->logger.enable = true;
-        osu->logger.loggerName = "OutputSignalUpdate";
+        osu->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
         osu->init = true;
     }
 

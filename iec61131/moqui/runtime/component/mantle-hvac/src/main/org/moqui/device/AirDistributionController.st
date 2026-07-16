@@ -17,7 +17,7 @@ FUNCTION_BLOCK AirDistributionController
 	    clock1s : BOOL; (* 1-second base clock pulse *)
 	END_VAR
 	VAR CONSTANT
-	    componentName : STRING := 'AirDistributionController';
+	    componentName : STRING := 'HVAC_AIR_GROUP';
 	END_VAR
 	VAR
 		(* Logger facade *)

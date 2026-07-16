@@ -3,6 +3,9 @@
  * Map physical input terminals/signals to their logical parameters, performing pre-processing (e.g.: signal filtering) if necessary.
  *)
 FUNCTION_BLOCK InputSignalUpdate
+	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
+	END_VAR
 	VAR_EXTERNAL
 		dev : DeviceFacade;
 		io : IOFacade; 
@@ -16,7 +19,7 @@ FUNCTION_BLOCK InputSignalUpdate
 	END_VAR
 
 	(* Logger facade init *)
-	logger.enable := TRUE; logger.loggerName := 'InputSignalUpdate';
+	logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 
 	logger(message := 'Input signals acquisition and pre-processing.', level := LogLevel.DEBUG);
 

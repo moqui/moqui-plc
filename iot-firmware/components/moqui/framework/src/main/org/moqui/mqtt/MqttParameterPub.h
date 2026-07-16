@@ -2,7 +2,8 @@
 #define MQTT_PARAMETER_PUB_H
 
 /*
- * MqttParameterPub — port of MqttParameterPub.st (FUNCTION_BLOCK).
+ * MqttParameterPub — optional peer-PLC parameter replication, typically for a
+ * developer-defined redundancy strategy. Telemetry belongs to LogDispatcher.
  *
  * Dependency inversion: the serialization function and the device pointer are
  * injected via callback so that this framework-layer header has no dependency

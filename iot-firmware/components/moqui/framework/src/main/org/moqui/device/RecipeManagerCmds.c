@@ -3,7 +3,7 @@
 void RecipeManagerCmds_Update(RecipeManagerCmds *cmds) {
     if (!cmds->init) {
         cmds->logger.enable = true;
-        cmds->logger.loggerName = "RecipeManager";
+        cmds->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
         cmds->init = true;
     }
 

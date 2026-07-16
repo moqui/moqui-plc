@@ -207,7 +207,8 @@ FUNCTION_BLOCK ProcessPid
 	END_IF;
 
 	(* Logger facade init *)
-	loggerName := concat(concat(concat(controlSystemName, '['), controlSystemId), ']');
+	(* controlSystemId is the exact Device.deviceId; controlSystemName is descriptive only. *)
+	loggerName := controlSystemId;
 	logger.enable := TRUE; logger.loggerName := loggerName;
 
 	(* Configuration parameters validation *)

@@ -8,7 +8,7 @@ void ActuatorGroup_Update(ActuatorGroup *grp, bool clockPulse) {
             return;
         }
         
-        grp->loggerName = grp->actuatorGroupName ? grp->actuatorGroupName : grp->actuatorGroupId;
+        grp->loggerName = grp->actuatorGroupId;
         grp->logger.enable = true;
         grp->logger.loggerName = grp->loggerName;
         grp->init = true;

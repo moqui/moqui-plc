@@ -1,5 +1,8 @@
 (* Run network diagnostics on the Ethernet adapter and IO modules *)
 FUNCTION_BLOCK NetworkDiagnostics
+	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
+	END_VAR
 	VAR_EXTERNAL
 		fieldbus : FieldbusProtocol;
 	END_VAR
@@ -29,7 +32,7 @@ FUNCTION_BLOCK NetworkDiagnostics
 
 	IF NOT init THEN
 		(* Logger facade init *)
-		logger.enable := TRUE; logger.loggerName := 'RunNetworkDiagnostics';
+		logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 		init := TRUE;
 	END_IF;
 

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-static LoggerFacade s_log = { .enable = true, .loggerName = "DeviceConfigLoader" };
+static LoggerFacade s_log = { .enable = true, .loggerName = MOQUI_APPLICATION_DEVICE_ID };
 
 /* Recipe files are embedded in flash at link time via EMBED_TXTFILES in CMakeLists.txt. */
 extern const char _binary_Phase1HvacCooling_HvacDeviceConfig_json_start[];

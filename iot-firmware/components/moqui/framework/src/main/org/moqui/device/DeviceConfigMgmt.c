@@ -6,7 +6,7 @@ void DeviceConfigMgmt_Update(DeviceConfigMgmt *self)
     bool configCompletedEdge;
 
     if (!self->init) {
-        LoggerFacade_Init(&self->logger, "DeviceConfigMgmt");
+        LoggerFacade_Init(&self->logger, MOQUI_APPLICATION_DEVICE_ID);
         self->init   = true;
         self->status = DEVICE_CONFIG_MGMT_IDLE;
     }

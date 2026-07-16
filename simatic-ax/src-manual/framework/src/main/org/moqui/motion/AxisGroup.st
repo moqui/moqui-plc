@@ -184,7 +184,7 @@ IF NOT init THEN
 	END_IF;
 
 	(* Logger facade init *)
-	loggerName := System.Strings.Concat(axisGroupName, '[', axisGroupId, ']');
+	loggerName := axisGroupId;
 	logger.enable := TRUE; logger.loggerName := loggerName;
 	init := TRUE;
 END_IF;

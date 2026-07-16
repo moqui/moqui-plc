@@ -34,7 +34,7 @@ VAR_GLOBAL
 	(* MQTT pub/sub commands *)
 	connectionFactory : MqttConnectionFactory;
 	logAppenderEnable : BOOL := TRUE;
-	paramsPubEnable : BOOL := TRUE;
+	paramsPubEnable : BOOL := FALSE;
 	paramsSubEnable : BOOL := TRUE;
 
 	(* Motion override — written by Moqui via liveParamsSub *)

@@ -87,6 +87,7 @@ idf_component_register(
         # runtime/mantle-hvac — main control loop
         "${HVAC}/mantle/hvac/MainRuleEngine.c"
         "${HVAC}/mantle/hvac/Main.c"
+		"${HVAC}/mantle/hvac/ParameterLogger.c"
         "${HVAC}/mantle/hvac/DeviceConfigLoader.c"
         "${HVAC}/mantle/hvac/HvacDeviceConfigOps.c"
 

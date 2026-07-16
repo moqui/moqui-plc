@@ -200,6 +200,367 @@ This archive is the recommended starting point when you want to explore the
 framework behavior, run the included test suites, or prepare a local demo
 environment without importing the source tree manually.
 
+## End-to-End HVAC demo
+
+This walkthrough starts the complete local HVAC data path on one Windows
+workstation. It is deliberately detailed so that a first-time user can verify
+the architecture without configuring physical I/O or a real PLC.
+
+The demo exercises two independent directions:
+
+```text
+Moqui HVAC data -> moqui-device-gateway -> Artemis MQTT -> CODESYS
+CODESYS ParameterLogger -> Artemis MQTT -> moqui-device-gateway -> Moqui database
+```
+
+`mosquitto_sub` is used only as an observer. ActiveMQ Artemis remains the MQTT
+v5 broker used by the gateway and PLC.
+
+### What the HVAC demo data represents
+
+The declaration layer is
+[`moqui-device/data/HVACDemoData.xml`](https://github.com/moqui-industrial/moqui-device/blob/master/data/HVACDemoData.xml).
+Before starting the programs, it is useful to understand its main records:
+
+- `HVAC_DEMO` is the complete demonstration system.
+- `HVAC_DEMO_PLC` represents the dedicated CODESYS Application/PLC CPU.
+- cold, hot and air groups contain the pumps, PID valves, fan, air-flow
+  actuator and dampers used by `mantle-hvac`.
+- `Parameter` records describe setpoints, absolute limits, recipe timing,
+  feedback and runtime values. `parameterId` is the persistent Moqui identity;
+  `parameterAlias` is the corresponding `DeviceFacade` field name.
+- `HvacCivilCoolingConfig`, `HvacCivilHeatingConfig` and
+  `HvacCivilDehumidifyingConfig` are the application recipes. The demo uses
+  deliberately short finite durations: Cooling runs for 30 seconds,
+  Dehumidifying completes after 60 seconds (45 seconds of runtime followed by
+  the first part of its configured break), and Heating runs for 30 seconds.
+  These values make automatic recipe advancement observable without waiting
+  for production-scale process times. In a real recipe, a zero process
+  duration still means continuous operation with no automatic advancement.
+- `HVAC_DEMO_LiveParametersWrite` contains the reviewed whitelist of 20
+  parameters that may be changed live. The gateway publishes them to
+  `moqui/hvac-demo/parameters/live`.
+- `ParameterLogger` publishes a periodic 29-value logical snapshot. Every
+  event uses `loggerName=HVAC_DEMO_PLC` and an exact `Parameter.parameterId` as
+  `source`.
+
+The normal thermostat uses `tempSetpoint +/- tempHysteresis`. `tempMin` and
+`tempMax` are absolute limits, not the normal Heating/Cooling thresholds.
+
+### 1. Prerequisites and directory layout
+
+Install the following software:
+
+- Docker Desktop;
+- Java 21;
+- CODESYS Development System and `CODESYS Control Win V3 - x64`;
+- Mosquitto command-line clients (`mosquitto_sub` and `mosquitto_pub`).
+
+This guide assumes that the repositories are sibling directories:
+
+```text
+github-moqui/
+  moqui-framework/
+  moqui-device/
+  moqui-math/
+  moqui-device-gateway/
+  moqui-deploy/
+  moqui-plc/
+```
+
+Install or copy `moqui-device` and `moqui-math` under
+`moqui-framework/runtime/component` before loading Moqui data. The component
+directories must contain their complete source trees, not only their `data`
+directories.
+
+All PowerShell commands below start from `github-moqui`. The credentials shown
+are development-only defaults used by the local Compose files. Do not use them
+in production.
+
+### 2. Start PostgreSQL and load the Moqui data
+
+Start only PostgreSQL from the industrial Compose file:
+
+```powershell
+docker compose -f .\moqui-deploy\industrial\moqui-postgres-compose.yml -p moqui up -d moqui-database
+docker ps --filter "name=moqui-database"
+```
+
+Wait until the container is running, then prepare and load the Moqui database:
+
+```powershell
+Set-Location .\moqui-framework
+$env:entity_ds_db_conf="postgres"
+$env:entity_ds_host="127.0.0.1"
+$env:entity_ds_port="5432"
+$env:entity_ds_database="moqui"
+$env:entity_ds_user="moqui"
+$env:entity_ds_password="moqui"
+.\gradlew.bat getPostgresJdbc --no-daemon
+.\gradlew.bat load -Ptypes=seed-initial --no-daemon
+.\gradlew.bat load -Ptypes=seed --no-daemon
+Set-Location ..
+```
+
+Use `seed-initial` before `seed`: the regular device seed references setup data
+created during the initial load. A correctly loaded demo contains 16 HVAC
+devices, 20 live-write request items and the parameters owned by
+`HVAC_DEMO_PLC`. Check them with:
+
+```powershell
+docker exec moqui-database psql -U moqui -d moqui -c "SELECT COUNT(*) AS hvac_devices FROM device WHERE device_id LIKE 'HVAC%';"
+docker exec moqui-database psql -U moqui -d moqui -c "SELECT COUNT(*) AS live_items FROM device_request_item WHERE request_name='HVAC_DEMO_LiveParametersWrite';"
+```
+
+### 3. Start ActiveMQ Artemis
+
+Start the two-node development broker configuration:
+
+```powershell
+docker compose -f .\moqui-deploy\industrial\activemq-compose.yml -p moqui-broker up -d
+docker ps --filter "name=moqui-broker"
+```
+
+The primary broker exposes:
+
+- MQTT v5 on `127.0.0.1:1883`;
+- the Artemis console on <http://localhost:8161>;
+- development username/password `artemis` / `artemis`.
+
+Wait for `moqui-broker1` to report `healthy`. The backup node is useful for HA
+testing but the smoke test uses only `moqui-broker1`. On Windows, an error that
+mentions `/bin/bash^M` means the mounted `artemis-start.sh` or `broker.xml` was
+checked out with CRLF line endings; convert those two files locally to LF and
+restart the containers.
+
+### 4. Open an MQTT observer
+
+Open a new PowerShell terminal before publishing anything. If the Mosquitto
+installation directory is not on `PATH`, use the full executable path.
+
+```powershell
+mosquitto_sub -h 127.0.0.1 -p 1883 -u artemis -P artemis -V mqttv5 -q 1 -v -t "moqui-plc" -t "moqui/hvac-demo/parameters/#"
+```
+
+Keep this terminal open. The topic prefixes printed by `-v` make it clear which
+direction each message belongs to:
+
+- `moqui/hvac-demo/parameters/live`: gateway-to-PLC live parameters;
+- `moqui-plc`: PLC logs and periodic parameter snapshots.
+
+### 5. Start moqui-device-gateway
+
+The quick demo runs Quarkus directly on the host and uses the already loaded
+Moqui PostgreSQL database. It deliberately points both the transactional and
+log datasources at `moqui`; a production deployment may use a separate
+`moqui-log`/TimescaleDB database.
+
+Open another PowerShell terminal:
+
+```powershell
+Set-Location .\moqui-device-gateway
+$env:QUARKUS_PROFILE="local"
+$env:QUARKUS_DATASOURCE_JDBC_URL="jdbc:postgresql://localhost:5432/moqui"
+$env:QUARKUS_DATASOURCE_USERNAME="moqui"
+$env:QUARKUS_DATASOURCE_PASSWORD="moqui"
+$env:QUARKUS_DATASOURCE_LOG_JDBC_URL="jdbc:postgresql://localhost:5432/moqui"
+$env:QUARKUS_DATASOURCE_LOG_USERNAME="moqui"
+$env:QUARKUS_DATASOURCE_LOG_PASSWORD="moqui"
+$env:MQTT_BROKER_URL="tcp://localhost:1883"
+$env:GATEWAY_DEVICE_ID="HVAC_DEMO_GATEWAY"
+$env:MQTT_WRITE_AFTERPUBLISH_ENABLED="false"
+.\gradlew.bat quarkusDev
+```
+
+The gateway listens on port `8081`. In a separate terminal, verify its health:
+
+```powershell
+Invoke-RestMethod http://localhost:8081/q/health
+```
+
+The status must be `UP`. `MQTT_WRITE_AFTERPUBLISH_ENABLED=false` is appropriate
+only for this reduced demo, where the Moqui web runtime on port 8080 is not
+running. It prevents the optional post-publish callback from failing after the
+MQTT message has already been delivered.
+
+The official seed deliberately contains no MQTT password. Until deployment-side
+credential injection is configured, apply this local, test-only override and
+request an initial full snapshot:
+
+```powershell
+docker exec moqui-database psql -U moqui -d moqui -c "UPDATE device_request SET broker_uri='paho-mqtt5:?brokerUrl=tcp://localhost:1883&qos=1&userName=artemis&password=artemis', only_changed_parameters='N' WHERE request_name='HVAC_DEMO_LiveParametersWrite';"
+```
+
+Never copy that secret-bearing URI into official seed data or a production
+database.
+
+### 6. Configure and run CODESYS
+
+Open `moqui-plc/moqui.projectarchive`. For MQTT testing, use the local
+`CODESYS Control Win V3 - x64` runtime rather than IDE Simulation: Simulation
+may execute the PLC logic without creating the external MQTT socket.
+
+In CODESYS:
+
+1. Start `CODESYS Control Win V3 - x64`.
+2. Open the PLC device **Communication Settings**, scan the local gateway and
+   select the local Control Win runtime. This CODESYS Gateway connects the IDE
+   to the PLC runtime; it is unrelated to `moqui-device-gateway`.
+3. In the `MoquiConf` global variable list set:
+
+   ```iecst
+   brokerUrl := '127.0.0.1';
+   brokerPort := 1883;
+   username := "artemis";
+   password := "artemis";
+   liveParamsSubTopic := "moqui/hvac-demo/parameters/live";
+   logTopic := "moqui-plc";
+   ```
+
+4. Leave the Recipe Manager Storage **File path** empty. This matches the
+   default `deviceConfigStoragePath := '../'` convention described earlier in
+   this README.
+5. Under **Task Configuration**, create or verify these program calls:
+
+   | Task | Type / interval | Priority | Program call |
+   | --- | --- | --- | --- |
+   | `StartTask` | Cyclic, 10 ms | 1 | `MoquiStart` |
+   | `MqttParameterSubTask` | Cyclic, 1000 ms | 1 | `MqttParameterSub` |
+   | `LogDispatcherTask` | Cyclic, 1000 ms | 3 | `LogDispatcher` |
+
+   `MoquiStart` initializes the framework, loads recipes and invokes the HVAC
+   `Main` FSM. `MqttParameterSub` receives and validates the approved live
+   parameter keys. `LogDispatcher` sends the registered `LoggerFacade` buffers,
+   including the `ParameterLogger` called by `Main` after `DeviceManager`.
+   `MqttParameterPub` is not required: it is reserved for an explicitly designed
+   peer-PLC parameter-replication strategy, not telemetry.
+6. Disable unrelated test-suite tasks so they cannot write to the same global
+   `DeviceFacade` during this demo.
+7. Build the Application, choose **Online -> Login**, accept the download, and
+   press **Run**.
+
+The bottom status bar must show `RUN`, not `SIMULAT`. Useful online values are:
+
+```text
+MqttParameterSub.connectionFactory.connected = TRUE
+MqttParameterSub.lastSubMessage
+MqttParameterSub.parser.done / busy / error
+dev.status
+dev.tempSetpoint
+```
+
+With the standard `CivilCooling` recipe, `tempFeedback=26`, `tempSetpoint=22`
+and `tempHysteresis=1`, so the corrected thermostat logic can leave Standby and
+enter Cooling. The demo recipe completes after 30 seconds and the configuration
+manager can then load the next recipe. The following Dehumidifying recipe has a
+60-second total duration, including a 45-second runtime before its break; the
+Heating recipe completes after another 30 seconds.
+
+### 7. Verify a direct MQTT live update
+
+First isolate the PLC subscription from the gateway. In another terminal send a
+recognizable value:
+
+```powershell
+mosquitto_pub -h 127.0.0.1 -p 1883 -u artemis -P artemis -V mqttv5 -q 1 -t "moqui/hvac-demo/parameters/live" -m '{"parameterId":"HvacTempSetpoint","numericValue":23.25,"tempSetpoint":23.25}'
+```
+
+Expected result:
+
+- the observer prints the JSON message;
+- `MqttParameterSub.lastSubMessage` contains it;
+- `dev.tempSetpoint` changes to `23.25`;
+- the parser finishes without an error.
+
+Unknown JSON keys are intentionally ignored. The executable mapper accepts
+only the 20 keys modeled by `DeviceRequestItem`.
+
+### 8. Verify gateway-to-CODESYS delivery
+
+Set the persistent Moqui value to another recognizable number, then invoke the
+modeled request through the gateway:
+
+```powershell
+docker exec moqui-database psql -U moqui -d moqui -c "UPDATE parameter SET numeric_value=23.50 WHERE parameter_id='HvacTempSetpoint';"
+Invoke-RestMethod -Method Post -Uri http://localhost:8081/api/device-request/run/HVAC_DEMO_LiveParametersWrite
+```
+
+The response should contain:
+
+```json
+{"routeId":"mqtt-write-device-request","status":"completed","rowCount":20}
+```
+
+The observer should show 20 messages on the live-parameter topic and CODESYS
+should show `dev.tempSetpoint=23.5`. This proves that the gateway resolved the
+`DeviceRequest` and `DeviceRequestItem` rows, read the Moqui parameters and
+published the generated MQTT payloads.
+
+### 9. Verify CODESYS-to-gateway logging
+
+Keep CODESYS in `RUN`. Normal device/application messages and the periodic
+parameter snapshot appear on `moqui-plc`. A numeric snapshot entry has this
+shape:
+
+```json
+{
+  "loggerName":"HVAC_DEMO_PLC",
+  "source":"HvacTempSetpoint",
+  "type":1,
+  "numericValue":23.5
+}
+```
+
+The gateway applies this identity contract:
+
+- empty `source` -> `DEVICE_LOG`, with `loggerName` as exact `Device.deviceId`;
+- non-empty `source` -> `PARAMETER_LOG`, with `source` as exact
+  `Parameter.parameterId`.
+
+After one `clks.clock1minute` pulse, query PostgreSQL:
+
+```powershell
+docker exec moqui-database psql -U moqui -d moqui -c "SELECT parameter_id, numeric_value, observed_date FROM parameter_log WHERE parameter_id='HvacTempSetpoint' ORDER BY observed_date DESC LIMIT 5;"
+docker exec moqui-database psql -U moqui -d moqui -c "SELECT device_id, observed_date FROM device_log WHERE device_id LIKE 'HVAC_%' ORDER BY observed_date DESC LIMIT 10;"
+```
+
+The first query should contain the value most recently observed by
+`ParameterLogger`; the second confirms the device-scoped diagnostic path.
+
+### 10. Quick troubleshooting checklist
+
+- **No MQTT traffic:** check that `moqui-broker1` is healthy, port 1883 is not
+  occupied, credentials are `artemis/artemis`, and `mosquitto_sub` was started
+  before publishing.
+- **Gateway health is DOWN:** verify both datasource URLs, PostgreSQL port 5432,
+  `GATEWAY_DEVICE_ID=HVAC_DEMO_GATEWAY`, and that the HVAC seed was loaded.
+- **REST returns zero rows:** for this isolated first-snapshot test verify that
+  `only_changed_parameters='N'`. Normal production operation should update
+  parameters through Moqui services and may use `onlyChangedParameters=Y`.
+- **REST publishes but then fails:** the Moqui callback is probably enabled
+  while the Moqui web runtime is absent; restart with
+  `MQTT_WRITE_AFTERPUBLISH_ENABLED=false` for this demo only.
+- **CODESYS receives nothing:** use Control Win rather than Simulation, confirm
+  `brokerUrl`, `liveParamsSubTopic`, the `MqttParameterSubTask` program call and
+  `connectionFactory.connected=TRUE`.
+- **FSM remains in Standby:** verify that the project contains the current
+  `MainRuleEngine` and that the recipe feedback is outside the thermostat band.
+- **No periodic parameter rows:** `StartTask` must run every 10 ms because the
+  derived clocks are based on that cycle; inspect `clks.clock1minute`, then
+  `ParameterLogger.logger.error` and the `LogDispatcher` state.
+- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo.
+  `ParameterLogger` entries are distinguished by a non-empty `source`.
+
+To stop only the demo infrastructure:
+
+```powershell
+docker compose -f .\moqui-deploy\industrial\activemq-compose.yml -p moqui-broker down
+docker compose -f .\moqui-deploy\industrial\moqui-postgres-compose.yml -p moqui down
+```
+
+Do not add `-v` unless you intentionally want to delete the persisted broker or
+database volumes.
+
 ## Testing Setup
 
 To be able to carry out automatic tests or start the framework, it is necessary to

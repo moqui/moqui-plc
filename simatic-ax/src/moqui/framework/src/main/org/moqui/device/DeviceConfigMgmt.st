@@ -4,6 +4,7 @@
  *)
 FUNCTION_BLOCK DeviceConfigMgmt
 	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
 		defaultConfigType : STRING;
 	END_VAR
 	VAR_INPUT
@@ -28,7 +29,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 
 	IF NOT init THEN
 		(* Logger facade init *)
-		logger.enable := TRUE; logger.loggerName := 'DeviceConfigMgmt';
+		logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 		init := TRUE;
 	END_IF;
 

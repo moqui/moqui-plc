@@ -32,7 +32,7 @@
 void InputSignalUpdate_Update(InputSignalUpdate *isu) {
     if (!isu->init) {
         isu->logger.enable = true;
-        isu->logger.loggerName = "InputSignalUpdate";
+        isu->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
         isu->init = true;
     }
 

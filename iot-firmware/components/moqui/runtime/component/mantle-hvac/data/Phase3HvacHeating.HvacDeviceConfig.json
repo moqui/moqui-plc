@@ -20,10 +20,10 @@
   "minRuntime": 0,
   "estimatedBreakDuration": 0,
   "minBreakDuration": 0,
-  "processEstimatedDuration": 0,
-  "processMinDuration": 0,
+  "processEstimatedDuration": 30,
+  "processMinDuration": 10,
   "coldGlycolPump": {
-    "actuatorId": "coldGlycolPump",
+    "actuatorId": "HVAC_COLD_GLYCOL_PUMP",
     "actuatorName": "ColdGlycolPump",
     "actuationType": 0,
     "feedbackType": 0,
@@ -33,7 +33,7 @@
     "diagnosticsEnable": false
   },
   "hotGlycolPump": {
-    "actuatorId": "hotGlycolPump",
+    "actuatorId": "HVAC_HOT_GLYCOL_PUMP",
     "actuatorName": "HotGlycolPump",
     "actuationType": 0,
     "feedbackType": 0,
@@ -43,7 +43,7 @@
     "diagnosticsEnable": false
   },
   "airFlow": {
-    "actuatorId": "airFlow",
+    "actuatorId": "HVAC_AIR_FLOW",
     "actuatorName": "AirFlow",
     "actuationType": 0,
     "feedbackType": 0,
@@ -53,7 +53,7 @@
     "diagnosticsEnable": false
   },
   "highFlowDamper": {
-    "actuatorId": "highFlowDamper",
+    "actuatorId": "HVAC_HIGH_FLOW_DAMPER",
     "actuatorName": "HighFlowDamper",
     "actuationType": 0,
     "feedbackType": 0,
@@ -63,7 +63,7 @@
     "diagnosticsEnable": false
   },
   "lowFlowDamper": {
-    "actuatorId": "lowFlowDamper",
+    "actuatorId": "HVAC_LOW_FLOW_DAMPER",
     "actuatorName": "LowFlowDamper",
     "actuationType": 0,
     "feedbackType": 0,
@@ -74,7 +74,7 @@
   },
   "airFlowRef": 50.0,
   "coldGlycolValve": {
-    "controlSystemId": "coldGlycolValve",
+    "controlSystemId": "HVAC_COLD_GLYCOL_VALVE",
     "controlSystemName": "ColdGlycolValve",
     "gain": 1.0,
     "integrationTime": 0.0,
@@ -87,7 +87,7 @@
     "tickTimeMs": 100
   },
   "hotGlycolValve": {
-    "controlSystemId": "hotGlycolValve",
+    "controlSystemId": "HVAC_HOT_GLYCOL_VALVE",
     "controlSystemName": "HotGlycolValve",
     "gain": 1.0,
     "integrationTime": 0.0,
@@ -100,7 +100,7 @@
     "tickTimeMs": 100
   },
   "ahuFan": {
-    "controlSystemId": "ahuFan",
+    "controlSystemId": "HVAC_AHU_FAN",
     "controlSystemName": "AhuFan",
     "gain": 1.0,
     "integrationTime": 0.0,

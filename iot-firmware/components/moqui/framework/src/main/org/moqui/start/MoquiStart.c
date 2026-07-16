@@ -6,7 +6,7 @@
 void MoquiStart_Update(MoquiStart *start, Clocks *clks) {
     if (start->init) {
         start->logger.enable = true;
-        start->logger.loggerName = "moqui";
+        start->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
         start->operationType = OPERATING_MODE_INIT;
         start->mainInitPending = true;
     } else {

@@ -15,6 +15,7 @@
 #include "ParametersToJsonMapper.h"
 #include "JsonToParametersMapper.h"
 #include "MoquiConf.h"
+#include "ec.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_MOQUI_ENABLE_TEST_SUITE
@@ -159,12 +160,12 @@ static void iot_slow_task(void *pvParameters) {
         /* ~MqttParameterSubTask P1 (1 s): subscription management + live param rx */
         MqttParameterSub_Update(&s_param_sub, connected);
 
-        /* ~MqttParameterPubTask P3 (3 s): per-actuator state + device telemetry */
+        /* Per-actuator state plus optional peer-PLC parameter replication. */
         if ((cycle % 3U) == 0U) {
             MqttClient_PublishActuatorState(&s_hvac.coldGlycolPump);
             MqttClient_PublishActuatorState(&s_hvac.hotGlycolPump);
             MqttClient_PublishActuatorState(&s_hvac.airFlow);
-            MqttParameterPub_Update(&s_param_pub, connected);
+            MqttParameterPub_Update(&s_param_pub, connected && ec.paramsPubEnable);
         }
     }
 }

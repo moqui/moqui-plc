@@ -2,12 +2,11 @@
 #define PARAMETERS_TO_JSON_MAPPER_H
 
 /*
- * ParametersToJsonMapper — descriptor-table driven JSON serializers for the
- * approved HVAC live-parameter surface and runtime telemetry.
- *
- * Adding a new field to the DeviceFacade telemetry snapshot requires only one
- * additional line in the s_dev_fields[] table inside the .c file.
- * No serializer code needs to change.
+ * ParametersToJsonMapper — optional peer-PLC parameter replication.
+ * DeviceFacade mapping is documentation-only until an Application explicitly
+ * defines and enables its redundancy exchange. Operational telemetry belongs
+ * to LogDispatcher; live configuration writes are handled independently by
+ * JsonToParametersMapper.
  */
 
 #include "Actuator.h"
@@ -25,9 +24,8 @@ bool serialize_actuator_state(const Actuator *actuator, char *output_buffer, siz
  * Output: {"sp":<f>,"fb":<f>,"out":<f>,"ovf":<bool>,"lim":<bool>} */
 bool serialize_pid_state(const Pid *pid, char *output_buffer, size_t max_len);
 
-/* Serialize a DeviceFacade telemetry snapshot using the descriptor table.
- * Adding a new field: add one entry to s_dev_fields[] in the .c file.
- * Returns true on success. */
+/* Optional DeviceFacade parameter-replication hook. Returns false until an
+ * Application-specific peer exchange is generated and enabled. */
 bool serialize_device_facade(const DeviceFacade *dev, char *output_buffer, size_t max_len);
 
 /* Serialize a single LogEvent to JSON for MQTT publishing.

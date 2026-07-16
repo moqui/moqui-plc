@@ -2,8 +2,9 @@
 #include "DeviceDiagnostics.h"
 #include "LoggerFacade.h"
 #include "AirDistributionController.h"
+#include "ParameterLogger.h"
 
-static LoggerFacade              main_logger  = { .enable = true, .loggerName = "hvac" };
+static LoggerFacade              main_logger  = { .enable = true, .loggerName = MOQUI_APPLICATION_DEVICE_ID };
 static DeviceDiagnostics         s_diags      = { .operationType = OPERATING_MODE_RUN };
 static AirDistributionController s_airDistrib = {0};
 
@@ -168,4 +169,7 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
 
     LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Update HVAC devices.");
     DeviceManager_Update(dev, clks, operationType);
+
+    /* Coherent post-device-update parameter snapshot. */
+    ParameterLogger_Update(dev, clks, operationType);
 }

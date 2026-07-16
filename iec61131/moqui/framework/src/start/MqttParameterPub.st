@@ -1,3 +1,8 @@
+(*
+ * Optional publisher for parameter replication between peer PLCs/Applications,
+ * typically for a developer-defined redundancy strategy. Operational numeric
+ * and textual telemetry is published by LogDispatcher instead.
+ *)
 PROGRAM MqttParameterPub
 	VAR_EXTERNAL CONSTANT
 		JSON_PAYLOAD_MAX_SIZE : UINT;

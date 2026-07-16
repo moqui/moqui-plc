@@ -24,6 +24,11 @@ content transfer, discovery/startup restoration and REST dispatch.
 - `POST /api/device-config/export` drives configuration/recipe export.
 - Moqui wrapper services call these endpoints and optional callbacks return to
   Moqui REST services.
+- PLC `LogEvent` ingestion uses persistent IDs directly: `loggerName` is an
+  exact `Device.deviceId`; empty `source` routes the event to `DeviceLog`, while
+  non-empty `source` is an exact existing `Parameter.parameterId` and routes to
+  `ParameterLog`. Payload type does not select the target. The gateway must not
+  concatenate these fields or create missing Parameters from inbound logs.
 
 MQTT or OPC UA delivery is the responsibility boundary. Use MQTT v5 broker
 persistence and delivery policy; do not invent another application-level

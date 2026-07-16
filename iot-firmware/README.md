@@ -88,6 +88,13 @@ I (...) HvacTestSuite: All 30 HvacTestSuite scenarios PASSED!
 
 This test exercises the full log path: `LoggerFacade` ring buffer -> `MqttLogAppender` -> broker.
 
+Log persistence uses model identifiers directly. `loggerName` is the exact
+owning `Device.deviceId`; an empty `source` produces a `DeviceLog`, while a
+non-empty `source` is the exact pre-existing `Parameter.parameterId` and
+produces a `ParameterLog`. The HVAC `ParameterLogger` emits the 29 modeled
+numeric parameters once per `clock1minute` pulse after `DeviceManager_Update`.
+The ring retains a complete snapshot across multiple ten-event MQTT batches.
+
 > QEMU does not emulate WiFi. `tools/qemu_log_bridge.sh` bridges QEMU stdout to the broker by converting each `ESP_LOG` line into a `LogEvent` JSON published via `mosquitto_pub`.
 
 **1. Start ActiveMQ** — the compose file is in the `moqui-framework` repository:

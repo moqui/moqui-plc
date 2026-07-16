@@ -43,11 +43,11 @@
  * pass[5] : Ventilation persists - stays Ventilation across multiple scans
  * pass[6] : Ventilation -> Standby on isCompleted
  * pass[7] : Manual Cooling - coolingRequest -> Cooling; cold=ON, hot=OFF
- * pass[8] : Cooling persists - stays Cooling while T > tempMin
- * pass[9] : Cooling -> Standby when tempUnderMin
+ * pass[8] : Cooling persists above the upper thermostat threshold
+ * pass[9] : Cooling -> Standby at the lower thermostat threshold
  * pass[10] : Manual Heating - heatingRequest -> Heating; cold=OFF, hot=ON
- * pass[11] : Heating persists - stays Heating while T < tempMax
- * pass[12] : Heating -> Standby when tempOverMax
+ * pass[11] : Heating persists below the lower thermostat threshold
+ * pass[12] : Heating -> Standby at the upper thermostat threshold
  * pass[13] : Manual Drying - dryingRequest -> Drying; cold=ON, hot=ON
  * pass[14] : Drying persists - stays Drying while T in range
  * pass[15] : Drying -> Cooling on tempOverMax (emergency override)
@@ -57,7 +57,7 @@
  * pass[19] : Drying -> Standby on isCompleted
  * pass[20] : Run/break: Drying -> Standby when timeBreakEnabled
  * pass[21] : Run/break: Standby -> Drying when break ends (NOT timeBreakEnabled)
- * pass[22] : Standby re-enters Cooling when lastStatus=Cooling and tempOverMax
+ * pass[22] : Standby re-enters Cooling above setpoint band but at absolute max
  * pass[23] : AirDistrib disabled - no switching even after many clock1s ticks
  * pass[24] : AirDistrib enabled in Drying - Init->HighPhase: highFlowDamper=ON, lowFlowDamper=OFF
  * pass[25] : HighPhase->TransitionToLow after setPointTimeHigh clock ticks
@@ -206,7 +206,7 @@ PROGRAM HvacTestSuite
 	 * The test suite sets the minimum safe subset directly so it remains deterministic
 	 * even when the recipe manager is not part of the test task execution.
 	 *)
-	dev.coldGlycolPump.actuatorId := 'coldGlycolPump';
+	dev.coldGlycolPump.actuatorId := 'HVAC_COLD_GLYCOL_PUMP';
 	dev.coldGlycolPump.actuatorName := 'ColdGlycolPump';
 	dev.coldGlycolPump.actuationType := ActuatorActuationType.SingleActuation;
 	dev.coldGlycolPump.feedbackType := ActuatorFeedbackType.WithoutFeedback;
@@ -215,7 +215,7 @@ PROGRAM HvacTestSuite
 	dev.coldGlycolPump.disableTime := 1;
 	dev.coldGlycolPump.diagnosticsEnable := FALSE;
 
-	dev.hotGlycolPump.actuatorId := 'hotGlycolPump';
+	dev.hotGlycolPump.actuatorId := 'HVAC_HOT_GLYCOL_PUMP';
 	dev.hotGlycolPump.actuatorName := 'HotGlycolPump';
 	dev.hotGlycolPump.actuationType := ActuatorActuationType.SingleActuation;
 	dev.hotGlycolPump.feedbackType := ActuatorFeedbackType.WithoutFeedback;
@@ -224,7 +224,7 @@ PROGRAM HvacTestSuite
 	dev.hotGlycolPump.disableTime := 1;
 	dev.hotGlycolPump.diagnosticsEnable := FALSE;
 
-	dev.airFlow.actuatorId := 'airFlow';
+	dev.airFlow.actuatorId := 'HVAC_AIR_FLOW';
 	dev.airFlow.actuatorName := 'AirFlow';
 	dev.airFlow.actuationType := ActuatorActuationType.SingleActuation;
 	dev.airFlow.feedbackType := ActuatorFeedbackType.WithoutFeedback;
@@ -234,7 +234,7 @@ PROGRAM HvacTestSuite
 	dev.airFlow.diagnosticsEnable := FALSE;
 	dev.airFlowRef := 50.0;
 
-	dev.coldGlycolValve.controlSystemId := 'coldGlycolValve';
+	dev.coldGlycolValve.controlSystemId := 'HVAC_COLD_GLYCOL_VALVE';
 	dev.coldGlycolValve.controlSystemName := 'ColdGlycolValve';
 	dev.coldGlycolValve.gain := 1.0;
 	dev.coldGlycolValve.integrationTime := 0.0;
@@ -246,7 +246,7 @@ PROGRAM HvacTestSuite
 	dev.coldGlycolValve.atSetpointHysteresis := T_HYS;
 	dev.coldGlycolValve.tickTime := T#100ms;
 
-	dev.hotGlycolValve.controlSystemId := 'hotGlycolValve';
+	dev.hotGlycolValve.controlSystemId := 'HVAC_HOT_GLYCOL_VALVE';
 	dev.hotGlycolValve.controlSystemName := 'HotGlycolValve';
 	dev.hotGlycolValve.gain := 1.0;
 	dev.hotGlycolValve.integrationTime := 0.0;
@@ -258,7 +258,7 @@ PROGRAM HvacTestSuite
 	dev.hotGlycolValve.atSetpointHysteresis := T_HYS;
 	dev.hotGlycolValve.tickTime := T#100ms;
 
-	dev.ahuFan.controlSystemId := 'ahuFan';
+	dev.ahuFan.controlSystemId := 'HVAC_AHU_FAN';
 	dev.ahuFan.controlSystemName := 'AhuFan';
 	dev.ahuFan.gain := 1.0;
 	dev.ahuFan.integrationTime := 0.0;
@@ -271,7 +271,7 @@ PROGRAM HvacTestSuite
 	dev.ahuFan.tickTime := T#100ms;
 	dev.ahuFanSpeedSetpoint := 50.0;
 
-	dev.highFlowDamper.actuatorId := 'highFlowDamper';
+	dev.highFlowDamper.actuatorId := 'HVAC_HIGH_FLOW_DAMPER';
 	dev.highFlowDamper.actuatorName := 'HighFlowDamper';
 	dev.highFlowDamper.actuationType := ActuatorActuationType.SingleActuation;
 	dev.highFlowDamper.feedbackType := ActuatorFeedbackType.WithoutFeedback;
@@ -280,7 +280,7 @@ PROGRAM HvacTestSuite
 	dev.highFlowDamper.disableTime := 1;
 	dev.highFlowDamper.diagnosticsEnable := FALSE;
 
-	dev.lowFlowDamper.actuatorId := 'lowFlowDamper';
+	dev.lowFlowDamper.actuatorId := 'HVAC_LOW_FLOW_DAMPER';
 	dev.lowFlowDamper.actuatorName := 'LowFlowDamper';
 	dev.lowFlowDamper.actuationType := ActuatorActuationType.SingleActuation;
 	dev.lowFlowDamper.feedbackType := ActuatorFeedbackType.WithoutFeedback;
@@ -408,9 +408,9 @@ PROGRAM HvacTestSuite
 	            step := 9;
 	        END_IF;
 
-	    (* pass[9]: Cooling -> Standby when tempUnderMin*)
+	    (* pass[9]: Cooling -> Standby at the lower thermostat threshold. *)
 	    9 :
-	        dev.tempFeedback := T_COLD; (* Below tempMin -> exit Cooling *)
+	        dev.tempFeedback := T_SETPOINT - T_HYS;
 	        main(operationType := OperatingMode.Run, enable := TRUE);
 	        IF dev.status = MainStatus.Standby THEN
 	            pass[9] := TRUE;
@@ -445,9 +445,9 @@ PROGRAM HvacTestSuite
 	            step := 12;
 	        END_IF;
 
-	    (* pass[12]: Heating -> Standby when tempOverMax *)
+	    (* pass[12]: Heating -> Standby at the upper thermostat threshold. *)
 	    12 :
-	        dev.tempFeedback := T_HOT; (* Above tempMax -> exit Heating *)
+	        dev.tempFeedback := T_SETPOINT + T_HYS;
 	        main(operationType := OperatingMode.Run, enable := TRUE);
 	        IF dev.status = MainStatus.Standby THEN
 	            pass[12] := TRUE;
@@ -594,12 +594,12 @@ PROGRAM HvacTestSuite
 
 		(* Group 8: Thermostat re-activation *)
 
-	    (* pass[22]: Standby re-enters Cooling when lastStatus=Cooling
-	     *           and tempOverMax (thermostat re-activation) *)
+	    (* pass[22]: the demo boundary T=tempMax is not an absolute-limit violation,
+	     * but it is above the thermostat band and must re-enter Cooling. *)
 	    22 :
 	        dev.status := MainStatus.Standby;
 	        dev.lastStatus := MainStatus.Cooling; (* Came from Cooling *)
-	        dev.tempFeedback := T_HOT; (* Still too hot *)
+	        dev.tempFeedback := T_MAX;
 	        main(operationType := OperatingMode.Run, enable := TRUE);
 	        IF dev.status = MainStatus.Cooling THEN
 	            pass[22] := TRUE;

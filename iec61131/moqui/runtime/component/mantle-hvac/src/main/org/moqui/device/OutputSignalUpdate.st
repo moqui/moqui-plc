@@ -3,6 +3,9 @@
  * Map logical output parameters on their physical counterpart, performing processing if necessary.
  *)
 FUNCTION_BLOCK OutputSignalUpdate
+	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
+	END_VAR
 	VAR_EXTERNAL
 		dev : DeviceFacade;
 		io : IOFacade;
@@ -16,7 +19,7 @@ FUNCTION_BLOCK OutputSignalUpdate
 	END_VAR
 
 	(* Logger facade init *)
-	logger.enable := TRUE; logger.loggerName := 'OutputSignalUpdate';
+	logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 
 	logger(message := 'Output signals processing and actuation.', level := LogLevel.DEBUG);
 

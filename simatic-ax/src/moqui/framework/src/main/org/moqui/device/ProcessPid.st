@@ -94,7 +94,8 @@ VAR
     expRamp : IIRFilter;
 END_VAR
 
-loggerName := controlSystemName;
+(* controlSystemId is the exact Device.deviceId; controlSystemName is descriptive only. *)
+loggerName := controlSystemId;
 logger.enable := TRUE;
 logger.loggerName := loggerName;
 
@@ -171,11 +172,7 @@ IF resetEdge THEN
     logger(message := 'Reset process PID.', level := LogLevel#Warn);
 END_IF;
 
-IF controlSystemName = '' THEN
-    loggerName := controlSystemId;
-ELSE
-    loggerName := controlSystemName;
-END_IF;
+loggerName := controlSystemId;
 logger.loggerName := loggerName;
 
 feedbackActual := feedback * feedbackMultiplier;

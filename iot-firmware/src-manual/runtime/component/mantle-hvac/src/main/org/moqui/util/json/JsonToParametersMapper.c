@@ -1,5 +1,7 @@
 #include "JsonToParametersMapper.h"
+#include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -8,10 +10,8 @@
  * All casts are to the exact declared type of each field.
  */
 
-/* Application-specific mapping example (documentation only).
- * The executable mapper is generated from the reviewed DeviceRequestItem
- * live-parameter whitelist for each Application. */
-#if 0
+/* Approved HVAC live-parameter write surface. Keep keys aligned with
+ * HVACDemoData.xml DeviceRequestItem.requestItemName values. */
 typedef enum {
     MAP_F32,
     MAP_U16,
@@ -41,10 +41,13 @@ static const MapDesc s_mappings[] = {
     { "ductRhMax",          offsetof(DeviceFacade, ductRhMax),          MAP_F32  },
     { "setPointTimeHigh",   offsetof(DeviceFacade, setPointTimeHigh),   MAP_U16  },
     { "setPointTimeLow",    offsetof(DeviceFacade, setPointTimeLow),    MAP_U16  },
-    { "airMixingEnabled",   offsetof(DeviceFacade, airMixingEnabled),   MAP_BOOL },
-    { "airDistributionEnabled", offsetof(DeviceFacade, airDistributionEnabled), MAP_BOOL },
-    { "rhControlEnabled",   offsetof(DeviceFacade, rhControlEnabled),   MAP_BOOL },
-    { "rhControlOnly",      offsetof(DeviceFacade, rhControlOnly),      MAP_BOOL },
+    { "processEstimatedDuration", offsetof(DeviceFacade, processEstimatedDuration), MAP_U32 },
+    { "processMinDuration", offsetof(DeviceFacade, processMinDuration), MAP_U32  },
+    { "processRemainingDuration", offsetof(DeviceFacade, processRemainingDuration), MAP_U32 },
+    { "estimatedRuntime",   offsetof(DeviceFacade, estimatedRuntime),   MAP_U32  },
+    { "minRuntime",         offsetof(DeviceFacade, minRuntime),         MAP_U32  },
+    { "estimatedBreakDuration", offsetof(DeviceFacade, estimatedBreakDuration), MAP_U32 },
+    { "minBreakDuration",   offsetof(DeviceFacade, minBreakDuration),   MAP_U32  },
 };
 
 #define MAPPINGS_COUNT ((size_t)(sizeof(s_mappings) / sizeof(s_mappings[0])))
@@ -83,16 +86,6 @@ void JsonToParametersMapper_Apply(const char *key, const char *value,
     }
     /* Unknown key: silently ignored (non-blocking, as per ST specification). */
 }
-#endif
-
-void JsonToParametersMapper_Apply(const char *key, const char *value,
-                                  DeviceFacade *dev) {
-    (void)key;
-    (void)value;
-    (void)dev;
-    /* Intentionally non-blocking until the Application-specific mapper is generated. */
-}
-
 /*
  * 6-DOF robot arm trajectory mapping (moqui-device export#Trajectory)
  *

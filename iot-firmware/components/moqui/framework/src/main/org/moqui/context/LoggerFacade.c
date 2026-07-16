@@ -8,14 +8,15 @@
 /* -----------------------------------------------------------------------
  * Internal ring buffer — feeds MqttLogAppender without RTOS dependencies.
  *
- * Capacity: 2 × LOG_APPENDER_BATCH_SIZE so the appender can always drain
- * a full batch even if new events arrive during the same scan cycle.
+ * Capacity follows LOG_MAX_SIZE so one coherent parameter snapshot may span
+ * multiple MQTT batches without losing entries.
  * Overflow policy: oldest entry silently overwritten (best-effort IoT log).
  * Thread safety: not required — LoggerFacade_Log is called only from the
  * control task (Core 1); LoggerFacade_DrainBuffer is called from the same
  * task immediately before MqttLogAppender_Update.
  * ----------------------------------------------------------------------- */
-#define LOG_RING_CAPACITY (LOG_APPENDER_BATCH_SIZE * 2U)
+/* Preserve a complete parameter snapshot across multiple MQTT batches. */
+#define LOG_RING_CAPACITY (LOG_MAX_SIZE)
 
 static LogEvent  s_ring[LOG_RING_CAPACITY];
 static uint16_t  s_ring_head  = 0U; /* next write slot (modulo capacity) */
@@ -62,7 +63,7 @@ void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level,
         return;
     }
 
-    tag = (logger->loggerName != NULL) ? logger->loggerName : "moqui";
+    tag = (logger->loggerName != NULL) ? logger->loggerName : MOQUI_APPLICATION_DEVICE_ID;
 
     /* Forward to platform logging backend (UART / RTT / serial console). */
     switch (level) {
@@ -95,8 +96,8 @@ void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level,
     (void)strncpy(ev->loggerName, tag, sizeof(ev->loggerName) - 1U);
     ev->loggerName[sizeof(ev->loggerName) - 1U] = '\0';
 
-    (void)strncpy(ev->source, tag, sizeof(ev->source) - 1U);
-    ev->source[sizeof(ev->source) - 1U] = '\0';
+    /* Empty source denotes a DeviceLog. */
+    ev->source[0] = '\0';
 
     ev->level       = level;
     ev->marker      = LOG_MARKER_DIAGNOSTICS;
@@ -108,6 +109,38 @@ void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level,
     ev->payload.message[sizeof(ev->payload.message) - 1U] = '\0';
 
     /* Advance head; overwrite oldest if full. */
+    s_ring_head = (uint16_t)((s_ring_head + 1U) % LOG_RING_CAPACITY);
+    if (s_ring_count < (uint16_t)LOG_RING_CAPACITY) {
+        s_ring_count++;
+    }
+}
+
+void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
+                             const char *source, double numericValue)
+{
+    const char *deviceId;
+    LogEvent   *ev;
+
+    if ((logger == NULL) || (!logger->enable) ||
+        (logger->loggerName == NULL) || (source == NULL) || (source[0] == '\0')) {
+        return;
+    }
+
+    deviceId = logger->loggerName;
+    ev = &s_ring[s_ring_head];
+    s_event_seq++;
+    (void)snprintf(ev->logEventId, sizeof(ev->logEventId), "%08lx", (unsigned long)s_event_seq);
+    (void)strncpy(ev->loggerName, deviceId, sizeof(ev->loggerName) - 1U);
+    ev->loggerName[sizeof(ev->loggerName) - 1U] = '\0';
+    (void)strncpy(ev->source, source, sizeof(ev->source) - 1U);
+    ev->source[sizeof(ev->source) - 1U] = '\0';
+    ev->level        = level;
+    ev->marker       = LOG_MARKER_DIAGNOSTICS;
+    ev->payloadType  = LOG_PAYLOAD_TYPE_NUMERIC;
+    ev->logEventDate = pal_time_us() / 1000ULL;
+    ev->repeatCount  = 0U;
+    ev->payload.numericValue = numericValue;
+
     s_ring_head = (uint16_t)((s_ring_head + 1U) % LOG_RING_CAPACITY);
     if (s_ring_count < (uint16_t)LOG_RING_CAPACITY) {
         s_ring_count++;
@@ -135,7 +168,8 @@ void LoggerFacade_DrainBuffer(LogEvent *out, uint16_t maxLen, uint16_t *outCount
         out[i] = s_ring[(tail + i) % LOG_RING_CAPACITY];
     }
 
-    s_ring_count = 0U; /* drain clears; head stays for next writes */
+    /* Keep entries beyond maxLen for the next MQTT batch. */
+    s_ring_count = (uint16_t)(s_ring_count - n);
 
     *outCount = n;
 }

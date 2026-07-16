@@ -2,7 +2,7 @@
 #include "LoggerFacade.h"
 #include <string.h>
 
-static LoggerFacade test_logger = { .enable = true, .loggerName = "HvacTestSuite" };
+static LoggerFacade test_logger = { .enable = true, .loggerName = MOQUI_APPLICATION_DEVICE_ID };
 
 /* --- Constants (faithful port of ST VAR CONSTANT block) --- */
 #define HVAC_TIMEOUT     (500U)
@@ -63,7 +63,7 @@ static void apply_defaults(HvacTestSuite *s)
 /* Apply static device config (ST lines 218-281) — safe subset for test determinism */
 static void apply_device_config(HvacTestSuite *s)
 {
-    s->dev.coldGlycolPump.actuatorId        = "coldGlycolPump";
+    s->dev.coldGlycolPump.actuatorId        = "HVAC_COLD_GLYCOL_PUMP";
     s->dev.coldGlycolPump.actuatorName      = "ColdGlycolPump";
     s->dev.coldGlycolPump.actuationType     = ACTUATOR_ACTUATION_SINGLE;
     s->dev.coldGlycolPump.feedbackType      = ACTUATOR_FEEDBACK_WITHOUT;
@@ -72,7 +72,7 @@ static void apply_device_config(HvacTestSuite *s)
     s->dev.coldGlycolPump.disableTime       = 1U;
     s->dev.coldGlycolPump.diagnosticsEnable = false;
 
-    s->dev.hotGlycolPump.actuatorId         = "hotGlycolPump";
+    s->dev.hotGlycolPump.actuatorId         = "HVAC_HOT_GLYCOL_PUMP";
     s->dev.hotGlycolPump.actuatorName       = "HotGlycolPump";
     s->dev.hotGlycolPump.actuationType      = ACTUATOR_ACTUATION_SINGLE;
     s->dev.hotGlycolPump.feedbackType       = ACTUATOR_FEEDBACK_WITHOUT;
@@ -81,7 +81,7 @@ static void apply_device_config(HvacTestSuite *s)
     s->dev.hotGlycolPump.disableTime        = 1U;
     s->dev.hotGlycolPump.diagnosticsEnable  = false;
 
-    s->dev.airFlow.actuatorId        = "airFlow";
+    s->dev.airFlow.actuatorId        = "HVAC_AIR_FLOW";
     s->dev.airFlow.actuatorName      = "AirFlow";
     s->dev.airFlow.actuationType     = ACTUATOR_ACTUATION_SINGLE;
     s->dev.airFlow.feedbackType      = ACTUATOR_FEEDBACK_WITHOUT;
@@ -91,18 +91,24 @@ static void apply_device_config(HvacTestSuite *s)
     s->dev.airFlow.diagnosticsEnable = false;
     s->dev.airFlowRef                = 50.0f;
 
+    s->dev.coldGlycolValve.controlSystemId   = "HVAC_COLD_GLYCOL_VALVE";
+    s->dev.coldGlycolValve.controlSystemName = "ColdGlycolValve";
     s->dev.coldGlycolValve.gain            = 1.0f;
     s->dev.coldGlycolValve.integrationTime = 0.0f;
     s->dev.coldGlycolValve.derivationTime  = 0.0f;
     s->dev.coldGlycolValve.outputMin       = 0.0f;
     s->dev.coldGlycolValve.outputMax       = 100.0f;
 
+    s->dev.hotGlycolValve.controlSystemId   = "HVAC_HOT_GLYCOL_VALVE";
+    s->dev.hotGlycolValve.controlSystemName = "HotGlycolValve";
     s->dev.hotGlycolValve.gain            = 1.0f;
     s->dev.hotGlycolValve.integrationTime = 0.0f;
     s->dev.hotGlycolValve.derivationTime  = 0.0f;
     s->dev.hotGlycolValve.outputMin       = 0.0f;
     s->dev.hotGlycolValve.outputMax       = 100.0f;
 
+    s->dev.ahuFan.controlSystemId   = "HVAC_AHU_FAN";
+    s->dev.ahuFan.controlSystemName = "AhuFan";
     s->dev.ahuFan.gain            = 1.0f;
     s->dev.ahuFan.integrationTime = 0.0f;
     s->dev.ahuFan.derivationTime  = 0.0f;
@@ -110,7 +116,7 @@ static void apply_device_config(HvacTestSuite *s)
     s->dev.ahuFan.outputMax       = 100.0f;
     s->dev.ahuFanSpeedSetpoint = 50.0f;
 
-    s->dev.highFlowDamper.actuatorId         = "highFlowDamper";
+    s->dev.highFlowDamper.actuatorId         = "HVAC_HIGH_FLOW_DAMPER";
     s->dev.highFlowDamper.actuatorName       = "HighFlowDamper";
     s->dev.highFlowDamper.actuationType      = ACTUATOR_ACTUATION_SINGLE;
     s->dev.highFlowDamper.feedbackType       = ACTUATOR_FEEDBACK_WITHOUT;
@@ -119,7 +125,7 @@ static void apply_device_config(HvacTestSuite *s)
     s->dev.highFlowDamper.disableTime        = 1U;
     s->dev.highFlowDamper.diagnosticsEnable  = false;
 
-    s->dev.lowFlowDamper.actuatorId          = "lowFlowDamper";
+    s->dev.lowFlowDamper.actuatorId          = "HVAC_LOW_FLOW_DAMPER";
     s->dev.lowFlowDamper.actuatorName        = "LowFlowDamper";
     s->dev.lowFlowDamper.actuationType       = ACTUATOR_ACTUATION_SINGLE;
     s->dev.lowFlowDamper.feedbackType        = ACTUATOR_FEEDBACK_WITHOUT;
@@ -289,15 +295,15 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             }
             break;
 
-        /* pass[9]: Cooling -> Standby when tempUnderMin */
+        /* pass[9]: Cooling -> Standby at the lower thermostat threshold. */
         case 9:
-            suite->dev.tempFeedback = T_COLD;
+            suite->dev.tempFeedback = T_SETPOINT - T_HYS;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_STANDBY) {
                 suite->pass[9] = true;
                 suite->cycles  = 0U;
                 suite->step    = 10U;
-                LOGGER_LOG(&test_logger, LOG_LEVEL_INFO, "pass[9]: Cooling -> Standby on tempUnderMin");
+                LOGGER_LOG(&test_logger, LOG_LEVEL_INFO, "pass[9]: Cooling -> Standby at setpoint band");
             }
             break;
 
@@ -329,15 +335,15 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             }
             break;
 
-        /* pass[12]: Heating -> Standby when tempOverMax */
+        /* pass[12]: Heating -> Standby at the upper thermostat threshold. */
         case 12:
-            suite->dev.tempFeedback = T_HOT;
+            suite->dev.tempFeedback = T_SETPOINT + T_HYS;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_STANDBY) {
                 suite->pass[12] = true;
                 suite->cycles   = 0U;
                 suite->step     = 13U;
-                LOGGER_LOG(&test_logger, LOG_LEVEL_INFO, "pass[12]: Heating -> Standby on tempOverMax");
+                LOGGER_LOG(&test_logger, LOG_LEVEL_INFO, "pass[12]: Heating -> Standby at setpoint band");
             }
             break;
 
@@ -461,11 +467,11 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             }
             break;
 
-        /* pass[22]: Standby re-enters Cooling when lastStatus=Cooling and tempOverMax */
+        /* Regression: T=tempMax is above the thermostat band, not over the absolute limit. */
         case 22:
             suite->dev.status       = MAIN_STATUS_STANDBY;
             suite->dev.lastStatus   = MAIN_STATUS_COOLING;
-            suite->dev.tempFeedback = T_HOT;
+            suite->dev.tempFeedback = T_MAX;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_COOLING) {
                 suite->pass[22] = true;

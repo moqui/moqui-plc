@@ -1,6 +1,8 @@
 CONFIGURATION moqui
     VAR_GLOBAL CONSTANT
         (* ========== Framework ========== *)
+			(* Exact Device.deviceId of this dedicated application. *)
+			applicationDeviceId : STRING := 'HVAC_DEMO_PLC';
 
         	retryOnError : BOOL := TRUE;
         	(* Minimum time between retries after an error, in seconds *)

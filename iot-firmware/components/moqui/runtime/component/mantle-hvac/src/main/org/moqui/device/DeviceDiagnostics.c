@@ -124,7 +124,7 @@ void DeviceDiagnostics_Update(DeviceDiagnostics *diags, DeviceFacade *dev) {
 
     /* Supply-air over-temperature: ImmediateStop — product damage risk */
     process_signal(&dev->signalMgmt,
-        "ductSensor",
+        MOQUI_APPLICATION_DEVICE_ID,
         0x0010U,
         SIGNAL_CATEGORY_ALARM,
         RESET_POLICY_UNCONDITIONED_RESET,
@@ -133,7 +133,7 @@ void DeviceDiagnostics_Update(DeviceDiagnostics *diags, DeviceFacade *dev) {
 
     /* Supply-air under-temperature: ImmediateStop — contamination risk */
     process_signal(&dev->signalMgmt,
-        "ductSensor",
+        MOQUI_APPLICATION_DEVICE_ID,
         0x0011U,
         SIGNAL_CATEGORY_ALARM,
         RESET_POLICY_UNCONDITIONED_RESET,
@@ -142,7 +142,7 @@ void DeviceDiagnostics_Update(DeviceDiagnostics *diags, DeviceFacade *dev) {
 
     /* Duct RH over-max: Warning only — condensation risk, no machine stop */
     process_signal(&dev->signalMgmt,
-        "ductSensor",
+        MOQUI_APPLICATION_DEVICE_ID,
         0x0012U,
         SIGNAL_CATEGORY_WARNING,
         RESET_POLICY_UNCONDITIONED_RESET,

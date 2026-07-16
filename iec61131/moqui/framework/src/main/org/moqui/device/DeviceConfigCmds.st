@@ -1,5 +1,6 @@
 FUNCTION_BLOCK DeviceConfigCmds
 	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
 		DEVICE_CONFIG_LIST_MAX_SIZE : UINT;
 		defaultConfigType : STRING;
 		deviceConfigStoragePath : STRING;
@@ -31,7 +32,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 
 	IF cmd = DeviceConfigCmdType.Init THEN
 		(* Logger facade init *)
-		logger.enable := TRUE; logger.loggerName := 'DeviceConfigCmds';
+		logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 	END_IF;
 
 	(* Args validation *)

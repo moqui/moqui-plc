@@ -7,6 +7,8 @@ import tempfile
 import unittest
 import json
 import csv
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -105,6 +107,276 @@ class SkillRegressionTest(unittest.TestCase):
             self.assertTrue(
                 (REPO_ROOT / "skills" / "moqui-plant-designer" / "references" / reference_name).is_file()
             )
+
+    def test_hvac_inbound_mappers_match_live_request_whitelist(self) -> None:
+        seed_path = REPO_ROOT / "output" / "sessions" / "hvac-e2e-20260716" / "seed-data" / "HVACDemoData.xml"
+        root = ET.parse(seed_path).getroot()
+        expected = [
+            element.attrib["requestItemName"]
+            for element in root
+            if element.tag.endswith("DeviceRequestItem")
+            and element.attrib.get("requestName") == "HVAC_DEMO_LiveParametersWrite"
+        ]
+        self.assertEqual(20, len(expected))
+
+        plc_root = REPO_ROOT.parent
+        st_text = (
+            plc_root
+            / "iec61131/moqui/runtime/component/mantle-hvac/src/main/org/moqui/util/json/JsonToParametersMapper.st"
+        ).read_text(encoding="utf-8").split("(* --- 6-DOF", 1)[0]
+        c_text = (
+            plc_root
+            / "iot-firmware/components/moqui/runtime/component/mantle-hvac/src/main/org/moqui/util/json/JsonToParametersMapper.c"
+        ).read_text(encoding="utf-8")
+        st_keys = re.findall(r'(?:IF|ELSIF) jsonKey = "([^"]+)"', st_text)
+        c_keys = re.findall(r'^\s*\{ "([^"]+)"\s*,\s*offsetof', c_text, re.MULTILINE)
+        self.assertEqual(expected, st_keys)
+        self.assertEqual(expected, c_keys)
+
+    def test_parameter_publisher_is_opt_in_documentation_template(self) -> None:
+        plc_root = REPO_ROOT.parent
+        mapper_text = (
+            plc_root
+            / "iec61131/moqui/runtime/component/mantle-hvac/src/main/org/moqui/util/json/ParametersToJsonMapper.st"
+        ).read_text(encoding="utf-8")
+        executable_text = re.sub(r'\(\*.*?\*\)', '', mapper_text, flags=re.DOTALL)
+        self.assertNotIn("SetKeyWithValue", executable_text)
+
+        ec_text = (
+            plc_root / "iec61131/moqui/framework/src/main/org/moqui/context/ec.st"
+        ).read_text(encoding="utf-8")
+        self.assertIn("paramsPubEnable : BOOL := FALSE;", ec_text)
+
+        c_mapper = (
+            plc_root
+            / "iot-firmware/components/moqui/runtime/component/mantle-hvac/src/main/org/moqui/util/json/ParametersToJsonMapper.c"
+        ).read_text(encoding="utf-8")
+        c_context = (
+            plc_root / "iot-firmware/components/moqui/framework/src/main/org/moqui/context/ec.c"
+        ).read_text(encoding="utf-8")
+        iot_main = (plc_root / "iot-firmware/main/main.c").read_text(encoding="utf-8")
+        self.assertIn("#if 0", c_mapper)
+        self.assertIn("return false;", c_mapper)
+        self.assertIn(".paramsPubEnable = false", c_context)
+        self.assertIn("connected && ec.paramsPubEnable", iot_main)
+
+    def test_hvac_parameter_logger_matches_modeled_numeric_parameters(self) -> None:
+        plc_root = REPO_ROOT.parent
+        seed_path = plc_root.parent / "moqui-device" / "data" / "HVACDemoData.xml"
+        root = ET.parse(seed_path).getroot()
+        expected = [
+            element.attrib["parameterId"]
+            for element in root
+            if element.tag.endswith("Parameter")
+            and element.attrib.get("deviceId") == "HVAC_DEMO_PLC"
+            and "numericValue" in element.attrib
+        ]
+        self.assertEqual(29, len(expected))
+
+        logger_text = (
+            plc_root
+            / "iec61131/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.st"
+        ).read_text(encoding="utf-8")
+        sources = re.findall(r"source := '([^']+)'", logger_text)
+        self.assertEqual(expected, sources)
+        self.assertIn("clks : Clocks;", logger_text)
+        self.assertIn("NOT clks.clock1minute", logger_text)
+        self.assertIn("componentName : STRING := 'HVAC_DEMO_PLC';", logger_text)
+
+        main_text = (
+            plc_root / "iec61131/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/Main.st"
+        ).read_text(encoding="utf-8")
+        self.assertLess(
+            main_text.index("deviceManager(operationType := operationType);"),
+            main_text.index("logParameters(operationType := operationType);"),
+        )
+
+    def test_hvac_thermostat_band_is_separate_from_absolute_limits(self) -> None:
+        plc_root = REPO_ROOT.parent
+        iec = (
+            plc_root / "iec61131/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/MainRuleEngine.st"
+        ).read_text(encoding="utf-8")
+        ax = (
+            plc_root / "simatic-ax/src/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/MainRuleEngine.st"
+        ).read_text(encoding="utf-8")
+        iot = (
+            plc_root / "iot-firmware/components/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/MainRuleEngine.c"
+        ).read_text(encoding="utf-8")
+        iot_manual = (
+            plc_root / "iot-firmware/src-manual/runtime/component/mantle-hvac/src/main/mantle/hvac/MainRuleEngine.c"
+        ).read_text(encoding="utf-8")
+
+        for text in (iec, ax):
+            self.assertIn("AND dev.tempAboveSetpointBand THEN", text)
+            self.assertIn("AND dev.tempBelowSetpointBand THEN", text)
+            self.assertIn("IF dev.tempBelowSetpointBand OR dev.isCompleted THEN", text)
+            self.assertIn("IF dev.isCompleted OR dev.tempAboveSetpointBand THEN", text)
+            self.assertIn("ELSIF dev.tempOverMax THEN", text)
+            self.assertIn("ELSIF dev.tempUnderMin THEN", text)
+
+        for text in (iot, iot_manual):
+            self.assertIn("&& dev->tempAboveSetpointBand)", text)
+            self.assertIn("&& dev->tempBelowSetpointBand)", text)
+            self.assertIn("if (dev->tempBelowSetpointBand || dev->isCompleted)", text)
+            self.assertIn("if (dev->isCompleted || dev->tempAboveSetpointBand)", text)
+            self.assertIn("else if (dev->tempOverMax)", text)
+            self.assertIn("else if (dev->tempUnderMin)", text)
+
+    def test_plc_logger_identity_uses_model_ids_without_concatenation(self) -> None:
+        plc_root = REPO_ROOT.parent
+        conf_text = (
+            plc_root / "iec61131/moqui/framework/src/main/resources/MoquiConf.st"
+        ).read_text(encoding="utf-8")
+        actuator_text = (
+            plc_root / "iec61131/moqui/framework/src/main/org/moqui/device/Actuator.st"
+        ).read_text(encoding="utf-8")
+        pid_text = (
+            plc_root / "iec61131/moqui/framework/src/main/org/moqui/device/ProcessPid.st"
+        ).read_text(encoding="utf-8")
+        self.assertIn("applicationDeviceId : STRING := 'HVAC_DEMO_PLC';", conf_text)
+        self.assertIn("loggerName := actuatorId;", actuator_text)
+        self.assertIn("loggerName := controlSystemId;", pid_text)
+        self.assertNotIn("actuatorName, '['", actuator_text)
+        self.assertNotIn("controlSystemName, '['", pid_text)
+
+        for recipe_name in (
+            "CivilCooling.HvacDeviceConfig.txtrecipe",
+            "CivilHeating.HvacDeviceConfig.txtrecipe",
+            "CivilDehumidifying.HvacDeviceConfig.txtrecipe",
+        ):
+            recipe_text = (
+                plc_root / "iec61131/moqui/runtime/component/mantle-hvac/data" / recipe_name
+            ).read_text(encoding="utf-8")
+            self.assertIn("actuatorId:='HVAC_COLD_GLYCOL_PUMP'", recipe_text)
+            self.assertIn("controlSystemId:='HVAC_AHU_FAN'", recipe_text)
+
+    def test_simatic_ax_logger_projection_uses_exact_model_ids(self) -> None:
+        plc_root = REPO_ROOT.parent
+        ax_root = plc_root / "simatic-ax"
+        parameter_logger = (
+            ax_root / "src/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.st"
+        ).read_text(encoding="utf-8")
+        seed_root = ET.parse(
+            plc_root.parent / "moqui-device" / "data" / "HVACDemoData.xml"
+        ).getroot()
+        expected = [
+            element.attrib["parameterId"]
+            for element in seed_root
+            if element.tag.endswith("Parameter")
+            and element.attrib.get("deviceId") == "HVAC_DEMO_PLC"
+            and "numericValue" in element.attrib
+        ]
+        self.assertEqual(expected, re.findall(r"source := '([^']+)'", parameter_logger))
+
+        configuration = (ax_root / "src/configuration.st").read_text(encoding="utf-8")
+        actuator = (
+            ax_root / "src/moqui/framework/src/main/org/moqui/device/Actuator.st"
+        ).read_text(encoding="utf-8")
+        pid = (
+            ax_root / "src/moqui/framework/src/main/org/moqui/device/ProcessPid.st"
+        ).read_text(encoding="utf-8")
+        main = (
+            ax_root / "src/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/Main.st"
+        ).read_text(encoding="utf-8")
+        self.assertIn("applicationDeviceId : STRING := 'HVAC_DEMO_PLC';", configuration)
+        self.assertIn("loggerName := actuatorId;", actuator)
+        self.assertIn("loggerName := controlSystemId;", pid)
+        self.assertLess(
+            main.index("deviceManager(operationType := operationType);"),
+            main.index("logParameters(operationType := operationType);"),
+        )
+        for recipe_path in (
+            ax_root / "src/moqui/runtime/component/mantle-hvac/data"
+        ).glob("Civil*.axrecipe"):
+            recipe_text = recipe_path.read_text(encoding="utf-8")
+            self.assertIn("STRING;HVAC_COLD_GLYCOL_PUMP", recipe_text)
+            self.assertIn("STRING;HVAC_AHU_FAN", recipe_text)
+
+    def test_iot_logger_projection_preserves_scope_and_complete_snapshot(self) -> None:
+        plc_root = REPO_ROOT.parent
+        iot_root = plc_root / "iot-firmware"
+        seed_root = ET.parse(
+            plc_root.parent / "moqui-device" / "data" / "HVACDemoData.xml"
+        ).getroot()
+        expected = [
+            element.attrib["parameterId"]
+            for element in seed_root
+            if element.tag.endswith("Parameter")
+            and element.attrib.get("deviceId") == "HVAC_DEMO_PLC"
+            and "numericValue" in element.attrib
+        ]
+
+        parameter_logger = (
+            iot_root
+            / "components/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.c"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(expected, re.findall(r'LOG_NUMERIC\("([^"]+)"', parameter_logger))
+
+        logger_facade = (
+            iot_root / "components/moqui/framework/src/main/org/moqui/context/LoggerFacade.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ev->source[0] = '\\0';", logger_facade)
+        self.assertIn("strncpy(ev->source, source", logger_facade)
+        self.assertIn("#define LOG_RING_CAPACITY (LOG_MAX_SIZE)", logger_facade)
+        self.assertIn("s_ring_count = (uint16_t)(s_ring_count - n);", logger_facade)
+        configuration = (
+            iot_root / "components/moqui/framework/src/main/resources/MoquiConf.h"
+        ).read_text(encoding="utf-8")
+        self.assertIn('#define MOQUI_APPLICATION_DEVICE_ID "HVAC_DEMO_PLC"', configuration)
+
+        actuator = (
+            iot_root / "components/moqui/framework/src/main/org/moqui/device/Actuator.c"
+        ).read_text(encoding="utf-8")
+        pid = (
+            iot_root / "components/moqui/framework/src/main/org/moqui/device/ProcessPid.c"
+        ).read_text(encoding="utf-8")
+        main = (
+            iot_root / "components/moqui/runtime/component/mantle-hvac/src/main/mantle/hvac/Main.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("LoggerFacade_Init(&self->logger, self->actuatorId);", actuator)
+        self.assertIn("LoggerFacade_Init(&self->logger, self->controlSystemId);", pid)
+        self.assertLess(
+            main.index("DeviceManager_Update(dev, clks, operationType);"),
+            main.index("ParameterLogger_Update(dev, clks, operationType);"),
+        )
+
+        duplicate_pairs = (
+            ("framework/src/main/org/moqui/context/LoggerFacade.c", "framework/src/main/org/moqui/context/LoggerFacade.c"),
+            ("framework/src/main/org/moqui/context/LoggerFacade.h", "framework/src/main/org/moqui/context/LoggerFacade.h"),
+            ("framework/src/main/org/moqui/device/Actuator.c", "framework/src/main/org/moqui/device/Actuator.c"),
+            ("framework/src/main/org/moqui/device/ActuatorGroup.c", "framework/src/main/org/moqui/device/ActuatorGroup.c"),
+            ("framework/src/main/org/moqui/device/DeviceConfigCmds.c", "framework/src/main/org/moqui/device/DeviceConfigCmds.c"),
+            ("framework/src/main/org/moqui/device/DeviceConfigMgmt.c", "framework/src/main/org/moqui/device/DeviceConfigMgmt.c"),
+            ("framework/src/main/org/moqui/device/ProcessPid.c", "framework/src/main/org/moqui/device/ProcessPid.c"),
+            ("framework/src/main/org/moqui/diagnostics/NetworkDiagnostics.c", "framework/src/main/org/moqui/diagnostics/NetworkDiagnostics.c"),
+            ("runtime/component/mantle-hvac/src/main/mantle/hvac/Main.c", "runtime/component/mantle-hvac/src/main/mantle/hvac/Main.c"),
+            ("runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.c", "runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.c"),
+            ("runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.h", "runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.h"),
+            ("runtime/component/mantle-hvac/src/main/org/moqui/device/AirDistributionController.c", "runtime/component/mantle-hvac/src/main/org/moqui/device/AirDistributionController.c"),
+            ("runtime/component/mantle-hvac/src/main/org/moqui/device/DeviceDiagnostics.c", "runtime/component/mantle-hvac/src/main/org/moqui/device/DeviceDiagnostics.c"),
+        )
+        for component_path, manual_path in duplicate_pairs:
+            component_text = (iot_root / "components/moqui" / component_path).read_text(encoding="utf-8")
+            manual_text = (iot_root / "src-manual" / manual_path).read_text(encoding="utf-8")
+            self.assertEqual(component_text, manual_text, component_path)
+
+        for name in ("InputSignalUpdate.c", "OutputSignalUpdate.c"):
+            component_text = (
+                iot_root / "components/moqui/framework/src/main/org/moqui/device" / name
+            ).read_text(encoding="utf-8")
+            manual_text = (
+                iot_root
+                / "src-manual/runtime/component/mantle-hvac/src/main/org/moqui/device"
+                / name
+            ).read_text(encoding="utf-8")
+            self.assertEqual(component_text, manual_text, name)
+
+        for recipe_path in (
+            iot_root / "components/moqui/runtime/component/mantle-hvac/data"
+        ).glob("Phase*.HvacDeviceConfig.json"):
+            recipe = json.loads(recipe_path.read_text(encoding="utf-8"))
+            self.assertEqual("HVAC_COLD_GLYCOL_PUMP", recipe["coldGlycolPump"]["actuatorId"])
+            self.assertEqual("HVAC_AHU_FAN", recipe["ahuFan"]["controlSystemId"])
 
     def test_gateway_valid_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("gateway-valid")

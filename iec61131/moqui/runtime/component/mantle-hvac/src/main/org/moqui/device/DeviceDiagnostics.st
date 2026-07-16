@@ -86,14 +86,14 @@ FUNCTION_BLOCK DeviceDiagnostics
 	 * regardless of the current FSM state.
 	 *)
 	dev.signalMgmt(
-		loggerName := 'ductSensor',
+		loggerName := 'HVAC_DEMO_PLC',
 		code := 16#0010,
 		category := SignalCategory.Alarm,
 		resetPol := ResetPolicy.UnconditionedReset,
 		activationCondition := dev.ductTempOverMax,
 		outputAction := SignalOutputAction.ImmediateStop);
 	dev.signalMgmt(
-		loggerName := 'ductSensor',
+		loggerName := 'HVAC_DEMO_PLC',
 		code := 16#0011,
 		category := SignalCategory.Alarm,
 		resetPol := ResetPolicy.UnconditionedReset,
@@ -102,7 +102,7 @@ FUNCTION_BLOCK DeviceDiagnostics
 
 	(* Duct RH - Warning only (condensation risk, does not stop the machine) *)
 	dev.signalMgmt(
-		loggerName := 'ductSensor',
+		loggerName := 'HVAC_DEMO_PLC',
 		code := 16#0012,
 		category := SignalCategory.Warning,
 		resetPol := ResetPolicy.UnconditionedReset,

@@ -76,6 +76,9 @@ FUNCTION_BLOCK MainRuleEngine
 		tempDeviation := -tempDeviation;
 	END_IF;
 	dev.tempAtSetpoint := tempDeviation <= dev.tempHysteresis;
+	(* Normal thermostat thresholds are independent from the absolute alarm limits. *)
+	dev.tempAboveSetpointBand := dev.tempFeedback >= (dev.tempSetpoint + dev.tempHysteresis);
+	dev.tempBelowSetpointBand := dev.tempFeedback <= (dev.tempSetpoint - dev.tempHysteresis);
 	dev.tempOverMax := dev.tempFeedback > dev.tempMax;
 	dev.tempOverMin := dev.tempFeedback > dev.tempMin;
 	dev.tempUnderMin := dev.tempFeedback < dev.tempMin;
@@ -192,14 +195,14 @@ FUNCTION_BLOCK MainRuleEngine
 			 * condition 4 correctly holds the FSM in Standby until configMgmt advances.
 			 *)
 			IF (dev.lastStatus = MainStatus#Cooling OR dev.lastStatus = MainStatus#Standby)
-					AND dev.tempOverMax THEN
-				(* Temperature above limit -> start/resume cooling *)
+					AND dev.tempAboveSetpointBand THEN
+				(* Temperature above the thermostat band -> start/resume cooling. *)
 				dev.standbyRequest := FALSE;
 				dev.coolingRequest := TRUE;
 
 			ELSIF (dev.lastStatus = MainStatus#Heating OR dev.lastStatus = MainStatus#Standby)
-					AND dev.tempUnderMin THEN
-				(* Temperature below limit -> start/resume heating *)
+					AND dev.tempBelowSetpointBand THEN
+				(* Temperature below the thermostat band -> start/resume heating. *)
 				dev.standbyRequest := FALSE;
 				dev.heatingRequest := TRUE;
 
@@ -258,7 +261,7 @@ FUNCTION_BLOCK MainRuleEngine
 	     * Phase 1: with RH control - when RH reaches setpoint switch to Drying.
 	     *
 	     * EXIT conditions (standbyRequest=TRUE):
-	     *   tempUnderMin -> target reached, stop cooling.
+	     *   tempBelowSetpointBand -> lower thermostat threshold reached.
 	     *   isCompleted -> work-effort complete.
 	     * SWITCH conditions (standbyRequest=FALSE):
 	     *   lastStatus=Drying + tempUnderMax -> resume drying.
@@ -266,7 +269,7 @@ FUNCTION_BLOCK MainRuleEngine
 	     * ELSE -> keep cooling (temperature still above tempMin).
 	     *)
 		MainStatus#Cooling :
-			IF dev.tempUnderMin OR dev.isCompleted THEN
+			IF dev.tempBelowSetpointBand OR dev.isCompleted THEN
 				dev.standbyRequest := TRUE;
 			ELSIF dev.lastStatus = MainStatus#Drying
 					AND (dev.tempUnderMax
@@ -281,12 +284,12 @@ FUNCTION_BLOCK MainRuleEngine
 	     * Heating - hot group + AHU.
 	     * Phase 2 (no RH ctrl) / Phase 3 (with RH ctrl).
 	     *
-	     * EXIT: tempOverMax, isCompleted, or core temperature reached.
+	     * EXIT: upper thermostat threshold reached or isCompleted.
 	     * SWITCH to Drying: temperature restored to process window.
 	     * ELSE: keep heating.
 	     *)
 		MainStatus#Heating :
-			IF dev.isCompleted OR dev.tempOverMax THEN
+			IF dev.isCompleted OR dev.tempAboveSetpointBand THEN
 				dev.standbyRequest := TRUE;
 			ELSIF (dev.lastStatus = MainStatus#Drying AND dev.tempOverMin)
 					OR (dev.rhControlEnabled AND dev.rhOverMax) THEN

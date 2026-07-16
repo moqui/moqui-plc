@@ -37,6 +37,8 @@ TYPE DeviceFacade : STRUCT
     (* Cell sensor *)
     tempInRange : BOOL; (* tempMin+hys <= T <= tempMax-hys *)
     tempAtSetpoint : BOOL; (* |T - Tsp| <= hys *)
+    tempAboveSetpointBand : BOOL; (* T >= tempSetpoint + tempHysteresis *)
+    tempBelowSetpointBand : BOOL; (* T <= tempSetpoint - tempHysteresis *)
     tempOverMax : BOOL; (* T > tempMax *)
     tempOverMin : BOOL; (* T > tempMin *)
     tempUnderMin : BOOL; (* T < tempMin *)

@@ -40,6 +40,13 @@ A compile result is not equivalent to Motion functional validation — runtime t
 
 The only intentional gap versus the canonical IEC source is **MQTT**. The intended Siemens integration path is OPC UA; the AX OPC UA adapter is not yet part of this source tree.
 
+The logging identity contract is nevertheless identical to the canonical IEC
+implementation: `loggerName` is the exact owning `Device.deviceId`; an empty
+`source` denotes a device-scoped event and a non-empty `source` is the exact
+pre-existing `Parameter.parameterId`. The HVAC `ParameterLogger` runs after
+`DeviceManager` and samples the 29 modeled numeric parameters on
+`clks.clock1minute`.
+
 ## Directory layout
 
 ```text

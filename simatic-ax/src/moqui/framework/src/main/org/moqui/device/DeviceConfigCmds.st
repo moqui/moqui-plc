@@ -3,6 +3,7 @@ USING System.Strings;
 
 FUNCTION_BLOCK DeviceConfigCmds
 	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
 		DEVICE_CONFIG_LIST_MAX_SIZE : UINT;
 		defaultConfigType : STRING;
 		deviceConfigStoragePath : STRING;
@@ -78,7 +79,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 
 	(* Logger facade init *)
 	logger.enable := TRUE;
-	logger.loggerName := 'DeviceConfigCmds';
+	logger.loggerName := applicationDeviceId;
 
 	commandChanged := (cmd <> lastCmd) OR ((cmd = DeviceConfigCmdType#Load) AND (configName <> lastConfigName));
 	IF commandChanged THEN

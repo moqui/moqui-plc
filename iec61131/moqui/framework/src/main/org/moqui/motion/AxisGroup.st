@@ -172,7 +172,7 @@ IF NOT init THEN
 	END_IF;
 
 	(* Logger facade init *)
-	loggerName := concat(concat(concat(axisGroupName, '['), axisGroupId), ']');
+	loggerName := axisGroupId;
 	logger.enable := TRUE; logger.loggerName := loggerName;
 	init := TRUE;
 END_IF;

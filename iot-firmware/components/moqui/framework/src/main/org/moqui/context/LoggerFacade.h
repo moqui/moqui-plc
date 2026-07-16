@@ -38,6 +38,13 @@ void LoggerFacade_Init(LoggerFacade *logger, const char *loggerName);
 void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level, const char *message);
 
 /*
+ * Append a parameter-scoped numeric event. loggerName is the exact owning
+ * Device.deviceId and source is the exact pre-existing Parameter.parameterId.
+ */
+void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
+                             const char *source, double numericValue);
+
+/*
  * Convenience macro: mirrors the ST call pattern
  *   logger(message := '...', level := LogLevel.Debug)
  * Usage:

@@ -46,7 +46,7 @@ FUNCTION_BLOCK Main
 		error : BOOL;
 	END_VAR
 	VAR CONSTANT
-		componentName : STRING := 'hvac';
+		componentName : STRING := 'HVAC_DEMO_PLC';
 	END_VAR
 	VAR
 		(* Logger facade *)
@@ -57,6 +57,8 @@ FUNCTION_BLOCK Main
 		airDistribCtrl : AirDistributionController;
 		(* HAL manager *)
 		deviceManager : DeviceManager;
+		(* Periodic logical-parameter logger *)
+		logParameters : ParameterLogger;
 	END_VAR
 
 	(* Logger facade init *)
@@ -291,4 +293,7 @@ FUNCTION_BLOCK Main
 	(* Device orchestration (HAL) *)
 	logger(message := 'Update HVAC devices.', level := LogLevel#DEBUG);
 	deviceManager(operationType := operationType);
+
+	(* Log the coherent post-device-update parameter snapshot. *)
+	logParameters(operationType := operationType);
 	END_FUNCTION_BLOCK

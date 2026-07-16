@@ -22,6 +22,9 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
     tempDeviation = dev->tempFeedback - dev->tempSetpoint;
     if (tempDeviation < 0.0f) tempDeviation = -tempDeviation;
     dev->tempAtSetpoint = tempDeviation <= dev->tempHysteresis;
+    /* Normal thermostat thresholds are independent from absolute alarm limits. */
+    dev->tempAboveSetpointBand = dev->tempFeedback >= (dev->tempSetpoint + dev->tempHysteresis);
+    dev->tempBelowSetpointBand = dev->tempFeedback <= (dev->tempSetpoint - dev->tempHysteresis);
     
     dev->tempOverMax = dev->tempFeedback > dev->tempMax;
     dev->tempOverMin = dev->tempFeedback > dev->tempMin;
@@ -89,10 +92,10 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
     // FSM Transitions
     switch (dev->status) {
         case MAIN_STATUS_STANDBY:
-            if ((dev->lastStatus == MAIN_STATUS_COOLING || dev->lastStatus == MAIN_STATUS_STANDBY) && dev->tempOverMax) {
+            if ((dev->lastStatus == MAIN_STATUS_COOLING || dev->lastStatus == MAIN_STATUS_STANDBY) && dev->tempAboveSetpointBand) {
                 dev->standbyRequest = false;
                 dev->coolingRequest = true;
-            } else if ((dev->lastStatus == MAIN_STATUS_HEATING || dev->lastStatus == MAIN_STATUS_STANDBY) && dev->tempUnderMin) {
+            } else if ((dev->lastStatus == MAIN_STATUS_HEATING || dev->lastStatus == MAIN_STATUS_STANDBY) && dev->tempBelowSetpointBand) {
                 dev->standbyRequest = false;
                 dev->heatingRequest = true;
             } else if (dev->lastStatus == MAIN_STATUS_DRYING && !dev->timeBreakEnabled && !dev->isCompleted && dev->tempInRange && (!dev->rhControlOnly || (dev->rhControlEnabled && dev->rhOverMax))) {
@@ -115,7 +118,7 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
             break;
 
         case MAIN_STATUS_COOLING:
-            if (dev->tempUnderMin || dev->isCompleted) {
+            if (dev->tempBelowSetpointBand || dev->isCompleted) {
                 dev->standbyRequest = true;
             } else if (dev->lastStatus == MAIN_STATUS_DRYING && (dev->tempUnderMax || (dev->rhControlEnabled && dev->rhOverMax && dev->tempUnderMax))) {
                 dev->standbyRequest = false;
@@ -126,7 +129,7 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
             break;
 
         case MAIN_STATUS_HEATING:
-            if (dev->isCompleted || dev->tempOverMax) {
+            if (dev->isCompleted || dev->tempAboveSetpointBand) {
                 dev->standbyRequest = true;
             } else if ((dev->lastStatus == MAIN_STATUS_DRYING && dev->tempOverMin) || (dev->rhControlEnabled && dev->rhOverMax)) {
                 dev->standbyRequest = false;

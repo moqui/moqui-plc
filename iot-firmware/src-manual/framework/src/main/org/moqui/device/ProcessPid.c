@@ -149,12 +149,8 @@ void ProcessPidFull_Update(ProcessPid *self)
 
     /* Logger init */
     if (!self->loggerInit) {
-        if ((self->controlSystemId   != NULL) &&
-            (self->controlSystemName != NULL)) {
-            (void)snprintf(self->loggerNameBuf, sizeof(self->loggerNameBuf),
-                           "%s[%s]",
-                           self->controlSystemName, self->controlSystemId);
-            LoggerFacade_Init(&self->logger, self->loggerNameBuf);
+        if (self->controlSystemId != NULL) {
+            LoggerFacade_Init(&self->logger, self->controlSystemId);
         }
         self->loggerInit = true;
     }

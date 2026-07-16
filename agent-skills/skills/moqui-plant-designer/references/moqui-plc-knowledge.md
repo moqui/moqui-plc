@@ -49,12 +49,37 @@ redundancy mechanisms are outside the framework.
 
 ## MQTT programs and mappings
 
-- `LogDispatcher` publishes numeric/text logger batches.
+- `LogDispatcher` publishes numeric/text logger batches and is the operational
+  telemetry path.
 - `MqttParameterSub` receives approved live parameter updates.
-- `MqttParameterPub` is a separate scheduled program for outbound parameters.
-- `JsonToParametersMapper` is intentionally documentation/no-op in the generic
-  template; generate a reviewed Application-specific whitelist mapper.
-- `ParametersToJsonMapper` contains the selected outbound projection.
+- `MqttParameterPub` is an optional peer-PLC/Application parameter exchange for
+  a developer-defined redundancy strategy; it is not the telemetry path.
+- `JsonToParametersMapper` is the executable Application-specific inbound
+  whitelist generated from reviewed DeviceRequestItems. Unknown envelope keys
+  remain non-blocking and are ignored.
+- `ParametersToJsonMapper` is a documentation-only template unless the
+  Application explicitly requires parameter replication for redundancy. Keep
+  `MqttParameterPub` disabled by default and never reuse the inbound live-write
+  whitelist there.
+- Physical input/output signal logging belongs to `InputSignalUpdate` and
+  `OutputSignalUpdate`. Application logical numeric values belong to a generated
+  `ParameterLogger`, invoked after `DeviceManager` so it observes a coherent
+  post-update snapshot.
+- A PLC task may run every 10 ms while `ParameterLogger` gates snapshots with
+  the generated `Clocks` pulses (for example `clock1minute`). A
+  `DeviceRequest.pollingInterval` may specify the desired model-side cadence,
+  but the generator must materialize that cadence in IEC code; the PLC does not
+  read the Moqui entity dynamically.
+- `LogEvent` already carries the persistent identity convention: `loggerName`
+  is the exact owning `Device.deviceId`; an empty `source` denotes a
+  device-scoped event, while a non-empty `source` is the exact pre-existing
+  `Parameter.parameterId`. Payload type (numeric, text or enum) is independent
+  from this scope. Never concatenate logger fields or use descriptive
+  device/parameter names as database keys.
+- Keep the manual Simatic AX and IoT firmware projections aligned with this
+  identity convention. IoT `ParameterLogger` snapshots may span multiple MQTT
+  batches, so the ring drain must retain entries not included in the current
+  batch rather than clearing the whole buffer.
 
 MQTT keys are the reviewed DeviceRequestItem names. Add `dev.` only inside IEC
 access expressions. Recipe/live parameters exclude actual and feedback values.

@@ -207,3 +207,58 @@ work. It intentionally excludes platform-internal prompts and tool metadata.
 - The final screenshot showed `RUN` together with the red `SIMULAT` indicator,
   and only a test task visible. No CODESYS process had an established connection
   to port 1883. The immediate action is documented in `resume-summary.md`.
+
+## 13. E2E execution and mapper-direction correction
+
+- CODESYS Control Win was run outside simulation and established an MQTT
+  connection to Artemis on `127.0.0.1:1883`.
+- Gateway execution of `HVAC_DEMO_LiveParametersWrite` completed with 20 rows.
+  CODESYS received the payloads, deserialized them and invoked
+  `JsonToParametersMapper` with keys including `tempSetpoint` and
+  `minBreakDuration`.
+- The earlier mapper decision was corrected: the 20 approved live-write fields
+  belong in executable `JsonToParametersMapper`, not in the outbound
+  `ParametersToJsonMapper`. Mapper names remain unchanged because they already
+  describe their directions correctly.
+- IEC and both IoT firmware source trees now implement exactly the 20
+  DeviceRequestItem names. The outbound mapper has returned to runtime
+  telemetry. The CODESYS projectarchive still requires the developer's update
+  and a final live-value write test before commit.
+- The outbound decision was then tightened: `ParametersToJsonMapper` remains a
+  documentation-only example unless a project explicitly requests parameter
+  replication between PLCs/Applications for redundancy. `MqttParameterPub` is
+  disabled by default and is not a telemetry path. `LogDispatcher` owns numeric
+  and textual telemetry; actuator, PID and log serializers remain separate and
+  executable.
+- `LogDispatcher` reached the gateway over MQTT, but DeviceLog persistence
+  failed because the payload source did not resolve to a valid Device.
+
+## 14. DeviceLog and ParameterLog identity contract
+
+- The PLC `LogEvent` structure remains unchanged. `loggerName` is interpreted
+  as the exact `Device.deviceId`, not as a display name or diagnostic category.
+- An empty `source` identifies a device-scoped event. A non-empty `source` is
+  the exact pre-existing `Parameter.parameterId` and identifies a
+  parameter-scoped event. Numeric/text/enum payload types are independent of
+  this scope.
+- The gateway now routes these two cases directly and never builds a parameter
+  ID by concatenating `loggerName` and `source` or creates an unknown parameter.
+- HVAC application/framework loggers use `HVAC_DEMO_PLC`; actuator, group and
+  PID loggers use their exact configured device IDs. The periodic HVAC
+  `ParameterLogger` uses exact parameter IDs and a one-minute PLC clock pulse.
+- The focused gateway integration test passed all DeviceLog and ParameterLog
+  scenarios. The PLC regression suite passed 23 tests. Final CODESYS archive
+  import, compilation, and live observation remain pending; no commit was made.
+
+## 15. Manual platform projection
+
+- The developer explicitly requested file-by-file changes in Simatic AX and
+  IoT firmware without running regeneration scripts.
+- Simatic AX was aligned with exact device/parameter IDs, received a native
+  HVAC `ParameterLogger`, and compiled successfully for S7 and LLVM.
+- Both IoT source trees were aligned. Device events now carry empty `source`;
+  numeric parameter events carry exact `Parameter.parameterId`. The ring buffer
+  preserves all 29 values across multiple MQTT batches.
+- Changed IoT C sources passed local C11 syntax checks. The full ESP-IDF Docker
+  build remains pending because downloading the missing toolchain image timed
+  out without reaching compilation.

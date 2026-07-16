@@ -10,6 +10,7 @@
  */
 
 /* ========== Framework ========== */
+#define MOQUI_APPLICATION_DEVICE_ID "HVAC_DEMO_PLC"
 #define MOQUI_RETRY_ON_ERROR       (1U)
 #define MOQUI_MIN_RETRY_TIME       (10U)   /* ST: minRetryTime = 10 s */
 #define MOQUI_MAX_RETRY_COUNT      (5U)    /* ST: maxRetryCount = 5 */

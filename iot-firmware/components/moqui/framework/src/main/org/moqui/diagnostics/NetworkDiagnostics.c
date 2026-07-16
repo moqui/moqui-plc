@@ -6,7 +6,7 @@ void NetworkDiagnostics_Update(NetworkDiagnostics *net, FieldbusProtocol fieldbu
 
     if (!net->init) {
         net->logger.enable = true;
-        net->logger.loggerName = "RunNetworkDiagnostics";
+        net->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
         net->init = true;
     }
 

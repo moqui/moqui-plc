@@ -1,5 +1,6 @@
 PROGRAM MoquiStart
 	VAR_EXTERNAL CONSTANT
+		applicationDeviceId : STRING;
 		retryOnError : BOOL;
 		minRetryTime, maxRetryCount : UINT;
 	END_VAR
@@ -33,7 +34,7 @@ PROGRAM MoquiStart
 	(* Set the operating mode *)
 	IF init THEN
 		(* Logger facade init *)
-		logger.enable := TRUE; logger.loggerName := 'moqui';
+		logger.enable := TRUE; logger.loggerName := applicationDeviceId;
 		operationType := OperatingMode#Init;
 		mainInitPending := TRUE;
 	ELSE

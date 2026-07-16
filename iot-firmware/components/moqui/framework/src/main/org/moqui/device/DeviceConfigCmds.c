@@ -40,7 +40,7 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
 
     /* One-time logger init (mirrors ST Init branch) */
     if (!self->loggerInit) {
-        LoggerFacade_Init(&self->logger, "DeviceConfigCmds");
+        LoggerFacade_Init(&self->logger, MOQUI_APPLICATION_DEVICE_ID);
         self->loggerInit = true;
     }
 

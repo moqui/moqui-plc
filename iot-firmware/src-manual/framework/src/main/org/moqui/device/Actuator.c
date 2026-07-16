@@ -1,7 +1,6 @@
 #include "Actuator.h"
 
 #include <string.h>
-#include <stdio.h>
 
 /* MISRA C:2012 Rule 15.5 deviation: early returns used for guard clauses throughout. */
 
@@ -52,8 +51,6 @@ static void update_feedback(Actuator *self)
 
 void Actuator_Init(Actuator *self)
 {
-    char nameBuf[128];
-
     if (self->operationType != OPERATING_MODE_INIT) {
         return;
     }
@@ -64,11 +61,9 @@ void Actuator_Init(Actuator *self)
         return;
     }
 
-    /* Logger facade init — format: "name[id]" matching the ST concat */
-    (void)snprintf(nameBuf, sizeof(nameBuf), "%s[%s]",
-                   (self->actuatorName != NULL) ? self->actuatorName : "",
-                   (self->actuatorId   != NULL) ? self->actuatorId   : "");
-    LoggerFacade_Init(&self->logger, self->actuatorName); /* tag for platform log */
+    /* Logger facade init with the persistent device identity. */
+    /* actuatorId is the exact Device.deviceId; actuatorName is descriptive only. */
+    LoggerFacade_Init(&self->logger, self->actuatorId);
     self->loggerName = self->logger.loggerName;
 
     LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator initialization.");

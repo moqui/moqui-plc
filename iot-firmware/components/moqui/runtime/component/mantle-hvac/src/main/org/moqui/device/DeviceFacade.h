@@ -32,6 +32,8 @@ typedef struct {
     // Boolean predicates
     bool tempInRange;
     bool tempAtSetpoint;
+    bool tempAboveSetpointBand;
+    bool tempBelowSetpointBand;
     bool tempOverMax;
     bool tempOverMin;
     bool tempUnderMin;

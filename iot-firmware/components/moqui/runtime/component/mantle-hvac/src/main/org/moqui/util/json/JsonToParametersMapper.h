@@ -4,14 +4,11 @@
 /*
  * JsonToParametersMapper — port of JsonToParametersMapper.st.
  *
- * Application template for applying JSON subscribe values to DeviceFacade.
- * The checked-in implementation performs no writes until an Application-specific
- * mapping is generated from the reviewed DeviceRequestItem whitelist.
- *
- * The .c file retains a disabled mapping table as implementation documentation.
+ * Applies the approved HVAC DeviceRequestItem live-parameter whitelist to
+ * DeviceFacade. Unknown envelope fields and keys are ignored.
  *
  * Two template entry points:
- *   - Apply()          — non-writing hook for a pre-split key/value
+ *   - Apply()          — apply a pre-split key/value
  *   - ParseAndApply()  — parses a flat JSON object and dispatches to Apply()
  */
 

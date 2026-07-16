@@ -5,7 +5,7 @@ ExecutionContext ec = {
     .enable = true,
     .init = true,
     .logAppenderEnable = true,
-    .paramsPubEnable = true,
+    .paramsPubEnable = false,
     .paramsSubEnable = true,
     .logSourceListSize = 0
 };
