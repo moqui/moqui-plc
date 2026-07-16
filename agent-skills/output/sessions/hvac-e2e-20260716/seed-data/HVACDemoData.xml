@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+-->
+<entity-facade-xml type="seed">
+
+    <!-- Demonstration model reverse-engineered from moqui-plc mantle-hvac. -->
+
+    <!-- Main flat FSM. Transition predicates and output functions remain PLC-code-owned. -->
+    <moqui.basic.StatusType statusTypeId="HvacDemoMainStatus" description="Mantle HVAC main status"/>
+    <moqui.basic.StatusItem statusId="HvacStandby" statusTypeId="HvacDemoMainStatus" description="Standby" sequenceNum="10"/>
+    <moqui.basic.StatusItem statusId="HvacVentilation" statusTypeId="HvacDemoMainStatus" description="Ventilation" sequenceNum="20"/>
+    <moqui.basic.StatusItem statusId="HvacCooling" statusTypeId="HvacDemoMainStatus" description="Cooling" sequenceNum="30"/>
+    <moqui.basic.StatusItem statusId="HvacHeating" statusTypeId="HvacDemoMainStatus" description="Heating" sequenceNum="40"/>
+    <moqui.basic.StatusItem statusId="HvacDrying" statusTypeId="HvacDemoMainStatus" description="Drying" sequenceNum="50"/>
+    <moqui.basic.StatusItem statusId="HvacFault" statusTypeId="HvacDemoMainStatus" description="Fault" sequenceNum="60"/>
+    <moqui.basic.StatusFlow statusFlowId="HvacDemoMainStatusFlow" statusTypeId="HvacDemoMainStatus" description="Mantle HVAC flat orchestration flow"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" isInitial="Y"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" isInitial="N"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacCooling" isInitial="N"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacHeating" isInitial="N"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" isInitial="N"/>
+    <moqui.basic.StatusFlowItem statusFlowId="HvacDemoMainStatusFlow" statusId="HvacFault" isInitial="N"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" toStatusId="HvacVentilation" transitionName="Ventilate" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" toStatusId="HvacCooling" transitionName="Cool" transitionSequence="20"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" toStatusId="HvacHeating" transitionName="Heat" transitionSequence="30"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" toStatusId="HvacDrying" transitionName="Dry" transitionSequence="40"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" toStatusId="HvacStandby" transitionName="Standby" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" toStatusId="HvacCooling" transitionName="Cool" transitionSequence="20"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" toStatusId="HvacHeating" transitionName="Heat" transitionSequence="30"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" toStatusId="HvacDrying" transitionName="Dry" transitionSequence="40"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacCooling" toStatusId="HvacStandby" transitionName="Standby" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacCooling" toStatusId="HvacDrying" transitionName="Dry" transitionSequence="20"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacCooling" toStatusId="HvacVentilation" transitionName="Ventilate" transitionSequence="30"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacHeating" toStatusId="HvacStandby" transitionName="Standby" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacHeating" toStatusId="HvacDrying" transitionName="Dry" transitionSequence="20"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacHeating" toStatusId="HvacVentilation" transitionName="Ventilate" transitionSequence="30"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" toStatusId="HvacStandby" transitionName="Standby" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" toStatusId="HvacHeating" transitionName="Heat" transitionSequence="20"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" toStatusId="HvacCooling" transitionName="Cool" transitionSequence="30"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" toStatusId="HvacVentilation" transitionName="Ventilate" transitionSequence="40"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacFault" toStatusId="HvacStandby" transitionName="Reset" transitionSequence="10"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" toStatusId="HvacFault" transitionName="Fault" transitionSequence="90"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacVentilation" toStatusId="HvacFault" transitionName="Fault" transitionSequence="90"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacCooling" toStatusId="HvacFault" transitionName="Fault" transitionSequence="90"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacHeating" toStatusId="HvacFault" transitionName="Fault" transitionSequence="90"/>
+    <moqui.basic.StatusFlowTransition statusFlowId="HvacDemoMainStatusFlow" statusId="HvacDrying" toStatusId="HvacFault" transitionName="Fault" transitionSequence="90"/>
+
+    <!-- Application, subsystem groups, and atomic moqui-plc devices. -->
+    <moqui.device.Device deviceId="HVAC_DEMO" deviceTypeEnumId="DgtControl" purposeEnumId="DepProcessControl" statusFlowId="HvacDemoMainStatusFlow" statusId="HvacStandby" description="Mantle HVAC demonstration application"/>
+    <moqui.device.DeviceGroup deviceId="HVAC_DEMO" groupName="Mantle HVAC Demo"/>
+    <moqui.device.Device deviceId="HVAC_DEMO_PLC" parentDeviceId="HVAC_DEMO" deviceTypeEnumId="DtPLC" purposeEnumId="DepProcessControl" statusFlowId="DeviceBasicStatusFlow" statusId="DbsStandstill"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_DEMO_PLC" deviceName="HvacApplication" softwareApplication="HvacApplication" cycleTime="100"/>
+    <moqui.device.Device deviceId="HVAC_COLD_GROUP" parentDeviceId="HVAC_DEMO" deviceTypeEnumId="DgtSubsystem" purposeEnumId="DepProcessControl"/>
+    <moqui.device.DeviceGroup deviceId="HVAC_COLD_GROUP" groupName="Cold glycol group"/>
+    <moqui.device.Device deviceId="HVAC_HOT_GROUP" parentDeviceId="HVAC_DEMO" deviceTypeEnumId="DgtSubsystem" purposeEnumId="DepProcessControl"/>
+    <moqui.device.DeviceGroup deviceId="HVAC_HOT_GROUP" groupName="Hot glycol group"/>
+    <moqui.device.Device deviceId="HVAC_AIR_GROUP" parentDeviceId="HVAC_DEMO" deviceTypeEnumId="DgtSubsystem" purposeEnumId="DepProcessControl"/>
+    <moqui.device.DeviceGroup deviceId="HVAC_AIR_GROUP" groupName="Air handling and distribution group"/>
+
+    <moqui.device.Device deviceId="HVAC_COLD_GLYCOL_PUMP" parentDeviceId="HVAC_COLD_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_COLD_GLYCOL_PUMP" deviceName="coldGlycolPump"/>
+    <moqui.device.Device deviceId="HVAC_COLD_GLYCOL_VALVE" parentDeviceId="HVAC_COLD_GROUP" deviceTypeEnumId="DtMoquiPlcProcessPID" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_COLD_GLYCOL_VALVE" deviceName="coldGlycolValve"/>
+    <moqui.device.Device deviceId="HVAC_HOT_GLYCOL_PUMP" parentDeviceId="HVAC_HOT_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_HOT_GLYCOL_PUMP" deviceName="hotGlycolPump"/>
+    <moqui.device.Device deviceId="HVAC_HOT_GLYCOL_VALVE" parentDeviceId="HVAC_HOT_GROUP" deviceTypeEnumId="DtMoquiPlcProcessPID" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_HOT_GLYCOL_VALVE" deviceName="hotGlycolValve"/>
+    <moqui.device.Device deviceId="HVAC_AHU_FAN" parentDeviceId="HVAC_AIR_GROUP" deviceTypeEnumId="DtMoquiPlcProcessPID" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmPIDControl"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_AHU_FAN" deviceName="ahuFan"/>
+    <moqui.device.Device deviceId="HVAC_AIR_FLOW" parentDeviceId="HVAC_AIR_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_AIR_FLOW" deviceName="airFlow"/>
+    <moqui.device.Device deviceId="HVAC_AIR_MIXING_FAN" parentDeviceId="HVAC_AIR_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_AIR_MIXING_FAN" deviceName="airMixingFan"/>
+    <moqui.device.Device deviceId="HVAC_HIGH_FLOW_DAMPER" parentDeviceId="HVAC_AIR_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_HIGH_FLOW_DAMPER" deviceName="highFlowDamper"/>
+    <moqui.device.Device deviceId="HVAC_LOW_FLOW_DAMPER" parentDeviceId="HVAC_AIR_GROUP" deviceTypeEnumId="DtMoquiPlcActuator" purposeEnumId="DepProcessControl" controlMethodEnumId="DcmSingleActuationNoFeedback"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_LOW_FLOW_DAMPER" deviceName="lowFlowDamper"/>
+    <moqui.device.Device deviceId="HVAC_SIGNAL_MGMT" parentDeviceId="HVAC_DEMO" deviceTypeEnumId="DtMoquiPlcSignalMgmt" purposeEnumId="DepProcessControl"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_SIGNAL_MGMT" deviceName="signalMgmt"/>
+    <moqui.device.Device deviceId="HVAC_DEMO_GATEWAY" deviceTypeEnumId="DtEdgeGateway" purposeEnumId="DepProcessControl"/>
+    <moqui.device.PhysicalDevice deviceId="HVAC_DEMO_GATEWAY" deviceName="HvacDemoGateway" softwareApplication="moqui-device-gateway"/>
+
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_DEMO_PLC" purposeEnumId="DgmpProcessPLC" sequenceNum="10"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_COLD_GROUP" purposeEnumId="DgmpSubsystem" sequenceNum="20"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_HOT_GROUP" purposeEnumId="DgmpSubsystem" sequenceNum="30"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_AIR_GROUP" purposeEnumId="DgmpSubsystem" sequenceNum="40"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_SIGNAL_MGMT" purposeEnumId="DgmpControlledDevice" sequenceNum="50"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_DEMO" memberDeviceId="HVAC_DEMO_GATEWAY" purposeEnumId="DgmpEdgeGateway" sequenceNum="60"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_COLD_GROUP" memberDeviceId="HVAC_COLD_GLYCOL_PUMP" purposeEnumId="DgmpControlledDevice" sequenceNum="10"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_COLD_GROUP" memberDeviceId="HVAC_COLD_GLYCOL_VALVE" purposeEnumId="DgmpControlledDevice" sequenceNum="20"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_HOT_GROUP" memberDeviceId="HVAC_HOT_GLYCOL_PUMP" purposeEnumId="DgmpControlledDevice" sequenceNum="10"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_HOT_GROUP" memberDeviceId="HVAC_HOT_GLYCOL_VALVE" purposeEnumId="DgmpControlledDevice" sequenceNum="20"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_AIR_GROUP" memberDeviceId="HVAC_AHU_FAN" purposeEnumId="DgmpControlledDevice" sequenceNum="10"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_AIR_GROUP" memberDeviceId="HVAC_AIR_FLOW" purposeEnumId="DgmpControlledDevice" sequenceNum="20"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_AIR_GROUP" memberDeviceId="HVAC_AIR_MIXING_FAN" purposeEnumId="DgmpControlledDevice" sequenceNum="30"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_AIR_GROUP" memberDeviceId="HVAC_HIGH_FLOW_DAMPER" purposeEnumId="DgmpControlledDevice" sequenceNum="40"/>
+    <moqui.device.DeviceGroupMember deviceId="HVAC_AIR_GROUP" memberDeviceId="HVAC_LOW_FLOW_DAMPER" purposeEnumId="DgmpControlledDevice" sequenceNum="50"/>
+
+    <!-- Reusable ParameterDef catalog for DeviceFacade and atomic configs. -->
+    <moqui.math.ParameterDef parameterDefId="HvacTempSetpointDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.001" parameterName="tempSetpoint"/>
+    <moqui.math.ParameterDef parameterDefId="HvacTempHysteresisDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.002" parameterName="tempHysteresis"/>
+    <moqui.math.ParameterDef parameterDefId="HvacTempMinDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.003" parameterName="tempMin"/>
+    <moqui.math.ParameterDef parameterDefId="HvacTempMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.004" parameterName="tempMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhSetpointDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.005" parameterName="rhSetpoint"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhHysteresisDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.006" parameterName="rhHysteresis"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhMinDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.007" parameterName="rhMin"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.008" parameterName="rhMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDuctTempMinDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.009" parameterName="ductTempMin"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDuctTempMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.010" parameterName="ductTempMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDuctRhMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.011" parameterName="ductRhMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhControlEnabledDef" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.012" parameterName="rhControlEnabled"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhControlOnlyDef" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.013" parameterName="rhControlOnly"/>
+    <moqui.math.ParameterDef parameterDefId="HvacAirMixingEnabledDef" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.014" parameterName="airMixingEnabled"/>
+    <moqui.math.ParameterDef parameterDefId="HvacAirDistributionEnabledDef" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.015" parameterName="airDistributionEnabled"/>
+    <moqui.math.ParameterDef parameterDefId="HvacSetPointTimeHighDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.016" parameterName="setPointTimeHigh"/>
+    <moqui.math.ParameterDef parameterDefId="HvacSetPointTimeLowDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.017" parameterName="setPointTimeLow"/>
+    <moqui.math.ParameterDef parameterDefId="HvacEstimatedRuntimeDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.018" parameterName="estimatedRuntime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacMinRuntimeDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.019" parameterName="minRuntime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacEstimatedBreakDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.020" parameterName="estimatedBreakDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacMinBreakDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.021" parameterName="minBreakDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacProcessEstimatedDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.022" parameterName="processEstimatedDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacProcessMinDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.023" parameterName="processMinDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacProcessRemainingDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.024" parameterName="processRemainingDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacProcessActualDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="HVAC.DEMO.025" parameterName="processActualDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActualRuntimeDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="HVAC.DEMO.026" parameterName="actualRuntime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActualBreakDurationDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpStatus" parameterCode="HVAC.DEMO.027" parameterName="actualBreakDuration"/>
+    <moqui.math.ParameterDef parameterDefId="HvacAhuFanSpeedSetpointDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.028" parameterName="ahuFanSpeedSetpoint"/>
+    <moqui.math.ParameterDef parameterDefId="HvacAirFlowRefDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.029" parameterName="airFlowRef"/>
+    <moqui.math.ParameterDef parameterDefId="HvacTempFeedbackDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="HVAC.DEMO.030" parameterName="tempFeedback"/>
+    <moqui.math.ParameterDef parameterDefId="HvacRhFeedbackDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="HVAC.DEMO.031" parameterName="rhFeedback"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDuctTempFeedbackDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="HVAC.DEMO.032" parameterName="ductTempFeedback"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDuctRhFeedbackDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpFeedback" parameterCode="HVAC.DEMO.033" parameterName="ductRhFeedback"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActuatorIdDef" parameterTypeEnumId="PtText" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.001" parameterName="actuatorId"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActuatorNameDef" parameterTypeEnumId="PtText" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.002" parameterName="actuatorName"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActuationTypeDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.003" parameterName="actuationType"/>
+    <moqui.math.ParameterDef parameterDefId="HvacFeedbackTypeDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.004" parameterName="feedbackType"/>
+    <moqui.math.ParameterDef parameterDefId="HvacActuatorModelDef" parameterTypeEnumId="PtNumberInteger" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.005" parameterName="model"/>
+    <moqui.math.ParameterDef parameterDefId="HvacEnableTimeDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.006" parameterName="enableTime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDisableTimeDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.007" parameterName="disableTime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacDiagnosticsEnableDef" parameterTypeEnumId="PtTextIndicator" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.ACT.008" parameterName="diagnosticsEnable"/>
+    <moqui.math.ParameterDef parameterDefId="HvacControlSystemIdDef" parameterTypeEnumId="PtText" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.001" parameterName="controlSystemId"/>
+    <moqui.math.ParameterDef parameterDefId="HvacControlSystemNameDef" parameterTypeEnumId="PtText" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.002" parameterName="controlSystemName"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidGainDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.003" parameterName="gain"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidIntegrationTimeDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.004" parameterName="integrationTime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidDerivationTimeDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.005" parameterName="derivationTime"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidSetpointMinDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.006" parameterName="setpointMin"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidSetpointMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.007" parameterName="setpointMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidOutputMinDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.008" parameterName="outputMin"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidOutputMaxDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.009" parameterName="outputMax"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidAtSetpointHysteresisDef" parameterTypeEnumId="PtNumberDecimal" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.010" parameterName="atSetpointHysteresis"/>
+    <moqui.math.ParameterDef parameterDefId="HvacPidTickTimeDef" parameterTypeEnumId="PtTime" purposeEnumId="PpDeviceConfiguration" parameterCode="HVAC.DEMO.PID.011" parameterName="tickTime"/>
+
+    <!-- Current/materialized Application parameters; cooling values are the demo defaults. -->
+    <moqui.math.Parameter parameterId="HvacTempSetpoint" parameterDefId="HvacTempSetpointDef" deviceId="HVAC_DEMO_PLC" parameterAlias="tempSetpoint" numericValue="22.0"/>
+    <moqui.math.Parameter parameterId="HvacTempHysteresis" parameterDefId="HvacTempHysteresisDef" deviceId="HVAC_DEMO_PLC" parameterAlias="tempHysteresis" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacTempMin" parameterDefId="HvacTempMinDef" deviceId="HVAC_DEMO_PLC" parameterAlias="tempMin" numericValue="18.0"/>
+    <moqui.math.Parameter parameterId="HvacTempMax" parameterDefId="HvacTempMaxDef" deviceId="HVAC_DEMO_PLC" parameterAlias="tempMax" numericValue="26.0"/>
+    <moqui.math.Parameter parameterId="HvacRhSetpoint" parameterDefId="HvacRhSetpointDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhSetpoint" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacRhHysteresis" parameterDefId="HvacRhHysteresisDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhHysteresis" numericValue="5.0"/>
+    <moqui.math.Parameter parameterId="HvacRhMin" parameterDefId="HvacRhMinDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhMin" numericValue="30.0"/>
+    <moqui.math.Parameter parameterId="HvacRhMax" parameterDefId="HvacRhMaxDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhMax" numericValue="70.0"/>
+    <moqui.math.Parameter parameterId="HvacDuctTempMin" parameterDefId="HvacDuctTempMinDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ductTempMin" numericValue="10.0"/>
+    <moqui.math.Parameter parameterId="HvacDuctTempMax" parameterDefId="HvacDuctTempMaxDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ductTempMax" numericValue="20.0"/>
+    <moqui.math.Parameter parameterId="HvacDuctRhMax" parameterDefId="HvacDuctRhMaxDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ductRhMax" numericValue="95.0"/>
+    <moqui.math.Parameter parameterId="HvacRhControlEnabled" parameterDefId="HvacRhControlEnabledDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhControlEnabled" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacRhControlOnly" parameterDefId="HvacRhControlOnlyDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhControlOnly" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacAirMixingEnabled" parameterDefId="HvacAirMixingEnabledDef" deviceId="HVAC_DEMO_PLC" parameterAlias="airMixingEnabled" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacAirDistributionEnabled" parameterDefId="HvacAirDistributionEnabledDef" deviceId="HVAC_DEMO_PLC" parameterAlias="airDistributionEnabled" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacSetPointTimeHigh" parameterDefId="HvacSetPointTimeHighDef" deviceId="HVAC_DEMO_PLC" parameterAlias="setPointTimeHigh" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacSetPointTimeLow" parameterDefId="HvacSetPointTimeLowDef" deviceId="HVAC_DEMO_PLC" parameterAlias="setPointTimeLow" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacEstimatedRuntime" parameterDefId="HvacEstimatedRuntimeDef" deviceId="HVAC_DEMO_PLC" parameterAlias="estimatedRuntime" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacMinRuntime" parameterDefId="HvacMinRuntimeDef" deviceId="HVAC_DEMO_PLC" parameterAlias="minRuntime" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacEstimatedBreakDuration" parameterDefId="HvacEstimatedBreakDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="estimatedBreakDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacMinBreakDuration" parameterDefId="HvacMinBreakDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="minBreakDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacProcessEstimatedDuration" parameterDefId="HvacProcessEstimatedDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="processEstimatedDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacProcessMinDuration" parameterDefId="HvacProcessMinDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="processMinDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacProcessRemainingDuration" parameterDefId="HvacProcessRemainingDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="processRemainingDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacProcessActualDuration" parameterDefId="HvacProcessActualDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="processActualDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacActualRuntime" parameterDefId="HvacActualRuntimeDef" deviceId="HVAC_DEMO_PLC" parameterAlias="actualRuntime" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacActualBreakDuration" parameterDefId="HvacActualBreakDurationDef" deviceId="HVAC_DEMO_PLC" parameterAlias="actualBreakDuration" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanSpeedSetpoint" parameterDefId="HvacAhuFanSpeedSetpointDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ahuFanSpeedSetpoint" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowRef" parameterDefId="HvacAirFlowRefDef" deviceId="HVAC_DEMO_PLC" parameterAlias="airFlowRef" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacTempFeedback" parameterDefId="HvacTempFeedbackDef" deviceId="HVAC_DEMO_PLC" parameterAlias="tempFeedback" numericValue="26.0"/>
+    <moqui.math.Parameter parameterId="HvacRhFeedback" parameterDefId="HvacRhFeedbackDef" deviceId="HVAC_DEMO_PLC" parameterAlias="rhFeedback" numericValue="55.0"/>
+    <moqui.math.Parameter parameterId="HvacDuctTempFeedback" parameterDefId="HvacDuctTempFeedbackDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ductTempFeedback" numericValue="15.0"/>
+    <moqui.math.Parameter parameterId="HvacDuctRhFeedback" parameterDefId="HvacDuctRhFeedbackDef" deviceId="HVAC_DEMO_PLC" parameterAlias="ductRhFeedback" numericValue="60.0"/>
+
+    <!-- Materialized atomic parameters targeted by the reusable DeviceConfig records below. -->
+    <moqui.math.Parameter parameterId="HvacColdPumpId" parameterDefId="HvacActuatorIdDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="actuatorId" symbolicValue="'coldGlycolPump'"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpName" parameterDefId="HvacActuatorNameDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="actuatorName" symbolicValue="'ChilledWaterPump'"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpActuation" parameterDefId="HvacActuationTypeDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="actuationType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpFeedbackType" parameterDefId="HvacFeedbackTypeDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="feedbackType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpModel" parameterDefId="HvacActuatorModelDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="model" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpEnableTime" parameterDefId="HvacEnableTimeDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="enableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpDisableTime" parameterDefId="HvacDisableTimeDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="disableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacColdPumpDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceId="HVAC_COLD_GLYCOL_PUMP" parameterAlias="diagnosticsEnable" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpId" parameterDefId="HvacActuatorIdDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="actuatorId" symbolicValue="'hotGlycolPump'"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpName" parameterDefId="HvacActuatorNameDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="actuatorName" symbolicValue="'HotWaterPump'"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpActuation" parameterDefId="HvacActuationTypeDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="actuationType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpFeedbackType" parameterDefId="HvacFeedbackTypeDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="feedbackType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpModel" parameterDefId="HvacActuatorModelDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="model" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpEnableTime" parameterDefId="HvacEnableTimeDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="enableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpDisableTime" parameterDefId="HvacDisableTimeDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="disableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacHotPumpDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceId="HVAC_HOT_GLYCOL_PUMP" parameterAlias="diagnosticsEnable" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowId" parameterDefId="HvacActuatorIdDef" deviceId="HVAC_AIR_FLOW" parameterAlias="actuatorId" symbolicValue="'airFlow'"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowName" parameterDefId="HvacActuatorNameDef" deviceId="HVAC_AIR_FLOW" parameterAlias="actuatorName" symbolicValue="'AirFlow'"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowActuation" parameterDefId="HvacActuationTypeDef" deviceId="HVAC_AIR_FLOW" parameterAlias="actuationType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowFeedbackType" parameterDefId="HvacFeedbackTypeDef" deviceId="HVAC_AIR_FLOW" parameterAlias="feedbackType" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowModel" parameterDefId="HvacActuatorModelDef" deviceId="HVAC_AIR_FLOW" parameterAlias="model" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowEnableTime" parameterDefId="HvacEnableTimeDef" deviceId="HVAC_AIR_FLOW" parameterAlias="enableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowDisableTime" parameterDefId="HvacDisableTimeDef" deviceId="HVAC_AIR_FLOW" parameterAlias="disableTime" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacAirFlowDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceId="HVAC_AIR_FLOW" parameterAlias="diagnosticsEnable" symbolicValue="FALSE"/>
+
+    <moqui.math.Parameter parameterId="HvacColdValveId" parameterDefId="HvacControlSystemIdDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="controlSystemId" symbolicValue="'coldGlycolValve'"/>
+    <moqui.math.Parameter parameterId="HvacColdValveName" parameterDefId="HvacControlSystemNameDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="controlSystemName" symbolicValue="'ChilledWaterValve'"/>
+    <moqui.math.Parameter parameterId="HvacHotValveId" parameterDefId="HvacControlSystemIdDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="controlSystemId" symbolicValue="'hotGlycolValve'"/>
+    <moqui.math.Parameter parameterId="HvacHotValveName" parameterDefId="HvacControlSystemNameDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="controlSystemName" symbolicValue="'HotWaterValve'"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanId" parameterDefId="HvacControlSystemIdDef" deviceId="HVAC_AHU_FAN" parameterAlias="controlSystemId" symbolicValue="'ahuFan'"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanName" parameterDefId="HvacControlSystemNameDef" deviceId="HVAC_AHU_FAN" parameterAlias="controlSystemName" symbolicValue="'AhuFan'"/>
+    <moqui.math.Parameter parameterId="HvacColdValveGain" parameterDefId="HvacPidGainDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="gain" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveGain" parameterDefId="HvacPidGainDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="gain" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanGain" parameterDefId="HvacPidGainDef" deviceId="HVAC_AHU_FAN" parameterAlias="gain" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="integrationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="integrationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceId="HVAC_AHU_FAN" parameterAlias="integrationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="derivationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="derivationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceId="HVAC_AHU_FAN" parameterAlias="derivationTime" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="setpointMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="setpointMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceId="HVAC_AHU_FAN" parameterAlias="setpointMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="setpointMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="setpointMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceId="HVAC_AHU_FAN" parameterAlias="setpointMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveOutputMin" parameterDefId="HvacPidOutputMinDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="outputMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveOutputMin" parameterDefId="HvacPidOutputMinDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="outputMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanOutputMin" parameterDefId="HvacPidOutputMinDef" deviceId="HVAC_AHU_FAN" parameterAlias="outputMin" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="outputMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="outputMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceId="HVAC_AHU_FAN" parameterAlias="outputMax" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="atSetpointHysteresis" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacHotValveHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="atSetpointHysteresis" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceId="HVAC_AHU_FAN" parameterAlias="atSetpointHysteresis" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacColdValveTickTime" parameterDefId="HvacPidTickTimeDef" deviceId="HVAC_COLD_GLYCOL_VALVE" parameterAlias="tickTime" symbolicValue="T#100ms"/>
+    <moqui.math.Parameter parameterId="HvacHotValveTickTime" parameterDefId="HvacPidTickTimeDef" deviceId="HVAC_HOT_GLYCOL_VALVE" parameterAlias="tickTime" symbolicValue="T#100ms"/>
+    <moqui.math.Parameter parameterId="HvacAhuFanTickTime" parameterDefId="HvacPidTickTimeDef" deviceId="HVAC_AHU_FAN" parameterAlias="tickTime" symbolicValue="T#100ms"/>
+
+    <!-- Three existing mantle-hvac process recipes. -->
+    <moqui.device.DeviceConfig deviceConfigId="HvacCivilCoolingConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtPLC" configName="CivilCooling"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacCivilHeatingConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtPLC" configName="CivilHeating"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacCivilDehumidifyingConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtPLC" configName="CivilDehumidifying"/>
+
+    <!-- Cooling process values. -->
+    <moqui.math.Parameter parameterId="HvacCcTempSetpoint" parameterDefId="HvacTempSetpointDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="tempSetpoint" sequenceNum="10" numericValue="22.0"/>
+    <moqui.math.Parameter parameterId="HvacCcTempHysteresis" parameterDefId="HvacTempHysteresisDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="tempHysteresis" sequenceNum="20" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCcTempMin" parameterDefId="HvacTempMinDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="tempMin" sequenceNum="30" numericValue="18.0"/>
+    <moqui.math.Parameter parameterId="HvacCcTempMax" parameterDefId="HvacTempMaxDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="tempMax" sequenceNum="40" numericValue="26.0"/>
+    <moqui.math.Parameter parameterId="HvacCcRhSetpoint" parameterDefId="HvacRhSetpointDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhSetpoint" sequenceNum="50" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacCcRhHysteresis" parameterDefId="HvacRhHysteresisDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhHysteresis" sequenceNum="60" numericValue="5.0"/>
+    <moqui.math.Parameter parameterId="HvacCcRhMin" parameterDefId="HvacRhMinDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhMin" sequenceNum="70" numericValue="30.0"/>
+    <moqui.math.Parameter parameterId="HvacCcRhMax" parameterDefId="HvacRhMaxDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhMax" sequenceNum="80" numericValue="70.0"/>
+    <moqui.math.Parameter parameterId="HvacCcDuctTempMin" parameterDefId="HvacDuctTempMinDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="ductTempMin" sequenceNum="90" numericValue="10.0"/>
+    <moqui.math.Parameter parameterId="HvacCcDuctTempMax" parameterDefId="HvacDuctTempMaxDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="ductTempMax" sequenceNum="100" numericValue="20.0"/>
+    <moqui.math.Parameter parameterId="HvacCcDuctRhMax" parameterDefId="HvacDuctRhMaxDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="ductRhMax" sequenceNum="110" numericValue="95.0"/>
+    <moqui.math.Parameter parameterId="HvacCcRhControlEnabled" parameterDefId="HvacRhControlEnabledDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhControlEnabled" sequenceNum="120" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCcRhControlOnly" parameterDefId="HvacRhControlOnlyDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="rhControlOnly" sequenceNum="130" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCcAirMixingEnabled" parameterDefId="HvacAirMixingEnabledDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="airMixingEnabled" sequenceNum="140" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCcAirDistributionEnabled" parameterDefId="HvacAirDistributionEnabledDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="airDistributionEnabled" sequenceNum="150" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCcSetPointTimeHigh" parameterDefId="HvacSetPointTimeHighDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="setPointTimeHigh" sequenceNum="160" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcSetPointTimeLow" parameterDefId="HvacSetPointTimeLowDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="setPointTimeLow" sequenceNum="170" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcEstimatedRuntime" parameterDefId="HvacEstimatedRuntimeDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="estimatedRuntime" sequenceNum="180" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcMinRuntime" parameterDefId="HvacMinRuntimeDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="minRuntime" sequenceNum="190" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcEstimatedBreakDuration" parameterDefId="HvacEstimatedBreakDurationDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="estimatedBreakDuration" sequenceNum="200" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcMinBreakDuration" parameterDefId="HvacMinBreakDurationDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="minBreakDuration" sequenceNum="210" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcProcessEstimatedDuration" parameterDefId="HvacProcessEstimatedDurationDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="processEstimatedDuration" sequenceNum="220" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcProcessMinDuration" parameterDefId="HvacProcessMinDurationDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="processMinDuration" sequenceNum="230" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcProcessRemainingDuration" parameterDefId="HvacProcessRemainingDurationDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="processRemainingDuration" sequenceNum="240" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCcAhuFanSpeedSetpoint" parameterDefId="HvacAhuFanSpeedSetpointDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="ahuFanSpeedSetpoint" sequenceNum="250" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacCcAirFlowRef" parameterDefId="HvacAirFlowRefDef" deviceConfigId="HvacCivilCoolingConfig" parameterAlias="airFlowRef" sequenceNum="260" numericValue="50.0"/>
+
+    <!-- Heating process values. -->
+    <moqui.math.Parameter parameterId="HvacChTempSetpoint" parameterDefId="HvacTempSetpointDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="tempSetpoint" sequenceNum="10" numericValue="20.0"/>
+    <moqui.math.Parameter parameterId="HvacChTempHysteresis" parameterDefId="HvacTempHysteresisDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="tempHysteresis" sequenceNum="20" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacChTempMin" parameterDefId="HvacTempMinDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="tempMin" sequenceNum="30" numericValue="16.0"/>
+    <moqui.math.Parameter parameterId="HvacChTempMax" parameterDefId="HvacTempMaxDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="tempMax" sequenceNum="40" numericValue="24.0"/>
+    <moqui.math.Parameter parameterId="HvacChRhSetpoint" parameterDefId="HvacRhSetpointDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhSetpoint" sequenceNum="50" numericValue="45.0"/>
+    <moqui.math.Parameter parameterId="HvacChRhHysteresis" parameterDefId="HvacRhHysteresisDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhHysteresis" sequenceNum="60" numericValue="5.0"/>
+    <moqui.math.Parameter parameterId="HvacChRhMin" parameterDefId="HvacRhMinDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhMin" sequenceNum="70" numericValue="25.0"/>
+    <moqui.math.Parameter parameterId="HvacChRhMax" parameterDefId="HvacRhMaxDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhMax" sequenceNum="80" numericValue="60.0"/>
+    <moqui.math.Parameter parameterId="HvacChDuctTempMin" parameterDefId="HvacDuctTempMinDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="ductTempMin" sequenceNum="90" numericValue="20.0"/>
+    <moqui.math.Parameter parameterId="HvacChDuctTempMax" parameterDefId="HvacDuctTempMaxDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="ductTempMax" sequenceNum="100" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacChDuctRhMax" parameterDefId="HvacDuctRhMaxDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="ductRhMax" sequenceNum="110" numericValue="80.0"/>
+    <moqui.math.Parameter parameterId="HvacChRhControlEnabled" parameterDefId="HvacRhControlEnabledDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhControlEnabled" sequenceNum="120" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacChRhControlOnly" parameterDefId="HvacRhControlOnlyDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="rhControlOnly" sequenceNum="130" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacChAirMixingEnabled" parameterDefId="HvacAirMixingEnabledDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="airMixingEnabled" sequenceNum="140" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacChAirDistributionEnabled" parameterDefId="HvacAirDistributionEnabledDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="airDistributionEnabled" sequenceNum="150" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacChSetPointTimeHigh" parameterDefId="HvacSetPointTimeHighDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="setPointTimeHigh" sequenceNum="160" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChSetPointTimeLow" parameterDefId="HvacSetPointTimeLowDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="setPointTimeLow" sequenceNum="170" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChEstimatedRuntime" parameterDefId="HvacEstimatedRuntimeDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="estimatedRuntime" sequenceNum="180" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChMinRuntime" parameterDefId="HvacMinRuntimeDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="minRuntime" sequenceNum="190" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChEstimatedBreakDuration" parameterDefId="HvacEstimatedBreakDurationDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="estimatedBreakDuration" sequenceNum="200" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChMinBreakDuration" parameterDefId="HvacMinBreakDurationDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="minBreakDuration" sequenceNum="210" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChProcessEstimatedDuration" parameterDefId="HvacProcessEstimatedDurationDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="processEstimatedDuration" sequenceNum="220" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChProcessMinDuration" parameterDefId="HvacProcessMinDurationDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="processMinDuration" sequenceNum="230" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChProcessRemainingDuration" parameterDefId="HvacProcessRemainingDurationDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="processRemainingDuration" sequenceNum="240" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacChAhuFanSpeedSetpoint" parameterDefId="HvacAhuFanSpeedSetpointDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="ahuFanSpeedSetpoint" sequenceNum="250" numericValue="50.0"/>
+    <moqui.math.Parameter parameterId="HvacChAirFlowRef" parameterDefId="HvacAirFlowRefDef" deviceConfigId="HvacCivilHeatingConfig" parameterAlias="airFlowRef" sequenceNum="260" numericValue="50.0"/>
+
+    <!-- Dehumidifying process values. -->
+    <moqui.math.Parameter parameterId="HvacCdTempSetpoint" parameterDefId="HvacTempSetpointDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="tempSetpoint" sequenceNum="10" numericValue="22.0"/>
+    <moqui.math.Parameter parameterId="HvacCdTempHysteresis" parameterDefId="HvacTempHysteresisDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="tempHysteresis" sequenceNum="20" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCdTempMin" parameterDefId="HvacTempMinDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="tempMin" sequenceNum="30" numericValue="18.0"/>
+    <moqui.math.Parameter parameterId="HvacCdTempMax" parameterDefId="HvacTempMaxDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="tempMax" sequenceNum="40" numericValue="26.0"/>
+    <moqui.math.Parameter parameterId="HvacCdRhSetpoint" parameterDefId="HvacRhSetpointDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhSetpoint" sequenceNum="50" numericValue="55.0"/>
+    <moqui.math.Parameter parameterId="HvacCdRhHysteresis" parameterDefId="HvacRhHysteresisDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhHysteresis" sequenceNum="60" numericValue="3.0"/>
+    <moqui.math.Parameter parameterId="HvacCdRhMin" parameterDefId="HvacRhMinDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhMin" sequenceNum="70" numericValue="40.0"/>
+    <moqui.math.Parameter parameterId="HvacCdRhMax" parameterDefId="HvacRhMaxDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhMax" sequenceNum="80" numericValue="75.0"/>
+    <moqui.math.Parameter parameterId="HvacCdDuctTempMin" parameterDefId="HvacDuctTempMinDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="ductTempMin" sequenceNum="90" numericValue="10.0"/>
+    <moqui.math.Parameter parameterId="HvacCdDuctTempMax" parameterDefId="HvacDuctTempMaxDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="ductTempMax" sequenceNum="100" numericValue="40.0"/>
+    <moqui.math.Parameter parameterId="HvacCdDuctRhMax" parameterDefId="HvacDuctRhMaxDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="ductRhMax" sequenceNum="110" numericValue="95.0"/>
+    <moqui.math.Parameter parameterId="HvacCdRhControlEnabled" parameterDefId="HvacRhControlEnabledDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhControlEnabled" sequenceNum="120" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCdRhControlOnly" parameterDefId="HvacRhControlOnlyDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="rhControlOnly" sequenceNum="130" symbolicValue="TRUE"/>
+    <moqui.math.Parameter parameterId="HvacCdAirMixingEnabled" parameterDefId="HvacAirMixingEnabledDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="airMixingEnabled" sequenceNum="140" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCdAirDistributionEnabled" parameterDefId="HvacAirDistributionEnabledDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="airDistributionEnabled" sequenceNum="150" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCdSetPointTimeHigh" parameterDefId="HvacSetPointTimeHighDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="setPointTimeHigh" sequenceNum="160" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCdSetPointTimeLow" parameterDefId="HvacSetPointTimeLowDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="setPointTimeLow" sequenceNum="170" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCdEstimatedRuntime" parameterDefId="HvacEstimatedRuntimeDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="estimatedRuntime" sequenceNum="180" numericValue="7200"/>
+    <moqui.math.Parameter parameterId="HvacCdMinRuntime" parameterDefId="HvacMinRuntimeDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="minRuntime" sequenceNum="190" numericValue="3600"/>
+    <moqui.math.Parameter parameterId="HvacCdEstimatedBreakDuration" parameterDefId="HvacEstimatedBreakDurationDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="estimatedBreakDuration" sequenceNum="200" numericValue="3600"/>
+    <moqui.math.Parameter parameterId="HvacCdMinBreakDuration" parameterDefId="HvacMinBreakDurationDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="minBreakDuration" sequenceNum="210" numericValue="1800"/>
+    <moqui.math.Parameter parameterId="HvacCdProcessEstimatedDuration" parameterDefId="HvacProcessEstimatedDurationDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="processEstimatedDuration" sequenceNum="220" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCdProcessMinDuration" parameterDefId="HvacProcessMinDurationDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="processMinDuration" sequenceNum="230" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCdProcessRemainingDuration" parameterDefId="HvacProcessRemainingDurationDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="processRemainingDuration" sequenceNum="240" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCdAhuFanSpeedSetpoint" parameterDefId="HvacAhuFanSpeedSetpointDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="ahuFanSpeedSetpoint" sequenceNum="250" numericValue="60.0"/>
+    <moqui.math.Parameter parameterId="HvacCdAirFlowRef" parameterDefId="HvacAirFlowRefDef" deviceConfigId="HvacCivilDehumidifyingConfig" parameterAlias="airFlowRef" sequenceNum="260" numericValue="50.0"/>
+
+    <!-- Reusable atomic configs matching the existing txtrecipe values. -->
+    <moqui.device.DeviceConfig deviceConfigId="HvacColdPumpConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcActuator" configName="ColdGlycolPump"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacHotPumpConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcActuator" configName="HotGlycolPump"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacAirFlowConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcActuator" configName="AirFlow"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacColdValveConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcProcessPID" configName="ColdGlycolValve"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacHotValveConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcProcessPID" configName="HotGlycolValve"/>
+    <moqui.device.DeviceConfig deviceConfigId="HvacAhuFanConfig" configTypeEnumId="DctApplyConfig" purposeEnumId="DcpRunConfig" deviceTypeEnumId="DtMoquiPlcProcessPID" configName="AhuFan"/>
+
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpId" parameterDefId="HvacActuatorIdDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="actuatorId" sequenceNum="10" symbolicValue="'coldGlycolPump'"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpName" parameterDefId="HvacActuatorNameDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="actuatorName" sequenceNum="20" symbolicValue="'ChilledWaterPump'"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpActuation" parameterDefId="HvacActuationTypeDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="actuationType" sequenceNum="30" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpFeedback" parameterDefId="HvacFeedbackTypeDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="feedbackType" sequenceNum="40" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpModel" parameterDefId="HvacActuatorModelDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="model" sequenceNum="50" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpEnableTime" parameterDefId="HvacEnableTimeDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="enableTime" sequenceNum="60" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpDisableTime" parameterDefId="HvacDisableTimeDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="disableTime" sequenceNum="70" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdPumpDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceConfigId="HvacColdPumpConfig" parameterAlias="diagnosticsEnable" sequenceNum="80" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpId" parameterDefId="HvacActuatorIdDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="actuatorId" sequenceNum="10" symbolicValue="'hotGlycolPump'"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpName" parameterDefId="HvacActuatorNameDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="actuatorName" sequenceNum="20" symbolicValue="'HotWaterPump'"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpActuation" parameterDefId="HvacActuationTypeDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="actuationType" sequenceNum="30" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpFeedback" parameterDefId="HvacFeedbackTypeDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="feedbackType" sequenceNum="40" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpModel" parameterDefId="HvacActuatorModelDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="model" sequenceNum="50" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpEnableTime" parameterDefId="HvacEnableTimeDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="enableTime" sequenceNum="60" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpDisableTime" parameterDefId="HvacDisableTimeDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="disableTime" sequenceNum="70" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotPumpDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceConfigId="HvacHotPumpConfig" parameterAlias="diagnosticsEnable" sequenceNum="80" symbolicValue="FALSE"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowId" parameterDefId="HvacActuatorIdDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="actuatorId" sequenceNum="10" symbolicValue="'airFlow'"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowName" parameterDefId="HvacActuatorNameDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="actuatorName" sequenceNum="20" symbolicValue="'AirFlow'"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowActuation" parameterDefId="HvacActuationTypeDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="actuationType" sequenceNum="30" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowFeedback" parameterDefId="HvacFeedbackTypeDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="feedbackType" sequenceNum="40" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowModel" parameterDefId="HvacActuatorModelDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="model" sequenceNum="50" numericValue="0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowEnableTime" parameterDefId="HvacEnableTimeDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="enableTime" sequenceNum="60" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowDisableTime" parameterDefId="HvacDisableTimeDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="disableTime" sequenceNum="70" numericValue="1"/>
+    <moqui.math.Parameter parameterId="HvacCfgAirFlowDiagnostics" parameterDefId="HvacDiagnosticsEnableDef" deviceConfigId="HvacAirFlowConfig" parameterAlias="diagnosticsEnable" sequenceNum="80" symbolicValue="FALSE"/>
+
+    <!-- All three PID configs use the existing mantle-hvac commissioning defaults. -->
+    <moqui.math.Parameter parameterId="HvacCfgColdValveId" parameterDefId="HvacControlSystemIdDef" deviceConfigId="HvacColdValveConfig" parameterAlias="controlSystemId" sequenceNum="10" symbolicValue="'coldGlycolValve'"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveName" parameterDefId="HvacControlSystemNameDef" deviceConfigId="HvacColdValveConfig" parameterAlias="controlSystemName" sequenceNum="20" symbolicValue="'ChilledWaterValve'"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveId" parameterDefId="HvacControlSystemIdDef" deviceConfigId="HvacHotValveConfig" parameterAlias="controlSystemId" sequenceNum="10" symbolicValue="'hotGlycolValve'"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveName" parameterDefId="HvacControlSystemNameDef" deviceConfigId="HvacHotValveConfig" parameterAlias="controlSystemName" sequenceNum="20" symbolicValue="'HotWaterValve'"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanId" parameterDefId="HvacControlSystemIdDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="controlSystemId" sequenceNum="10" symbolicValue="'ahuFan'"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanName" parameterDefId="HvacControlSystemNameDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="controlSystemName" sequenceNum="20" symbolicValue="'AhuFan'"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveGain" parameterDefId="HvacPidGainDef" deviceConfigId="HvacColdValveConfig" parameterAlias="gain" sequenceNum="30" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveGain" parameterDefId="HvacPidGainDef" deviceConfigId="HvacHotValveConfig" parameterAlias="gain" sequenceNum="30" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanGain" parameterDefId="HvacPidGainDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="gain" sequenceNum="30" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceConfigId="HvacColdValveConfig" parameterAlias="integrationTime" sequenceNum="40" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceConfigId="HvacHotValveConfig" parameterAlias="integrationTime" sequenceNum="40" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanIntegration" parameterDefId="HvacPidIntegrationTimeDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="integrationTime" sequenceNum="40" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceConfigId="HvacColdValveConfig" parameterAlias="derivationTime" sequenceNum="50" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceConfigId="HvacHotValveConfig" parameterAlias="derivationTime" sequenceNum="50" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanDerivation" parameterDefId="HvacPidDerivationTimeDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="derivationTime" sequenceNum="50" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceConfigId="HvacColdValveConfig" parameterAlias="setpointMin" sequenceNum="60" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceConfigId="HvacHotValveConfig" parameterAlias="setpointMin" sequenceNum="60" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanSetpointMin" parameterDefId="HvacPidSetpointMinDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="setpointMin" sequenceNum="60" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceConfigId="HvacColdValveConfig" parameterAlias="setpointMax" sequenceNum="70" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceConfigId="HvacHotValveConfig" parameterAlias="setpointMax" sequenceNum="70" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanSetpointMax" parameterDefId="HvacPidSetpointMaxDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="setpointMax" sequenceNum="70" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveOutputMin" parameterDefId="HvacPidOutputMinDef" deviceConfigId="HvacColdValveConfig" parameterAlias="outputMin" sequenceNum="80" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveOutputMin" parameterDefId="HvacPidOutputMinDef" deviceConfigId="HvacHotValveConfig" parameterAlias="outputMin" sequenceNum="80" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanOutputMin" parameterDefId="HvacPidOutputMinDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="outputMin" sequenceNum="80" numericValue="0.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceConfigId="HvacColdValveConfig" parameterAlias="outputMax" sequenceNum="90" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceConfigId="HvacHotValveConfig" parameterAlias="outputMax" sequenceNum="90" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanOutputMax" parameterDefId="HvacPidOutputMaxDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="outputMax" sequenceNum="90" numericValue="100.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceConfigId="HvacColdValveConfig" parameterAlias="atSetpointHysteresis" sequenceNum="100" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceConfigId="HvacHotValveConfig" parameterAlias="atSetpointHysteresis" sequenceNum="100" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanHysteresis" parameterDefId="HvacPidAtSetpointHysteresisDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="atSetpointHysteresis" sequenceNum="100" numericValue="1.0"/>
+    <moqui.math.Parameter parameterId="HvacCfgColdValveTickTime" parameterDefId="HvacPidTickTimeDef" deviceConfigId="HvacColdValveConfig" parameterAlias="tickTime" sequenceNum="110" symbolicValue="T#100ms"/>
+    <moqui.math.Parameter parameterId="HvacCfgHotValveTickTime" parameterDefId="HvacPidTickTimeDef" deviceConfigId="HvacHotValveConfig" parameterAlias="tickTime" sequenceNum="110" symbolicValue="T#100ms"/>
+    <moqui.math.Parameter parameterId="HvacCfgAhuFanTickTime" parameterDefId="HvacPidTickTimeDef" deviceConfigId="HvacAhuFanConfig" parameterAlias="tickTime" sequenceNum="110" symbolicValue="T#100ms"/>
+
+    <!-- Recipe composition: every phase exports one deterministic combined txtrecipe. -->
+    <moqui.device.DeviceRuleSet deviceRuleSetId="HvacCivilCoolingRules" purposeEnumId="DrspConfiguration" deviceId="HVAC_DEMO" sequenceNum="10" ruleSetName="CivilCooling.HvacDeviceConfig"/>
+    <moqui.device.DeviceRuleSet deviceRuleSetId="HvacCivilHeatingRules" purposeEnumId="DrspConfiguration" deviceId="HVAC_DEMO" sequenceNum="20" ruleSetName="CivilHeating.HvacDeviceConfig"/>
+    <moqui.device.DeviceRuleSet deviceRuleSetId="HvacCivilDehumidifyingRules" purposeEnumId="DrspConfiguration" deviceId="HVAC_DEMO" sequenceNum="30" ruleSetName="CivilDehumidifying.HvacDeviceConfig"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcProcessRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacCivilCoolingConfig" deviceId="HVAC_DEMO_PLC" ruleName="Apply cooling process values" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChProcessRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacCivilHeatingConfig" deviceId="HVAC_DEMO_PLC" ruleName="Apply heating process values" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdProcessRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacCivilDehumidifyingConfig" deviceId="HVAC_DEMO_PLC" ruleName="Apply dehumidifying process values" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcColdPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacColdPumpConfig" deviceId="HVAC_COLD_GLYCOL_PUMP" ruleName="Configure cold pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcHotPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacHotPumpConfig" deviceId="HVAC_HOT_GLYCOL_PUMP" ruleName="Configure hot pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcAirFlowRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacAirFlowConfig" deviceId="HVAC_AIR_FLOW" ruleName="Configure air flow" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcColdValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacColdValveConfig" deviceId="HVAC_COLD_GLYCOL_VALVE" ruleName="Configure cold valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcHotValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacHotValveConfig" deviceId="HVAC_HOT_GLYCOL_VALVE" ruleName="Configure hot valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCcAhuFanRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilCoolingRules" deviceConfigId="HvacAhuFanConfig" deviceId="HVAC_AHU_FAN" ruleName="Configure AHU fan" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChColdPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacColdPumpConfig" deviceId="HVAC_COLD_GLYCOL_PUMP" ruleName="Configure cold pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChHotPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacHotPumpConfig" deviceId="HVAC_HOT_GLYCOL_PUMP" ruleName="Configure hot pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChAirFlowRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacAirFlowConfig" deviceId="HVAC_AIR_FLOW" ruleName="Configure air flow" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChColdValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacColdValveConfig" deviceId="HVAC_COLD_GLYCOL_VALVE" ruleName="Configure cold valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChHotValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacHotValveConfig" deviceId="HVAC_HOT_GLYCOL_VALVE" ruleName="Configure hot valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacChAhuFanRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilHeatingRules" deviceConfigId="HvacAhuFanConfig" deviceId="HVAC_AHU_FAN" ruleName="Configure AHU fan" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdColdPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacColdPumpConfig" deviceId="HVAC_COLD_GLYCOL_PUMP" ruleName="Configure cold pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdHotPumpRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacHotPumpConfig" deviceId="HVAC_HOT_GLYCOL_PUMP" ruleName="Configure hot pump" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdAirFlowRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacAirFlowConfig" deviceId="HVAC_AIR_FLOW" ruleName="Configure air flow" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdColdValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacColdValveConfig" deviceId="HVAC_COLD_GLYCOL_VALVE" ruleName="Configure cold valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdHotValveRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacHotValveConfig" deviceId="HVAC_HOT_GLYCOL_VALVE" ruleName="Configure hot valve" priority="10" isEnabled="Y" runDevice="N"/>
+    <moqui.device.DeviceRule deviceRuleId="HvacCdAhuFanRule" ruleTypeEnumId="DrtApplyConfig" deviceRuleSetId="HvacCivilDehumidifyingRules" deviceConfigId="HvacAhuFanConfig" deviceId="HVAC_AHU_FAN" ruleName="Configure AHU fan" priority="10" isEnabled="Y" runDevice="N"/>
+
+    <!-- Gateway-facing demo requests. Credentials remain deployment-owned. -->
+    <moqui.device.DeviceRequest requestName="HVAC_DEMO_LiveParametersWrite" deviceId="HVAC_DEMO_PLC" requestTypeEnumId="DrtWrite" purposeEnumId="DrpControl" routerEnumId="DrrMoquiDeviceGateway" brokerUri="paho-mqtt5:?brokerUrl=tcp://localhost:1883&amp;qos=1" query="moqui/hvac-demo/parameters/live" onlyChangedParameters="Y"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacTempSetpoint" requestItemName="tempSetpoint" sequenceNum="10" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacTempHysteresis" requestItemName="tempHysteresis" sequenceNum="20" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacTempMin" requestItemName="tempMin" sequenceNum="30" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacTempMax" requestItemName="tempMax" sequenceNum="40" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacRhSetpoint" requestItemName="rhSetpoint" sequenceNum="50" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacRhHysteresis" requestItemName="rhHysteresis" sequenceNum="60" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacRhMin" requestItemName="rhMin" sequenceNum="70" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacRhMax" requestItemName="rhMax" sequenceNum="80" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacDuctTempMin" requestItemName="ductTempMin" sequenceNum="90" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacDuctTempMax" requestItemName="ductTempMax" sequenceNum="100" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacDuctRhMax" requestItemName="ductRhMax" sequenceNum="110" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacSetPointTimeHigh" requestItemName="setPointTimeHigh" sequenceNum="120" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacSetPointTimeLow" requestItemName="setPointTimeLow" sequenceNum="130" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacProcessEstimatedDuration" requestItemName="processEstimatedDuration" sequenceNum="140" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacProcessMinDuration" requestItemName="processMinDuration" sequenceNum="150" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacProcessRemainingDuration" requestItemName="processRemainingDuration" sequenceNum="160" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacEstimatedRuntime" requestItemName="estimatedRuntime" sequenceNum="170" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacMinRuntime" requestItemName="minRuntime" sequenceNum="180" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacEstimatedBreakDuration" requestItemName="estimatedBreakDuration" sequenceNum="190" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequestItem requestName="HVAC_DEMO_LiveParametersWrite" parameterId="HvacMinBreakDuration" requestItemName="minBreakDuration" sequenceNum="200" query="moqui/hvac-demo/parameters/live"/>
+    <moqui.device.DeviceRequest requestName="run#HVAC_DEMO_LiveParametersWrite" deviceId="HVAC_DEMO_GATEWAY" requestTypeEnumId="DrtWrite" purposeEnumId="DrpControl" routerEnumId="DrrMoquiDeviceGateway" runServiceName="moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest" brokerUri="http://localhost:8081" query="HVAC_DEMO_LiveParametersWrite" onlyChangedParameters="N"/>
+    <moqui.device.DeviceRequest requestName="run#HVAC_DEMO_ExportRecipe" deviceId="HVAC_DEMO_GATEWAY" requestTypeEnumId="DrtConfigWrite" purposeEnumId="DrpCommissioning" routerEnumId="DrrMoquiDeviceGateway" runServiceName="moqui.device.DeviceGatewayServices.export#DeviceConfig" brokerUri="http://localhost:8081" query="HvacCivilCoolingRules" onlyChangedParameters="N"/>
+
+</entity-facade-xml>

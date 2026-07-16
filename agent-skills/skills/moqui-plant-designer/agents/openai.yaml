@@ -1,3 +1,7 @@
-display_name: Moqui Plant Designer
-short_description: Orchestrate the full saved-session workflow for Moqui seed data, PLC code, and recipe generation.
-default_prompt: Initialize or resume a saved plant-design session, keep Moqui authoritative for model topology and PLC code authoritative for orchestration semantics, and coordinate the workflow in order.
+interface:
+  display_name: "Moqui Plant Designer"
+  short_description: "Resume model-driven industrial design sessions"
+  default_prompt: "Use $moqui-plant-designer to initialize or resume the active plant-design session and coordinate its approved seed, PLC and gateway workflow."
+
+policy:
+  allow_implicit_invocation: true

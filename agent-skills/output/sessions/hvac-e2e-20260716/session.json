@@ -1,0 +1,75 @@
+{
+  "sessionId": "hvac-e2e-20260716",
+  "projectName": "Moqui Industrial HVAC end-to-end validation",
+  "customerName": "",
+  "createdAt": "2026-07-16T09:57:09Z",
+  "updatedAt": "2026-07-16T12:00:00Z",
+  "status": "in_progress",
+  "currentStage": "end_to_end_validation",
+  "currentSkill": "moqui-plant-designer",
+  "workflowOrder": [
+    "moqui-device-seed-designer",
+    "moqui-plc-designer",
+    "moqui-device-config-designer",
+    "moqui-plc-config"
+  ],
+  "paths": {
+    "surveyAnswersDir": "survey-answers",
+    "seedDataDir": "seed-data",
+    "generatedPlcDir": "generated-plc",
+    "generatedRecipesDir": "generated-recipes",
+    "generatedConfigDir": "generated-config",
+    "attachmentsDir": "attachments",
+    "notesDir": "notes",
+    "exportsDir": "exports",
+    "architectureContext": "notes/project-architecture-context.md"
+  },
+  "artifacts": {
+    "seedData": [
+      "seed-data/HVACDemoData.xml"
+    ],
+    "generatedPlc": [],
+    "generatedRecipes": [],
+    "generatedConfig": [],
+    "attachments": [],
+    "surveys": []
+  },
+  "steps": {
+    "system_decomposition": {
+      "status": "completed",
+      "notes": "Base mantle-hvac model captured in the reviewed HVAC seed snapshot."
+    },
+    "device_classification": {
+      "status": "completed",
+      "notes": "HVAC leaf devices and logical models are materialized in HVACDemoData.xml."
+    },
+    "signal_catalog": {
+      "status": "completed",
+      "notes": "Base HVAC signal and parameter catalog is present in the seed and PLC component."
+    },
+    "sampling_design": {
+      "status": "completed",
+      "notes": "Existing mantle-hvac task and timing design retained; physical task configuration remains developer-owned."
+    },
+    "seed_design": {
+      "status": "completed",
+      "notes": "Official HVACDemoData.xml loaded and verified in PostgreSQL: 16 HVAC devices, 33 PLC parameters and 20 live request items."
+    },
+    "plc_design": {
+      "status": "completed",
+      "notes": "Standard base HVAC PLC source and 20-field outbound mapper exist. Defrost/dripping was cancelled."
+    },
+    "config_recipe": {
+      "status": "completed",
+      "notes": "Base recipes and live-parameter whitelist modeled; inbound mapper remains intentionally Application-specific."
+    },
+    "plc_framework_config": {
+      "status": "in_progress",
+      "notes": "E2E validation pending on CODESYS Control Win. Last screenshot was still in SIMULAT mode and production MQTT program calls were not visibly scheduled."
+    },
+    "end_to_end_validation": {
+      "status": "in_progress",
+      "notes": "Artemis, PostgreSQL, gateway REST and 20-message MQTT publication passed. CODESYS receive, PLC publish and PLC log persistence remain pending."
+    }
+  }
+}

@@ -89,6 +89,23 @@ class SkillRegressionTest(unittest.TestCase):
             session["paths"]["architectureContext"],
         )
 
+    def test_repository_bootstrap_routes_active_session_and_component_knowledge(self) -> None:
+        agents_text = (REPO_ROOT.parent / "AGENTS.md").read_text(encoding="utf-8")
+        current_session = (REPO_ROOT / "CURRENT_SESSION").read_text(encoding="utf-8").strip()
+        self.assertTrue(current_session)
+        self.assertTrue((REPO_ROOT / "output" / "sessions" / current_session / "session.json").is_file())
+        self.assertIn("agent-skills/CURRENT_SESSION", agents_text)
+        for reference_name in (
+            "moqui-math-knowledge.md",
+            "moqui-device-knowledge.md",
+            "moqui-device-gateway-knowledge.md",
+            "moqui-plc-knowledge.md",
+        ):
+            self.assertIn(reference_name, agents_text)
+            self.assertTrue(
+                (REPO_ROOT / "skills" / "moqui-plant-designer" / "references" / reference_name).is_file()
+            )
+
     def test_gateway_valid_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("gateway-valid")
 

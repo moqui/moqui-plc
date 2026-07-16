@@ -12,9 +12,12 @@ session state on disk, and knows where the workflow should resume after an
 interruption.
 
 Before any project action, read `references/project-architecture.md` completely.
-When resuming a saved session, also read
-`notes/project-architecture-context.md`; it is the session's portable snapshot
-of the architecture contract.
+When operating in the `moqui-plc` checkout, follow the repository `AGENTS.md`
+bootstrap and resolve `agent-skills/CURRENT_SESSION` before asking the user to
+repeat project context. When resuming a saved session, also read its
+`session.json`, `notes/project-architecture-context.md` and
+`notes/resume-summary.md`. Load `notes/conversation-history.md` only when the
+reason for a historical decision is relevant.
 
 ## Source Of Truth
 
@@ -77,6 +80,10 @@ The workspace should be:
 - git-friendly
 - copyable between computers
 
+Commit the state, surveys, reviewed seed and durable notes when the user wants a
+portable handoff. Do not commit ZIP exports, secrets, database contents, runtime
+logs or source snapshots that merely duplicate tracked repository files.
+
 ## Workflow
 
 1. Initialize or open a session workspace.
@@ -130,6 +137,10 @@ The workspace should be:
 ## References
 
 - `references/project-architecture.md` (mandatory at session start/resume)
+- `references/moqui-math-knowledge.md` (load for mathematical models/parameters)
+- `references/moqui-device-knowledge.md` (load for device seed/entities/services)
+- `references/moqui-device-gateway-knowledge.md` (load for transport/runtime work)
+- `references/moqui-plc-knowledge.md` (load for deterministic PLC/code generation)
 - `references/session-layout.md`
 - `references/session-schema.json`
 - `references/workflow-order.md`

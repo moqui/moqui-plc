@@ -45,3 +45,9 @@ iot-firmware/sdkconfig
 iot-firmware/sdkconfig.old
 iot-firmware/sdkconfig.defaults.esp32
 iot-firmware/dependencies.lock
+
+# Portable sessions: version state and knowledge, keep bulky/sensitive exports local
+agent-skills/output/sessions/*/exports/*.zip
+agent-skills/output/sessions/*/exports/*.manifest.json
+agent-skills/output/sessions/*/generated-plc/source-snapshots/
+agent-skills/output/sessions/*/generated-config/source-snapshots/
