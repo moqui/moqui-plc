@@ -14,6 +14,7 @@
 
 8. `moqui-plc-config`
 9. `moqui-device-gateway-startup`
+10. `moqui-hvac-demo-guide` only for the supported local HVAC demonstration
 
 ## Rationale
 
@@ -26,6 +27,7 @@ Everything else should depend on that:
 - recipes
 - framework configuration notes
 - gateway startup guidance
+- checkpoint-based local HVAC demo verification, when applicable
 - transport projection validation (`gateway` and/or `plc4j`)
 
 This avoids drift between:

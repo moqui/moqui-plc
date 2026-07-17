@@ -101,7 +101,7 @@ application layer.
 
 The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any
 compliant IDE (CODESYS, Siemens AX, etc.). The repository also includes
-`moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
+`codesys/moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
 for demos, manual validation, and automated test execution.
 
 
@@ -139,7 +139,7 @@ The directory `iec61131/moqui` is the canonical source of truth for the PLC fram
 
 The current platform paths are:
 
-- `moqui.projectarchive`: the complete CODESYS project archive used for development,
+- `codesys/moqui.projectarchive`: the complete CODESYS project archive used for development,
   validation, demonstrations, and test execution;
 - `iec61131/moqui`: the clean IEC 61131-3 export used as the vendor-neutral reference;
 - `simatic-ax`: the SIMATIC AX port, generated from the canonical IEC tree with a
@@ -152,7 +152,7 @@ Changes are made first in the CODESYS project or canonical IEC source, then
 propagated to the platform-specific ports. Files that depend on vendor libraries
 or runtime-specific behavior may be preserved as explicit manual overrides.
 
-`moqui.projectarchive` is a permanent repository artifact and must always be kept.
+`codesys/moqui.projectarchive` is a permanent repository artifact and must always be kept.
 It is not a generated build directory and must not be removed during repository
 cleanup.
 
@@ -195,7 +195,7 @@ To open the CODESYS project for testing, you need to download the CODESYS IDE fr
 
 ## Demo Project Archive
 
-Use `moqui.projectarchive` to open the full demo project directly in CODESYS.
+Use `codesys/moqui.projectarchive` to open the full demo project directly in CODESYS.
 This archive is the recommended starting point when you want to explore the
 framework behavior, run the included test suites, or prepare a local demo
 environment without importing the source tree manually.
@@ -205,6 +205,13 @@ environment without importing the source tree manually.
 This walkthrough starts the complete local HVAC data path on one Windows
 workstation. It is deliberately detailed so that a first-time user can verify
 the architecture without configuring physical I/O or a real PLC.
+
+For an interactive version, invoke
+`$moqui-hvac-demo-guide` from [`agent-skills`](agent-skills/README.md#agent-guided-end-to-end-hvac-demo).
+The agent checks prerequisites, resumes existing healthy services and requires
+evidence at each checkpoint. The written procedure below remains the canonical
+command reference. This guidance is for the local developer demo only, not for
+production deployment.
 
 The demo exercises two independent directions:
 
@@ -396,7 +403,7 @@ database.
 
 ### 6. Configure and run CODESYS
 
-Open `moqui-plc/moqui.projectarchive`. For MQTT testing, use the local
+Open `moqui-plc/codesys/moqui.projectarchive`. For MQTT testing, use the local
 `CODESYS Control Win V3 - x64` runtime rather than IDE Simulation: Simulation
 may execute the PLC logic without creating the external MQTT socket.
 

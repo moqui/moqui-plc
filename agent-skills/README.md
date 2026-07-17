@@ -48,6 +48,7 @@ Current top-level skills:
 - `skills/moqui-device-seed-designer`
 - `skills/moqui-plc-config`
 - `skills/moqui-device-gateway-startup`
+- `skills/moqui-hvac-demo-guide`
 
 Internal/support skill:
 
@@ -90,6 +91,36 @@ Relevant references currently moved here:
 
 The structure intentionally follows a lightweight skill-repository model similar to
 `schue/moqui-skill`, rather than a deployable Moqui runtime component.
+
+## Agent-guided end-to-end HVAC demo
+
+`skills/moqui-hvac-demo-guide` turns the canonical `End-to-End HVAC demo`
+walkthrough in the root [`README.md`](../README.md#end-to-end-hvac-demo) into an
+interactive, checkpoint-based procedure for an inexperienced developer. Invoke
+it explicitly with a request such as:
+
+```text
+Use $moqui-hvac-demo-guide to start the local HVAC demo and verify both MQTT directions.
+```
+
+The agent first performs non-mutating prerequisite checks, explains the modeled
+HVAC data and then guides the user through PostgreSQL, the Moqui seed, ActiveMQ
+Artemis, the Mosquitto observer, `moqui-device-gateway`, and CODESYS Control Win.
+It does not mark the demo complete until it has evidence that:
+
+- the gateway-to-PLC live-parameter path updates `DeviceFacade`; and
+- the PLC-to-gateway path persists a `ParameterLogger` event with the exact
+  modeled parameter identity.
+
+CODESYS GUI actions remain under user control. The agent can resume from an
+already running checkpoint and uses the README as the canonical command source,
+so the written walkthrough remains usable without an agent.
+
+This skill is intentionally limited to a local developer demonstration. It is
+not a production deployment guide and does not cover Kubernetes, Docker Swarm,
+TLS, secret management, backups, network segmentation, redundancy, safety, or
+FAT/SAT commissioning. Future production deployment skills should be separate
+and platform-specific rather than extensions of this demo workflow.
 
 At this stage the repository should be considered a semilavorato/base framework
 to be specialized by each development team rather than a finished turnkey

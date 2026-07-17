@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moqui HVAC Demo Guide"
+  short_description: "Guide and verify the local HVAC MQTT demo"
+  default_prompt: "Use $moqui-hvac-demo-guide to guide me through the local HVAC end-to-end demo and verify each checkpoint."

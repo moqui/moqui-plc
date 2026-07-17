@@ -46,12 +46,17 @@ Optional branch:
 
 4. `moqui-plc-config`
 5. `moqui-device-gateway-startup`
+6. `moqui-hvac-demo-guide` for the repository's supported local HVAC demo only
 
 Use `moqui-plc-config` only when the deployment also needs guided compilation
 of `MoquiConf.gvl`.
 
 Use `moqui-device-gateway-startup` when the reviewed seed should also drive a
 guided first startup of `moqui-device-gateway`.
+
+Use `moqui-hvac-demo-guide` only to execute and verify the supported local HVAC
+demonstration. Do not generalize it into a production deployment or use it as a
+commissioning workflow for another plant model.
 
 ## Session Workspace
 
@@ -102,8 +107,9 @@ logs or source snapshots that merely duplicate tracked repository files.
 13. Run `moqui-device-config-designer` only against the same seed XML and generated PLC artifacts.
 14. Optionally run `moqui-plc-config` for `MoquiConf.gvl`.
 15. Optionally run `moqui-device-gateway-startup` to generate a first-startup checklist from the reviewed seed.
-16. Update `session.json` after each step so the workflow can resume cleanly.
-17. Export the session as a zip when the user wants backup, transfer, or archival.
+16. For the repository HVAC demo only, optionally run `moqui-hvac-demo-guide` to prove both MQTT directions.
+17. Update `session.json` after each step so the workflow can resume cleanly.
+18. Export the session as a zip when the user wants backup, transfer, or archival.
 
 ## Required Behavior
 
