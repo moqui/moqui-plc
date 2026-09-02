@@ -1,0 +1,47 @@
+# System decomposition survey
+project_scope:
+  machine_name: "IsothermalReactorControl"
+  process_description: >-
+    Isothermal CSTR (van de Vusse series-parallel reaction scheme, desired
+    product B) from "Process Control: Modeling, Design, and Simulation",
+    Module 5 (Isothermal Chemical Reactor). Constant-volume reactor;
+    concentration of product B (C_B) is controlled by manipulating the
+    dilution rate (F/V, feed flow over reactor volume). Feed concentration
+    of reactant A is an unmodeled disturbance input. Only the classical
+    feedback control design (sections M5.1-M5.4) is implemented; the
+    Internal Model Control section (M5.5) is explicitly out of scope per
+    developer instruction.
+  control_objective: >-
+    Hold C_B at its steady-state operating setpoint (1.117 gmol/liter,
+    developer-confirmed "Case 1" operating point with positive process
+    gain) by manipulating dilution rate F/V, rejecting feed-concentration
+    disturbances, while respecting the manipulated-variable excursion limit
+    (F/V must stay within +/-0.4 min^-1 of the nominal steady-state value)
+    from the source material.
+  safety_scope: >-
+    A single supervisory alarm protects against operating near the
+    input-multiplicity "peak" (the theoretical maximum achievable C_B,
+    ~1.266 gmol/liter, is a zero-process-gain point per the source material
+    and cannot be effectively controlled). No functional safety scope;
+    ESD/safety PLC/safety relays are out of framework per the architecture
+    boundary.
+  notes: >-
+    Units: concentration in gmol/liter, dilution rate in min^-1 (not a 0-100%
+    valve signal -- developer-confirmed choice, matches the source
+    material's units and its explicit manipulated-variable excursion
+    constraint directly via ProcessPid outputMin/outputMax). Single CODESYS
+    Application, single PLC, standalone. PID tuning uses the source
+    material's own stated nominal starting case for this loop (gain=1,
+    integral time=2 minutes) as a documented starting point requiring field
+    tuning, not a derived/validated design.
+system_tree:
+  - subsystem_id: "REACTOR_CTRL"
+    parent_subsystem_id: ""
+    subsystem_name: "Reactor Concentration Control"
+    subsystem_type: "ProcessControlLoop"
+    control_responsibility: >-
+      Concentration control of the CSTR via dilution rate (F/V): a single
+      continuous ProcessPid loop with a supervisory FSM (Standby/Run/Fault)
+      and an input-multiplicity protective alarm.
+    candidate_fsm: "IsothermalReactorControlFlow (Standby/Run/Fault)"
+    notes: "Root and only subsystem; contains one ProcessPid device (REACTOR_CC)."

@@ -1,0 +1,121 @@
+{attribute 'no_assign'}
+(* 
+ * NOTE: In general, the Main component implements the control logic of automated industrial systems (Finite State Machine - FSM)
+ * using hierarchical control architectures. It separates control policies from implementation mechanisms,
+ * and diagnostic mechanisms from failure/error reaction and system reset policies.
+ *
+ * MainRuleEngine generates transition requests; Main consumes them.
+ * DeviceManager orchestrates the individual device FBs.
+ *
+ * Call order in the PLC task:
+ *   InputSignalUpdate -> Main -> DeviceManager -> OutputSignalUpdate
+ *)
+FUNCTION_BLOCK Main
+VAR_EXTERNAL
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode;
+    enable : BOOL;
+END_VAR
+VAR_OUTPUT
+    done : BOOL;
+    error : BOOL;
+END_VAR
+VAR CONSTANT
+    componentName : STRING := 'main';
+END_VAR
+VAR
+    (* Logger facade *)
+    logger : LoggerFacade;
+    (* FSM transition logic *)
+    ruleEngine : MainRuleEngine;
+    (* No subsystem controllers. *)
+    (* HAL manager *)
+    deviceManager : DeviceManager;
+END_VAR
+
+(* Logger facade init *)
+logger.enable := TRUE; logger.loggerName := componentName;
+
+IF NOT enable THEN RETURN; END_IF;
+
+(* Init: device setup and configuration *)
+IF (operationType = OperatingMode.Init) THEN
+    logger(message := 'Setup and configuration of all devices.', level := LogLevel.DEBUG);
+    (* The static device configuration parameters are mapped directly by the device config manager (recipe manager),
+     * while only the dynamic parameters are mapped below in the standby status.
+     *)
+    (* Reset signal manager *)
+    dev.signalMgmt(operationType := SignalMgmtOperatingMode.Reset, loggerName := componentName);
+    dev.status := MainStatus.Standby;
+    dev.lastStatus := MainStatus.Standby;
+    done := FALSE;
+    ; (* no additional project-specific initialization *)
+    (* No subsystem controller initialization. *)
+ELSE
+    (* FSM transition-condition rule engine *)
+    logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
+    ruleEngine(operationType := operationType);
+END_IF;
+
+dev.lastStatus := dev.status;
+
+(* Optional fault-state override; emitted only when the reviewed FSM defines one. *)
+IF dev.faultRequest THEN dev.status := MainStatus.Fault; END_IF;
+
+(* Main FSM - Output function + State-update function *)
+logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
+CASE dev.status OF
+    MainStatus.Standby :
+        logger(message := 'Standby.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        dev.concentrationControllerEnable := FALSE;
+        dev.concentrationControllerOutputFreezeEnable := FALSE; (* No freeze needed while the PID is disabled. *)
+        dev.concentrationControllerDilutionRateOut := 0.0; (* Safe default: no feed dilution while stopped (developer-confirmed). *)
+
+        (* FSM status update function *)
+        IF dev.runRequest THEN
+            (* Start -> Run *)
+            dev.status := MainStatus.Run;
+        END_IF;
+
+    MainStatus.Run :
+        logger(message := 'Run.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        dev.concentrationControllerEnable := TRUE;
+        dev.concentrationControllerOutputFreezeEnable := FALSE; (* Normal automatic modulation. *)
+        dev.concentrationControllerDilutionRateOut := dev.concentrationControllerOutputActual; (* PID drives the dilution rate directly. *)
+
+        (* FSM status update function *)
+        IF dev.standbyRequest THEN
+            (* Stop -> Standby *)
+            dev.status := MainStatus.Standby;
+        END_IF;
+
+    MainStatus.Fault :
+        logger(message := 'Fault.', level := LogLevel.DEBUG);
+
+        (* FSM output function *)
+        dev.concentrationControllerEnable := TRUE;
+        dev.concentrationControllerOutputFreezeEnable := TRUE; (* Keep PID alive but freeze output at the last computed value (native ProcessPid outputFreezeEnable input, no external latch needed). Unlike tank-level-control-001, no directional forcing: the source material gives no basis for a "safer" direction near the input-multiplicity zero-gain point, so freezing plus manual operator acknowledgement (see main-rule-engine-survey.yaml) is the defensible choice. *)
+        dev.concentrationControllerDilutionRateOut := dev.concentrationControllerOutputActual; (* Same expression as Run; freezing happens inside the PID FB itself via outputFreezeEnable. *)
+
+        (* FSM status update function *)
+        IF dev.standbyRequest THEN
+            (* ManualRecover -> Standby *)
+            dev.status := MainStatus.Standby;
+        END_IF;
+END_CASE;
+
+(* Subsystem FSMs execute after the supervisor output/state update and before the HAL. *)
+(* No subsystem controller calls. *)
+
+done := FALSE;
+
+(* Device orchestration (HAL) *)
+logger(message := 'Update devices.', level := LogLevel.DEBUG);
+deviceManager(operationType := operationType);

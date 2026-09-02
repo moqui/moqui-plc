@@ -1,0 +1,16 @@
+# Sampling domains survey
+domains:
+  - domain_id: "FAST"
+    controller_device_id: "ISOTHERMALREACTORCONTROL_PLC"
+    domain_name: "Fast Control Loop"
+    natural_frequency_class: "fast"
+    scan_time: "T#10MS"
+    transport_scope: "gateway"
+    transport_projection: "gateway"
+    devices: ["REACTOR_CC"]
+    signals: []
+    notes: >-
+      10ms PID/task cycle, same convention as tank-level-control-001. No
+      gateway-cyclic monitoring DeviceRequest generated for V1; live values
+      are covered by the live-parameter write channel (setpoint only) and
+      the standard framework LoggerFacade/LogDispatcher path.

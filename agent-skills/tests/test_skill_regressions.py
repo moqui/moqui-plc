@@ -1004,6 +1004,66 @@ signals:
         )
         self.assertIn("Generated PLC cross-check passed.", cross_check_out)
 
+    def test_manual_fault_ack_fixture_declares_and_wires_faultAck(self) -> None:
+        # Regression fixture for a fourth bug found while building a second
+        # real ProcessPid Application (an isothermal-reactor concentration
+        # loop with a manual fault-acknowledge recovery policy instead of
+        # auto-clear): render_device_catalog_from_seed.py's
+        # render_state_request_declarations() reserved "resetRequest" as its
+        # extra state-request field, while render_statusflow_templates.py's
+        # same-named function (used to build MainRuleEngine.pou/Main.pou via
+        # render_codesys_applications.py) reserved "faultAck" instead. Any
+        # FSM survey using dev.faultAck for a manual-recovery transition
+        # generated a MainRuleEngine.pou assigning a DeviceFacade field that
+        # DeviceFacade.dut never declared.
+        session_dir = self.init_session_from_fixture("manual-fault-ack-valid")
+
+        run_ok(
+            PYTHON,
+            "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
+            str(session_dir),
+        )
+        run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/render_codesys_applications.py",
+            "--session-dir",
+            str(session_dir),
+            "--no-copy-framework",
+        )
+
+        component_root = (
+            session_dir / "generated-plc" / "codesys-applications" / "IsothermalReactorControl"
+            / "runtime" / "component" / "main"
+        )
+        facade_text = (
+            component_root / "src" / "main" / "org" / "moqui" / "device" / "DeviceFacade.dut"
+        ).read_text(encoding="utf-8")
+        rule_engine_text = (
+            component_root / "src" / "main" / "mantle" / "main" / "MainRuleEngine.pou"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("faultAck : BOOL;", facade_text)
+        self.assertIn("dev.faultAck AND", rule_engine_text)
+        self.assertIn("dev.faultAck := FALSE;", rule_engine_text)
+
+        cross_check_out = run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/validate_generated_plc_against_seed.py",
+            str(session_dir / "seed-data" / "survey-derived-seed.xml"),
+            "--device-id",
+            "DG_REACTOR_CTRL",
+            "--allow-logical-root",
+            "--component-root",
+            str(component_root),
+        )
+        self.assertIn("Generated PLC cross-check passed.", cross_check_out)
+
 
 if __name__ == "__main__":
     unittest.main()

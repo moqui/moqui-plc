@@ -1,0 +1,13 @@
+# Gateway topology survey
+gateways:
+  - gateway_device_id: "REACTOR_GATEWAY"
+    gateway_name: "Isothermal Reactor Control Gateway"
+    gateway_device_type_enum_id: "DtEdgeGateway"
+    gateway_member_purpose_enum_id: "DgmpEdgeGateway"
+    rest_base_uri: "http://localhost:8081"
+    rest_timeout_seconds: 30
+    scoped_subsystem_ids: ["REACTOR_CTRL"]
+    scoped_device_ids: []
+    notes: >-
+      Local dev moqui-device-gateway REST base URI placeholder, same
+      convention as tank-level-control-001. Replace before commissioning.

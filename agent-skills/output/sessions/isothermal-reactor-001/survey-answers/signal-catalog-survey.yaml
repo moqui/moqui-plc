@@ -1,0 +1,83 @@
+# Signal catalog survey
+naming_rules:
+  positive_logic_default: true
+  input_prefix: ""
+  output_prefix: ""
+  analog_suffix: ""
+  digital_suffix: ""
+  notes: >-
+    All signals below belong to the single elementary device REACTOR_CC
+    (physical_device_name "concentrationController"); every field flattens
+    as dev.concentrationController<Name>. The Application/StatusFlow root
+    must be the DeviceGroup, which cannot own signal-catalog rows directly
+    (see moqui-plc-designer's Gotchas on field flattening).
+signals:
+  - signal_id: "CONCENTRATION_B_IN"
+    device_id: "REACTOR_CC"
+    signal_name: "concentrationBIn"
+    direction: "input"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Online composition analyzer for C_B, engineering units gmol/liter, instrument span assumed 0-2 gmol/liter"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Physical AI from the C_B composition analyzer. Renders as
+      dev.concentrationControllerConcentrationBIn. Wired manually in
+      InputSignalUpdate (field-engineer-owned). The same manual step also
+      copies this raw value into dev.concentrationControllerFeedback (the
+      ProcessPid instance's feedback input) since that wiring is genuinely
+      site-specific. Instrument span (0-2 gmol/liter) is an assumption
+      giving headroom above the ~1.266 gmol/liter theoretical maximum;
+      confirm against the real analyzer's calibrated range.
+  - signal_id: "DILUTION_RATE_OUT"
+    device_id: "REACTOR_CC"
+    signal_name: "dilutionRateOut"
+    direction: "output"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Main FSM output function per state: Run/Fault = PID output (min^-1); Standby = 0"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Physical AO representing the dilution rate command (F/V, min^-1), not
+      a 0-100% valve signal (developer-confirmed choice, matches the source
+      material's units and its manipulated-variable excursion constraint
+      directly). Renders as dev.concentrationControllerDilutionRateOut.
+      Converting this to an actual feed valve/pump command using the known
+      constant reactor volume V is manual, in OutputSignalUpdate.
+  - signal_id: "RUN_CMD"
+    device_id: "REACTOR_CC"
+    signal_name: "runCmd"
+    direction: "input"
+    signal_kind: "digital"
+    iec_type: "BOOL"
+    source_rule: "Maintained Start/Stop selector or HMI command bit (site-specific, wired manually)"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Drives the Standby<->Run transition (TRUE=Run requested, FALSE=Standby
+      requested), same convention as tank-level-control-001. Renders as
+      dev.concentrationControllerRunCmd.
+  - signal_id: "CONCENTRATION_B_HIGH_THRESHOLD"
+    device_id: "REACTOR_CC"
+    signal_name: "concentrationBHighThreshold"
+    direction: "input"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Recipe/DeviceConfig-configured supervisory threshold, not physical I/O (see device-config-survey.yaml and references/free-standing-parameters.md)"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Not a physical signal; same documented tooling-gap workaround as
+      tank-level-control-001's threshold parameters (see
+      moqui-device-seed-designer/references/free-standing-parameters.md).
+      Renders as dev.concentrationControllerConcentrationBHighThreshold.
+      Developer-confirmed tuned value 1.2 gmol/liter, set via
+      device-config-survey.yaml, a safety margin below the source
+      material's ~1.266 gmol/liter theoretical maximum (the input-multiplicity
+      zero-process-gain point).

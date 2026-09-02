@@ -1,0 +1,71 @@
+{attribute 'no_assign'}
+(* 
+ * MainRuleEngine - transition-condition logic for the supervisor FSM.
+ *
+ * Responsibilities:
+ *   1. Reset transition requests to safe defaults.
+ *   2. Run the signal management engine (fault / alarm / warning detection).
+ *   3. Compute boolean predicates from sensor feedback and recipe setpoints.
+ *   4. Implement the per-state transition-condition rules.
+ *
+ * Requests are reset every scan. A state persists until a reviewed transition
+ * condition asserts the corresponding request consumed by Main.
+ *)
+FUNCTION_BLOCK MainRuleEngine
+VAR_EXTERNAL
+    clks : Clocks;
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+VAR_OUTPUT
+    error : BOOL;
+END_VAR
+VAR
+    (* Device diagnostics *)
+    deviceDiags : DeviceDiagnostics;
+END_VAR
+
+(* Reset transition requests to FALSE before evaluating transition policy. *)
+dev.faultRequest := FALSE;
+dev.standbyRequest := FALSE;
+dev.runRequest := FALSE;
+
+deviceDiags(operationType := operationType, error => error);
+
+(* Compute sensor predicates *)
+dev.concentrationApproachingMax := dev.concentrationControllerConcentrationBIn >= dev.concentrationControllerConcentrationBHighThreshold; (* Approaching the input-multiplicity zero-process-gain point (threshold confirmed by developer: 1.2 gmol/liter, margin below the source material's ~1.266 gmol/liter theoretical maximum). *)
+dev.concentrationSensorFault := (dev.concentrationControllerConcentrationBIn < -0.04) OR (dev.concentrationControllerConcentrationBIn > 2.04); (* Analyzer broken-wire/out-of-range detection, 2% margin around an assumed 0-2 gmol/liter instrument span. Generic-fault trigger, same convention as tank-level-control-001's LT sensor check. *)
+
+(* Fault gate *)
+IF dev.concentrationApproachingMax OR dev.concentrationSensorFault THEN
+    dev.faultRequest := TRUE;
+    RETURN;
+END_IF;
+
+(* Transition-condition rule engine. Conditions are evaluated by precedence. *)
+CASE dev.status OF
+    MainStatus.Standby :
+        (* State Standby transition conditions *)
+        IF dev.concentrationControllerRunCmd THEN
+            (* Start -> Run *)
+            dev.runRequest := TRUE;
+        END_IF;
+
+    MainStatus.Run :
+        (* State Run transition conditions *)
+        IF NOT dev.concentrationControllerRunCmd THEN
+            (* Stop -> Standby *)
+            dev.standbyRequest := TRUE;
+        END_IF;
+
+    MainStatus.Fault :
+        (* State Fault transition conditions *)
+        IF dev.faultAck AND NOT dev.concentrationApproachingMax AND NOT dev.concentrationSensorFault THEN
+            (* ManualRecover -> Standby *)
+            dev.standbyRequest := TRUE; (* Same-flow transition; explicit because faultAck must also be cleared here. *)
+            dev.faultAck := FALSE; (* Consume the operator's acknowledgement so a future fault requires a new one. *)
+        END_IF;
+END_CASE;

@@ -1,0 +1,23 @@
+{
+  "applicationId": "IsothermalReactorControl",
+  "topLevelSubsystemId": "REACTOR_CTRL",
+  "componentName": "main",
+  "frameworkPath": "framework",
+  "runtimeComponentPath": "runtime/component/main",
+  "fsmInvocationOrder": [
+    {
+      "fsmId": "REACTOR_MAIN",
+      "statusFlowId": "IsothermalReactorControlFlow",
+      "ownerSubsystemId": "REACTOR_CTRL",
+      "callSequence": 0,
+      "controller": "src/main/mantle/main/Main.pou"
+    }
+  ],
+  "developerActions": [
+    "Create the CODESYS Application object with this unique applicationId.",
+    "Import the dedicated framework and runtime component sources into this Application only.",
+    "Create and configure control and communication tasks for this Application.",
+    "Create the Application device tree manually and verify every connected device.",
+    "When several Applications share one PLC device, select the Application responsible for device I/O in PLC Settings."
+  ]
+}

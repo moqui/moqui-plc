@@ -1,0 +1,8 @@
+# Live parameters survey
+live_parameters:
+  - parameter_id: "P_REACTOR_CC_SETPOINT"
+    mqtt_key: "cbSetpoint"
+    notes: >-
+      Concentration-of-B setpoint (C_B, gmol/liter), the only parameter
+      approved for live MQTT write in V1, per developer choice. PID tuning
+      and the high-concentration threshold remain recipe/config-only.

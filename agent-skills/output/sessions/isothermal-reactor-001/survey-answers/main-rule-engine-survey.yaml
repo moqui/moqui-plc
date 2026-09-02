@@ -1,0 +1,68 @@
+# Code-owned predicates and transition policy; never persisted as executable DB expressions.
+fsms:
+  - fsm_id: "REACTOR_MAIN"
+    status_flow_id: "IsothermalReactorControlFlow"
+    predicates:
+      - name: "concentrationApproachingMax"
+        expression: "dev.concentrationControllerConcentrationBIn >= dev.concentrationControllerConcentrationBHighThreshold"
+        comment: >-
+          Approaching the input-multiplicity zero-process-gain point
+          (threshold confirmed by developer: 1.2 gmol/liter, margin below
+          the source material's ~1.266 gmol/liter theoretical maximum).
+      - name: "concentrationSensorFault"
+        expression: "(dev.concentrationControllerConcentrationBIn < -0.04) OR (dev.concentrationControllerConcentrationBIn > 2.04)"
+        comment: >-
+          Analyzer broken-wire/out-of-range detection, 2% margin around an
+          assumed 0-2 gmol/liter instrument span. Generic-fault trigger,
+          same convention as tank-level-control-001's LT sensor check.
+    transitions:
+      - from_status_id: "IrcStandby"
+        to_status_id: "IrcRun"
+        to_fsm_id: ""
+        name: "Start"
+        condition: "dev.concentrationControllerRunCmd"
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: "Same-flow transition; auto-generates dev.runRequest := TRUE."
+      - from_status_id: "IrcRun"
+        to_status_id: "IrcStandby"
+        to_fsm_id: ""
+        name: "Stop"
+        condition: "NOT dev.concentrationControllerRunCmd"
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: "Same-flow transition; auto-generates dev.standbyRequest := TRUE."
+      - from_status_id: "IrcFault"
+        to_status_id: "IrcStandby"
+        to_fsm_id: ""
+        name: "ManualRecover"
+        condition: "dev.faultAck AND NOT dev.concentrationApproachingMax AND NOT dev.concentrationSensorFault"
+        consume_condition: ""
+        request_assignments:
+          - target: "standbyRequest"
+            expression: "TRUE"
+            comment: "Same-flow transition; explicit because faultAck must also be cleared here."
+          - target: "faultAck"
+            expression: "FALSE"
+            comment: "Consume the operator's acknowledgement so a future fault requires a new one."
+        apply_assignments: []
+        precedence: 1
+        notes: >-
+          Developer-confirmed policy: unlike tank-level-control-001's
+          auto-clear, recovery here requires both an explicit operator
+          acknowledgement (dev.faultAck, pulsed by a manual pushbutton/HMI
+          command wired in InputSignalUpdate) and the fault condition
+          itself clearing. Requiring both prevents acknowledging into a
+          state that the global fault gate would immediately re-assert.
+    global_overrides:
+      fault_condition: "dev.concentrationApproachingMax OR dev.concentrationSensorFault"
+      reset_condition: "NOT (dev.concentrationApproachingMax OR dev.concentrationSensorFault)"
+      notes: >-
+        reset_condition is documentation-only in the current generator (not
+        consumed by render_statusflow_templates.py); the actual recovery
+        gate is the explicit ManualRecover transition above, which requires
+        both dev.faultAck and the condition already being clear.

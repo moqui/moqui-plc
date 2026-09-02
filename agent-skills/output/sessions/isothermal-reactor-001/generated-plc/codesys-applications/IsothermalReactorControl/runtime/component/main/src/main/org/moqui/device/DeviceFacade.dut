@@ -1,0 +1,82 @@
+(* 
+ * DeviceFacade implementation for managing devices and logical parameters.
+ *
+ * Naming rules:
+ *   deviceName + parameterName or parameterName -> logical signal
+ *   deviceName + parameterName or parameterName + Min/Max -> limits
+ *
+ * All digital signals (boolean) are active-high (positive logic).
+ * All durations are expressed in seconds TUnit.
+ *)
+TYPE DeviceFacade : STRUCT
+    (* ========== Analog process/environment parameters ========== *)
+    concentrationControllerConcentrationBHighThreshold : REAL; (* Not a physical signal; same documented tooling-gap workaround as tank-level-control-001's threshold parameters (see moqui-device-seed-designer/references/free-standing-parameters.md). Renders as dev.concentrationControllerConcentrationBHighThreshold. Developer-confirmed tuned value 1.2 gmol/liter, set via device-config-survey.yaml, a safety margin below the source material's ~1.266 gmol/liter theoretical maximum (the input-multiplicity zero-process-gain point). *)
+    concentrationControllerConcentrationBIn : REAL; (* Physical AI from the C_B composition analyzer. Renders as dev.concentrationControllerConcentrationBIn. Wired manually in InputSignalUpdate (field-engineer-owned). The same manual step also copies this raw value into dev.concentrationControllerFeedback (the ProcessPid instance's feedback input) since that wiring is genuinely site-specific. Instrument span (0-2 gmol/liter) is an assumption giving headroom above the ~1.266 gmol/liter theoretical maximum; confirm against the real analyzer's calibrated range. *)
+    concentrationControllerDilutionRateOut : REAL; (* Physical AO representing the dilution rate command (F/V, min^-1), not a 0-100% valve signal (developer-confirmed choice, matches the source material's units and its manipulated-variable excursion constraint directly). Renders as dev.concentrationControllerDilutionRateOut. Converting this to an actual feed valve/pump command using the known constant reactor volume V is manual, in OutputSignalUpdate. *)
+    concentrationControllerFeedback : REAL; (* Process feedback. *)
+    concentrationControllerOutputActual : REAL; (* Current controller output. *)
+    concentrationControllerSetpoint : REAL; (* Process setpoint. *)
+
+    (* ========== Digital process/environment parameters ========== *)
+    concentrationControllerActive : BOOL; (* PID active status. *)
+    concentrationControllerAtSetpoint : BOOL; (* At setpoint status. *)
+    concentrationControllerSleepMode : BOOL; (* Sleep mode active. *)
+    concentrationControllerRunCmd : BOOL; (* Drives the Standby<->Run transition (TRUE=Run requested, FALSE=Standby requested), same convention as tank-level-control-001. Renders as dev.concentrationControllerRunCmd. *)
+
+    (* Boolean predicates - computed each scan by MainRuleEngine *)
+    concentrationApproachingMax : BOOL; (* Approaching the input-multiplicity zero-process-gain point (threshold confirmed by developer: 1.2 gmol/liter, margin below the source material's ~1.266 gmol/liter theoretical maximum). *)
+    concentrationSensorFault : BOOL; (* Analyzer broken-wire/out-of-range detection, 2% margin around an assumed 0-2 gmol/liter instrument span. Generic-fault trigger, same convention as tank-level-control-001's LT sensor check. *)
+
+    (* Operating-mode flags and process timing (mapped from recipe). *)
+    (* Project-specific process fields are declared through explicit seed parameters. *)
+
+    (* Main FSM state and transition request/acknowledge commands *)
+    status : MainStatus := MainStatus.Standby;
+    lastStatus : MainStatus := MainStatus.Standby;
+    standbyRequest : BOOL;
+    runRequest : BOOL;
+    faultRequest : BOOL;
+    faultAck : BOOL;
+
+    (* Subsystem FSM states exposed for diagnostics and upstream publication. *)
+    (* No subsystem FSMs. *)
+
+    (* ========== Atomic devices ========== *)
+    concentrationControllerEnable : BOOL;
+    concentrationControllerReset : BOOL;
+    concentrationControllerControlSystemId : STRING;
+    concentrationControllerControlSystemName : STRING;
+    concentrationControllerFeedbackMultiplier : REAL := 1.0;
+    concentrationControllerAtSetpointHysteresis : REAL;
+    concentrationControllerSetpointMultiplier : REAL := 1.0;
+    concentrationControllerSetpointMin : REAL;
+    concentrationControllerSetpointMax : REAL;
+    concentrationControllerSetpointRampType : RampType := RampType.Linear;
+    concentrationControllerSetpointIncreaseTime : TIME := T#0s;
+    concentrationControllerSetpointDecreaseTime : TIME := T#0s;
+    concentrationControllerSetpointFreezeEnable : BOOL;
+    concentrationControllerDeviationInversion : BOOL;
+    concentrationControllerOutputMin : REAL;
+    concentrationControllerOutputMax : REAL;
+    concentrationControllerOutputFreezeEnable : BOOL;
+    concentrationControllerGain : REAL := 1.0;
+    concentrationControllerIntegrationTime : REAL := 0.0;
+    concentrationControllerDerivationTime : REAL := 0.0;
+    concentrationControllerOffset : REAL := 0.0;
+    concentrationControllerDeadbandRange : REAL;
+    concentrationControllerDeadbandDelay : TIME;
+    concentrationControllerSleepLevel : REAL := 0.0;
+    concentrationControllerSleepDelay : TIME;
+    concentrationControllerWakeupDeviation : REAL;
+    concentrationControllerWakeupDelay : TIME;
+    concentrationControllerSleepBoostLevel : REAL := 0.0;
+    concentrationControllerSleepBoostTime : TIME;
+    concentrationControllerTrackingMode : BOOL := FALSE;
+    concentrationControllerTrackingRef : REAL := 0.0;
+    concentrationControllerTickTime : TIME := T#10ms;
+    concentrationControllerSetpointEpsilon : REAL := 0.000001;
+    concentrationController : ProcessPid;
+
+    (* Signal management - centralised fault / alarm / warning engine *)
+    signalMgmt : SignalMgmt;
+END_STRUCT END_TYPE

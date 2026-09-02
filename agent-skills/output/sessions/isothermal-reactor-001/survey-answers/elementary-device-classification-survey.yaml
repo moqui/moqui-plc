@@ -1,0 +1,25 @@
+# Elementary device classification survey
+devices:
+  - device_id: "REACTOR_CC"
+    parent_subsystem_id: "REACTOR_CTRL"
+    physical_device_name: "concentrationController"
+    logical_model: "ProcessPid"
+    actuation_feedback_class: "SA-SAFD"
+    control_method_enum_id: "DcmPIDControl"
+    positive_logic_required: true
+    expected_actuation_signals: ["dilutionRateOut"]
+    expected_feedback_signals: ["concentrationBIn"]
+    notes: >-
+      Continuous concentration-control loop for the isothermal CSTR
+      (dilution rate F/V manipulated to hold C_B at setpoint). Same
+      actuation_feedback_class caveat as the tank-level-control-001 session:
+      the enumeration is actuator-oriented and doesn't cleanly describe a
+      continuous modulating loop; control_method_enum_id is set explicitly
+      to DcmPIDControl. Standby forces outputActual to 0 (native ProcessPid
+      behavior on enable=FALSE, meaning dilution rate/feed stops). Fault
+      (generic sensor fault or approaching the input-multiplicity peak)
+      keeps enable=TRUE with outputFreezeEnable=TRUE (hold last value) --
+      unlike the tank example, no directional forcing is applied on fault,
+      because the source material gives no basis for which direction is
+      "safer" near the zero-process-gain point; freezing and requiring a
+      manual operator acknowledgement is the more defensible choice here.

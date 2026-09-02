@@ -1,0 +1,10 @@
+# One PhysicalDevice per hardware CPU or CODESYS Application.
+machine_device_id: "DG_REACTOR_CTRL"
+controllers:
+  - controller_device_id: "ISOTHERMALREACTORCONTROL_PLC"
+    controller_name: "Isothermal Reactor Control PLC"
+    controller_kind: "codesys_application"
+    application_id: "IsothermalReactorControl"
+    device_type_enum_id: "DtPLC"
+    parent_device_id: "DG_REACTOR_CTRL"
+    notes: "Single CODESYS Application, single PLC, standalone."

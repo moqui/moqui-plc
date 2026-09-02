@@ -490,7 +490,15 @@ def render_state_request_declarations(items: list[StatusItemDef], request_map: d
         field_name = request_field_name(item, request_map)
         if field_name not in names:
             names.append(field_name)
-    for extra in ("faultRequest", "resetRequest"):
+    # Must match render_statusflow_templates.py's reserved extras exactly:
+    # render_codesys_applications.py assembles DeviceFacade.dut from this
+    # function (via a subprocess call to this script) but assembles
+    # MainRuleEngine.pou/Main.pou from render_statusflow_templates.py's
+    # logic. The two lists previously diverged ("resetRequest" here vs.
+    # "faultAck" there), so any FSM survey using a manual fault-acknowledge
+    # transition (dev.faultAck) would generate a MainRuleEngine.pou that
+    # assigns a field DeviceFacade.dut never declares.
+    for extra in ("faultRequest", "faultAck"):
         if extra not in names:
             names.append(extra)
     return "\n".join(f"    {name} : BOOL;" for name in names)

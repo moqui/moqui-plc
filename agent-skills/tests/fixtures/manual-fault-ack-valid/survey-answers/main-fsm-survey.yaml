@@ -1,0 +1,108 @@
+# PLC FSM topology and state-output survey. Flat FSMs are the default.
+fsms:
+  - fsm_id: "REACTOR_MAIN"
+    owner_subsystem_id: "REACTOR_CTRL"
+    component_name: "Main"
+    status_flow_id: "IsothermalReactorControlFlow"
+    status_type_id: "IrcStatus"
+    composition: flat
+    parent_fsm_id: ""
+    application_id: "IsothermalReactorControl"
+    call_sequence: 1
+    enable_condition: "TRUE"
+    completion_condition: ""
+    fault_status_id: "IrcFault"
+    code_generation_approved: true
+    states:
+      - status_id: "IrcStandby"
+        name: "Standby"
+        initial: true
+        sequence: 1
+        activate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: ["REACTOR_CC"]
+          request_flags: []
+        consume_transition_requests: ["runRequest"]
+        output_assignments:
+          - target: "concentrationControllerOutputFreezeEnable"
+            expression: "FALSE"
+            comment: "No freeze needed while the PID is disabled."
+          - target: "concentrationControllerDilutionRateOut"
+            expression: "0.0"
+            comment: "Safe default: no feed dilution while stopped (developer-confirmed)."
+        outputs_reviewed: true
+        notes: >-
+          dev.concentrationControllerEnable is forced FALSE by the
+          deactivate list, relying on ProcessPid's own enable=FALSE
+          behavior (forces outputActual to 0.0), so dilutionRateOut=0.0
+          here is consistent, not redundant.
+      - status_id: "IrcRun"
+        name: "Run"
+        initial: false
+        sequence: 2
+        activate:
+          device_groups: []
+          physical_devices: ["REACTOR_CC"]
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        consume_transition_requests: ["standbyRequest"]
+        output_assignments:
+          - target: "concentrationControllerOutputFreezeEnable"
+            expression: "FALSE"
+            comment: "Normal automatic modulation."
+          - target: "concentrationControllerDilutionRateOut"
+            expression: "dev.concentrationControllerOutputActual"
+            comment: "PID drives the dilution rate directly."
+        outputs_reviewed: true
+        notes: "Confirmed: PID enable=TRUE, output not frozen, dilution rate follows PID output."
+      - status_id: "IrcFault"
+        name: "Fault"
+        initial: false
+        sequence: 3
+        activate:
+          device_groups: []
+          physical_devices: ["REACTOR_CC"]
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        consume_transition_requests: []
+        output_assignments:
+          - target: "concentrationControllerOutputFreezeEnable"
+            expression: "TRUE"
+            comment: >-
+              Keep PID alive but freeze output at the last computed value
+              (native ProcessPid outputFreezeEnable input, no external
+              latch needed). Unlike tank-level-control-001, no directional
+              forcing: the source material gives no basis for a "safer"
+              direction near the input-multiplicity zero-gain point, so
+              freezing plus manual operator acknowledgement (see
+              main-rule-engine-survey.yaml) is the defensible choice.
+          - target: "concentrationControllerDilutionRateOut"
+            expression: "dev.concentrationControllerOutputActual"
+            comment: "Same expression as Run; freezing happens inside the PID FB itself via outputFreezeEnable."
+        outputs_reviewed: true
+        notes: >-
+          Entry into this state happens only via the MainRuleEngine global
+          fault gate (dev.faultRequest), not via a transition consumed
+          here. Exit requires an explicit operator acknowledgement
+          (dev.faultAck) AND the fault condition clearing (see
+          main-rule-engine-survey.yaml) -- developer-confirmed choice,
+          unlike tank-level-control-001's auto-clear policy. dev.faultAck
+          is expected to be pulsed by a manual "Fault Reset" pushbutton or
+          HMI command wired in InputSignalUpdate; not modeled as a
+          signal-catalog row since it is a standard FSM-level field already
+          declared by the generator.
+    notes: >-
+      Fault is reachable from any state via the MainRuleEngine global
+      fault_condition override, not via an explicit per-state transition;
+      only the single Fault -> Standby recovery transition is modeled in
+      the StatusFlow topology.

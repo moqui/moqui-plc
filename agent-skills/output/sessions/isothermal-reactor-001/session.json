@@ -1,9 +1,9 @@
 {
-  "sessionId": "tank-level-control-001",
-  "projectName": "Tank Level Feedback Control (Scenario 1)",
+  "sessionId": "isothermal-reactor-001",
+  "projectName": "Isothermal CSTR Concentration Control (Module 5 classical feedback)",
   "customerName": "",
-  "createdAt": "2026-09-02T13:35:05Z",
-  "updatedAt": "2026-09-02T15:31:49Z",
+  "createdAt": "2026-09-02T15:21:33Z",
+  "updatedAt": "2026-09-02T15:28:19Z",
   "status": "needs_review",
   "currentStage": "plc_design",
   "currentSkill": "moqui-plc-designer",
@@ -29,8 +29,7 @@
       "seed-data\\survey-derived-seed.xml"
     ],
     "generatedPlc": [
-      "generated-plc\\TankLevelControl",
-      "generated-plc\\codesys-applications\\TankLevelControl\\runtime\\component\\main"
+      "generated-plc\\codesys-applications\\IsothermalReactorControl\\runtime\\component\\main"
     ],
     "generatedRecipes": [],
     "generatedConfig": [],

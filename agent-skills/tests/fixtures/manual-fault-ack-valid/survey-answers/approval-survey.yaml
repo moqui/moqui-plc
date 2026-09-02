@@ -1,0 +1,13 @@
+# Human approval provenance. Final artifacts are blocked until approved.
+approvals:
+  device_model_approved: true
+  device_groups_approved: true
+  seed_generation_approved: true
+  hivemind_project_approved: false
+  approved_by: "user (interactive chat session)"
+  approved_at: "2026-09-02T00:00:00Z"
+  notes: >-
+    Approved interactively: manipulated-variable representation (dilution
+    rate F/V directly, min^-1), Fault recovery policy (manual acknowledgement
+    required, not auto-clear), high-concentration protective threshold
+    (1.2 gmol/liter), and MQTT live-parameter whitelist (setpoint only).

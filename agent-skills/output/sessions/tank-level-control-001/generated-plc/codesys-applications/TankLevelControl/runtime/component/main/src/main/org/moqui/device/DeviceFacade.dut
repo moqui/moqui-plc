@@ -38,7 +38,7 @@ TYPE DeviceFacade : STRUCT
     standbyRequest : BOOL;
     runRequest : BOOL;
     faultRequest : BOOL;
-    resetRequest : BOOL;
+    faultAck : BOOL;
 
     (* Subsystem FSM states exposed for diagnostics and upstream publication. *)
     (* No subsystem FSMs. *)

@@ -1,0 +1,27 @@
+# Explicit group model decided by the PLC developer; no groups are inferred.
+device_groups:
+  - group_device_id: "DG_REACTOR_CTRL"
+    group_name: "Reactor Concentration Control"
+    parent_device_id: ""
+    device_type_enum_id: "DgtControl"
+    purpose_enum_id: "DepProcessControl"
+    notes: >-
+      Top-level (and only) subsystem group for this system. Owns the
+      IsothermalReactorControlFlow supervisor FSM (matches subsystem_id
+      REACTOR_CTRL via the DG_ naming convention).
+device_group_members:
+  - group_device_id: "DG_REACTOR_CTRL"
+    member_device_id: "ISOTHERMALREACTORCONTROL_PLC"
+    purpose_enum_id: "DgmpProcessPLC"
+    sequence_num: 10
+    notes: "Controller/PLC membership."
+  - group_device_id: "DG_REACTOR_CTRL"
+    member_device_id: "REACTOR_CC"
+    purpose_enum_id: "DgmpControlledDevice"
+    sequence_num: 20
+    notes: "Concentration controller (ProcessPid) membership."
+  - group_device_id: "DG_REACTOR_CTRL"
+    member_device_id: "REACTOR_GATEWAY"
+    purpose_enum_id: "DgmpEdgeGateway"
+    sequence_num: 30
+    notes: "Edge gateway membership for the MQTT projection."
