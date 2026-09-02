@@ -1,0 +1,77 @@
+{attribute 'no_assign'}
+(* Hardware Abstraction Layer (HAL) orchestrator.
+ *
+ * Drives all physical device FBs once per scan.
+ * Main component sets the enable/disable request flags; DeviceManager wires them
+ * to the individual Actuator / ProcessPid FBs.
+ *
+ * Call order within the PLC task:
+ *   InputSignalUpdate (updates feedback signals from field)
+ *   Main (FSM + DeviceRuleEngine -> sets request flags)
+ *   DeviceManager (this block - drives device FBs)
+ *   OutputSignalUpdate (maps device outputs to physical terminals)
+ *
+ * Handshake note (Actuator FBs):
+ *   enableRequest / disableRequest are VAR_IN_OUT.  The Actuator FB clears
+ *   the flag as its acknowledgment.  Main.pou re-asserts the flag each scan
+ *   from dev.xxxEnableRequest, so the handshake is level-triggered.
+ *
+ * ProcessPid note (ahuFan):
+ *   ProcessPid uses a plain BOOL 'enable' input - no VAR_IN_OUT handshake.
+ *   Setting enable := FALSE ramps the output to 0 and disables the controller.
+ *)
+FUNCTION_BLOCK DeviceManager
+VAR_EXTERNAL
+    clks : Clocks;
+    dev : DeviceFacade;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+
+(* Atomic device orchestration *)
+(* LevelController *)
+dev.levelController(
+    enable := dev.levelControllerEnable,
+    reset := dev.levelControllerReset,
+    controlSystemId := dev.levelControllerControlSystemId,
+    controlSystemName := dev.levelControllerControlSystemName,
+    feedback := dev.levelControllerFeedback,
+    feedbackMultiplier := dev.levelControllerFeedbackMultiplier,
+    setpoint := dev.levelControllerSetpoint,
+    atSetpointHysteresis := dev.levelControllerAtSetpointHysteresis,
+    setpointMultiplier := dev.levelControllerSetpointMultiplier,
+    setpointMin := dev.levelControllerSetpointMin,
+    setpointMax := dev.levelControllerSetpointMax,
+    setpointRampType := dev.levelControllerSetpointRampType,
+    setpointIncreaseTime := dev.levelControllerSetpointIncreaseTime,
+    setpointDecreaseTime := dev.levelControllerSetpointDecreaseTime,
+    setpointFreezeEnable := dev.levelControllerSetpointFreezeEnable,
+    deviationInversion := dev.levelControllerDeviationInversion,
+    outputMin := dev.levelControllerOutputMin,
+    outputMax := dev.levelControllerOutputMax,
+    outputFreezeEnable := dev.levelControllerOutputFreezeEnable,
+    gain := dev.levelControllerGain,
+    integrationTime := dev.levelControllerIntegrationTime,
+    derivationTime := dev.levelControllerDerivationTime,
+    offset := dev.levelControllerOffset,
+    deadbandRange := dev.levelControllerDeadbandRange,
+    deadbandDelay := dev.levelControllerDeadbandDelay,
+    sleepLevel := dev.levelControllerSleepLevel,
+    sleepDelay := dev.levelControllerSleepDelay,
+    wakeupDeviation := dev.levelControllerWakeupDeviation,
+    wakeupDelay := dev.levelControllerWakeupDelay,
+    sleepBoostLevel := dev.levelControllerSleepBoostLevel,
+    sleepBoostTime := dev.levelControllerSleepBoostTime,
+    trackingMode := dev.levelControllerTrackingMode,
+    trackingRef := dev.levelControllerTrackingRef,
+    clock := clks.clock10ms,
+    tickTime := dev.levelControllerTickTime,
+    setpointEpsilon := dev.levelControllerSetpointEpsilon);
+
+(* Questions for the skill/user:
+ * 1. Which atomic devices must be called every scan?
+ * 2. For each Actuator, which enableRequest/disableRequest flags drive it?
+ * 3. For each ProcessPid, which enable/setpoint/feedback signals drive it?
+ * 4. For each Axis or AxisGroup, which command/enable structures are used?
+ *)

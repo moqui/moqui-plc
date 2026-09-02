@@ -2,10 +2,10 @@
 name: moqui-device-gateway-startup
 description: Use when the user wants a guided first startup of moqui-device-gateway from reviewed Moqui seed data. This skill inspects the modeled gateway identity, device groups, and DeviceRequest rows, then emits a step-by-step startup checklist aligned with the gateway README and automated tests.
 license: ../../LICENSE.md
+compatibility: Requires Python 3.14+
 metadata:
   author: moqui-industrial
   version: "1.0"
-  compatibility: Requires Python 3.14+
 ---
 
 # Moqui Device Gateway Startup

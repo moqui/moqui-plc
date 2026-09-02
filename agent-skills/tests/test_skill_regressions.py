@@ -933,6 +933,77 @@ signals:
         )
         self.assertIn("unsupported iec_type LINT", result.stderr)
 
+    def test_process_pid_fixture_has_no_duplicate_fields_and_correct_wiring(self) -> None:
+        # Regression fixture for three bugs found while building a real
+        # ProcessPid-based Application (tank-level-control-001):
+        #   1. render_parameter_declarations() and render_atomic_device_blocks()
+        #      independently declared the same DeviceFacade field, producing
+        #      an invalid IEC 61131-3 STRUCT with duplicate member names.
+        #   2. infer_process_pid_fields() matched by substring
+        #      ("setpoint" in "At Setpoint") and by purpose_enum_id alone,
+        #      wiring DeviceManager.pou's feedback/setpoint arguments to the
+        #      wrong Parameter -- silently, with no compile error.
+        #   3. The ProcessPid clock argument was hardcoded to clock100ms
+        #      regardless of the configured tickTime (10ms here).
+        session_dir = self.init_session_from_fixture("process-pid-valid")
+
+        run_ok(
+            PYTHON,
+            "skills/moqui-plant-designer/scripts/validate_upstream_surveys.py",
+            str(session_dir),
+        )
+        run_ok(
+            PYTHON,
+            "skills/moqui-device-seed-designer/scripts/render_seed_from_surveys.py",
+            "--session-dir",
+            str(session_dir),
+        )
+        run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/render_codesys_applications.py",
+            "--session-dir",
+            str(session_dir),
+            "--no-copy-framework",
+        )
+
+        component_root = (
+            session_dir / "generated-plc" / "codesys-applications" / "TankLevelControl"
+            / "runtime" / "component" / "main"
+        )
+        facade_text = (
+            component_root / "src" / "main" / "org" / "moqui" / "device" / "DeviceFacade.dut"
+        ).read_text(encoding="utf-8")
+        manager_text = (
+            component_root / "src" / "main" / "org" / "moqui" / "device" / "DeviceManager.pou"
+        ).read_text(encoding="utf-8")
+
+        names: list[str] = []
+        for line in facade_text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("(*") or " : " not in stripped:
+                continue
+            names.append(stripped.split(" : ", 1)[0])
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        self.assertEqual([], duplicates, f"DeviceFacade.dut declares duplicate fields: {duplicates}")
+
+        self.assertIn("feedback := dev.levelControllerFeedback,", manager_text)
+        self.assertIn("setpoint := dev.levelControllerSetpoint,", manager_text)
+        self.assertNotIn("feedback := dev.levelControllerLevelHighHighThreshold,", manager_text)
+        self.assertNotIn("setpoint := dev.levelControllerAtSetpoint,", manager_text)
+        self.assertIn("clock := clks.clock10ms,", manager_text)
+
+        cross_check_out = run_ok(
+            PYTHON,
+            "skills/moqui-plc-designer/scripts/validate_generated_plc_against_seed.py",
+            str(session_dir / "seed-data" / "survey-derived-seed.xml"),
+            "--device-id",
+            "DG_TANK_LEVEL_CTRL",
+            "--allow-logical-root",
+            "--component-root",
+            str(component_root),
+        )
+        self.assertIn("Generated PLC cross-check passed.", cross_check_out)
+
 
 if __name__ == "__main__":
     unittest.main()

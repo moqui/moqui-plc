@@ -1,0 +1,103 @@
+# PLC FSM topology and state-output survey. Flat FSMs are the default.
+fsms:
+  - fsm_id: "TANK_LEVEL_MAIN"
+    owner_subsystem_id: "TANK_LEVEL_CTRL"
+    component_name: "Main"
+    status_flow_id: "TankLevelControlFlow"
+    status_type_id: "TlcStatus"
+    composition: flat
+    parent_fsm_id: ""
+    application_id: "TankLevelControl"
+    call_sequence: 1
+    enable_condition: "TRUE"
+    completion_condition: ""
+    fault_status_id: "TlcFault"
+    code_generation_approved: true
+    states:
+      - status_id: "TlcStandby"
+        name: "Standby"
+        initial: true
+        sequence: 1
+        activate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: ["TANK_LC"]
+          request_flags: []
+        consume_transition_requests: ["runRequest"]
+        output_assignments:
+          - target: "levelControllerOutputFreezeEnable"
+            expression: "FALSE"
+            comment: "No freeze needed while the PID is disabled."
+          - target: "levelControllerValveOut"
+            expression: "0.0"
+            comment: "Safe default: valve closed while stopped (confirmed)."
+        outputs_reviewed: true
+        notes: >-
+          dev.levelControllerEnable is forced FALSE by the deactivate list,
+          which relies on ProcessPid's own enable=FALSE behavior (verified in
+          source: it already forces outputActual to 0.0), so valveOut=0.0
+          here is consistent, not redundant/conflicting.
+      - status_id: "TlcRun"
+        name: "Run"
+        initial: false
+        sequence: 2
+        activate:
+          device_groups: []
+          physical_devices: ["TANK_LC"]
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        consume_transition_requests: ["standbyRequest"]
+        output_assignments:
+          - target: "levelControllerOutputFreezeEnable"
+            expression: "FALSE"
+            comment: "Normal automatic modulation."
+          - target: "levelControllerValveOut"
+            expression: "dev.levelControllerOutputActual"
+            comment: "PID drives the valve directly."
+        outputs_reviewed: true
+        notes: "Confirmed: PID enable=TRUE, output not frozen, valve follows PID output."
+      - status_id: "TlcFault"
+        name: "Fault"
+        initial: false
+        sequence: 3
+        activate:
+          device_groups: []
+          physical_devices: ["TANK_LC"]
+          request_flags: []
+        deactivate:
+          device_groups: []
+          physical_devices: []
+          request_flags: []
+        consume_transition_requests: []
+        output_assignments:
+          - target: "levelControllerOutputFreezeEnable"
+            expression: "TRUE"
+            comment: >-
+              Generic-fault recommendation: keep PID alive but freeze output
+              at the last computed value using the native ProcessPid
+              outputFreezeEnable input (no external latch needed).
+          - target: "levelControllerValveOut"
+            expression: "SEL(dev.levelLL, SEL(dev.levelHH, dev.levelControllerOutputActual, 0.0), 100.0)"
+            comment: >-
+              LL forces the valve open (100%, avoid running the tank dry); HH
+              forces the valve closed (0%, avoid overflow); otherwise (e.g.
+              LT sensor out-of-range) hold the frozen PID output. SEL(G,IN0,
+              IN1) returns IN1 when G is TRUE, IN0 otherwise.
+        outputs_reviewed: true
+        notes: >-
+          No manual fault-reset request is consumed here: recovery is
+          auto-clear (see main-rule-engine-survey.yaml transitions), per
+          explicit developer choice. Entry into this state happens only via
+          the MainRuleEngine global fault gate (dev.faultRequest), not via a
+          transition consumed here.
+    notes: >-
+      Fault is reachable from any state via the MainRuleEngine global
+      fault_condition override, not via an explicit per-state transition;
+      only the single Fault -> Standby recovery transition is modeled in the
+      StatusFlow topology.

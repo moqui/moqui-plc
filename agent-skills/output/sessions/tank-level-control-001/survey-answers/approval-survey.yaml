@@ -1,0 +1,16 @@
+# Human approval provenance. Final artifacts are blocked until approved.
+approvals:
+  device_model_approved: true
+  device_groups_approved: true
+  seed_generation_approved: true
+  hivemind_project_approved: false
+  approved_by: "user (interactive chat session)"
+  approved_at: "2026-09-02T00:00:00Z"
+  notes: >-
+    Approved interactively: level units (% of span), FSM policy
+    (Standby/Run/Fault with auto-clear recovery), transport (MQTT via
+    moqui-device-gateway, hsp-only live whitelist), LL/HH alarm thresholds and
+    forced valve actions (LL=5%->open, HH=95%->closed), PID tuning
+    (gain=10, Ti=60s, Td=2s, setpoint=50%), generic-fault trigger (LT
+    out-of-range via outputFreezeEnable hold-last-value), Standby valve
+    default (0%), and single-PLC/single-Application topology.

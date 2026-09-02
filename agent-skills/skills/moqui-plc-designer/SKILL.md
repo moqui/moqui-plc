@@ -222,25 +222,73 @@ The following work remains manual and belongs to the field engineer / PLC engine
 - Which transition has precedence if multiple conditions are true?
 - Ask these as a guided survey, transition by transition, instead of trying to read them from the DB.
 
+## Gotchas
+
+- **Field-name flattening is driven by one comparison you don't see in any
+  template.** `field_name_for_parameter()` (in
+  `scripts/render_device_catalog_from_seed.py`) emits an unprefixed
+  `dev.<parameterName>` only when `Parameter.deviceId == the --device-id you
+  passed`. For every other device it emits `dev.<physicalDeviceName><Field>`
+  (e.g. `dev.levelControllerSetpoint`, not `dev.setpoint`). Decide the exact
+  device names in the seed survey with this in mind — renaming a device later
+  renames every generated field that references it.
+- **The Application/StatusFlow root is (almost) always a DeviceGroup, not a
+  PhysicalDevice.** `append_statusflow_seed()` in
+  `moqui-device-seed-designer/scripts/render_seed_from_surveys.py` attaches
+  `statusFlowId`/`statusId` to the `DeviceGroup` device whose id matches
+  `DG_<subsystem_id>`, never to the controller/PhysicalDevice row. This means
+  the `--device-id` you pass to `render_device_catalog_from_seed.py` and to
+  `validate_generated_plc_against_seed.py` for a single-FSM Application is
+  that `DG_...` id, and both scripts need `--allow-logical-root` for it to
+  validate — without the flag, `validate_seed_graph()` rejects the root for
+  "no matching PhysicalDevice row" even though the seed is correct.
+  `render_codesys_applications.py` already passes this flag for you; only
+  standalone script invocations need to remember it.
+- **A recipe (DeviceConfig/DeviceRuleSet) is not an optional nice-to-have —
+  it is the only way a non-default value reaches runtime.** The base seed
+  Parameter for every atomic-component field is created from the literal
+  template default (`gain=1.0`, `integrationTime=0.0`, `outputMax=100.0`,
+  ...), never from anything in the survey. If a tuned value (a real PID gain,
+  a real setpoint) is not also carried by a `DeviceConfig` applied through a
+  `DeviceRuleSet`/`DeviceRule`, the generated PLC will run with the template
+  default forever, with no warning. Treat the DeviceConfig step as mandatory
+  whenever any atomic-component parameter must differ from its template
+  default — which is virtually always.
+- **`clock := clks.clock10ms` in a generated ProcessPid `DeviceManager.pou`
+  call assumes `tickTime` stays at its 10ms default.** If a recipe overrides
+  `tickTime` to something else, update this line by hand to the matching
+  `clks.clockXXms` symbol — the generator cannot derive it from a runtime
+  recipe value, and a mismatched clock/tickTime pair breaks the internal ramp
+  math silently (no compile error, no runtime error, just a setpoint ramp
+  that doesn't reach the configured rate).
+- **There is no way to create a standalone ParameterDef** that isn't a
+  physical signal and isn't part of an atomic component's fixed field list
+  (for example, a supervisory alarm threshold used only by `MainRuleEngine`).
+  See `moqui-device-seed-designer`'s
+  `references/free-standing-parameters.md` for the accepted workaround and
+  its limits before inventing your own.
+
 ## References
 
-Read these files when generating code or collecting inputs:
+Load on demand, not all at once:
 
-- `references/plc-codegen-templates.md`
-- `references/plc-codegen-templates/MainStatus.template.dut`
-- `references/plc-codegen-templates/IOFacade.template.dut`
-- `references/plc-codegen-templates/DeviceFacade.template.dut`
-- `references/plc-codegen-templates/DeviceManager.template.pou`
-- `references/plc-codegen-templates/DeviceDiagnostics.template.pou`
-- `references/plc-codegen-templates/Main.template.pou`
-- `references/plc-codegen-templates/MainRuleEngine.template.pou`
-- `references/main-rule-engine-input-schema.md`
-- `references/main-rule-engine-input-schema.yaml`
-- `references/codesys-application-architecture.md`
-- `references/device-manager-full-call-signatures.md`
-- `references/moqui-seed-xml-workflow.md`
-- `references/moqui-seed-template.xml`
-- `scripts/README.txt`
+- `references/plc-codegen-templates.md` — read first, before generating any
+  code by hand; it explains the placeholder conventions the templates below share.
+- `references/plc-codegen-templates/*.template.{dut,pou}` — the raw templates
+  themselves; open only the one matching the file you're about to fill
+  (e.g. `Main.template.pou` when writing `Main.pou`), not the whole set.
+- `references/main-rule-engine-input-schema.md` and `.yaml` — read when
+  filling `main-rule-engine-survey.yaml` (predicates/transitions), not before.
+- `references/codesys-application-architecture.md` — read before running
+  `render_codesys_applications.py` for the first time in a session, to
+  understand the per-Application bundle layout it produces.
+- `references/device-manager-full-call-signatures.md` — read when a
+  `DeviceManager` FB call looks incomplete or wrong, to check the real
+  full-signature contract for that FB type against `moqui-plc` source.
+- `references/moqui-seed-xml-workflow.md` and `references/moqui-seed-template.xml`
+  — read when hand-authoring or reviewing seed XML outside the survey scripts.
+- `scripts/README.txt` — read before running any script in `scripts/` for the
+  first time in a session, for the current argument list and examples.
 
 ## Output Style
 

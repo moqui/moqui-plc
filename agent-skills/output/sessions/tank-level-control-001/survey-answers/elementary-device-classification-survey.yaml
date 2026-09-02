@@ -1,0 +1,24 @@
+# Elementary device classification survey
+devices:
+  - device_id: "TANK_LC"
+    parent_subsystem_id: "TANK_LEVEL_CTRL"
+    physical_device_name: "levelController"
+    logical_model: "ProcessPid"
+    actuation_feedback_class: "SA-SAFD"
+    control_method_enum_id: "DcmPIDControl"
+    positive_logic_required: true
+    expected_actuation_signals: ["valveOut"]
+    expected_feedback_signals: ["levelIn"]
+    notes: >-
+      Continuous level-control loop (LT -> LC -> valve/F1) per Seborg/Edgar/
+      Mellichamp Fig. 1-3/1-4 scenario 1. The actuation_feedback_class
+      enumeration (DA-DF/SA-DF/SA-SAFD/SA-SDFD/SA-NO) is actuator-oriented and
+      does not cleanly describe a continuous modulating PID loop; SA-SAFD was
+      picked as the closest analog-feedback fit, but control_method_enum_id is
+      set explicitly to DcmPIDControl so generation does not rely on that
+      mapping. Standby forces outputActual to 0 (native ProcessPid behavior on
+      enable=FALSE). Generic Fault keeps enable=TRUE with
+      outputFreezeEnable=TRUE (native ProcessPid hold-last-value behavior).
+      LL/HH alarms override the physical valveOut signal directly (100%/0%),
+      bypassing the PID output entirely, in the Main FSM output function
+      (code-owned, not part of the ProcessPid FB itself).

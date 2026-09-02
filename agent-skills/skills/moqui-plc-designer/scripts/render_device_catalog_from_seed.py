@@ -503,6 +503,7 @@ def render_parameter_declarations(
     physical_devices: dict[str, PhysicalDeviceRec],
     parameters: dict[str, ParameterRec],
     parameter_defs: dict[str, ParameterDefRec],
+    exclude_field_names: frozenset[str] = frozenset(),
 ) -> tuple[str, str]:
     analog_lines: list[str] = []
     digital_lines: list[str] = []
@@ -521,6 +522,12 @@ def render_parameter_declarations(
             physical = physical_devices.get(row.device_id)
             device_name = physical.device_name if physical and physical.device_name else row.device_id
             field_name = to_lower_camel(device_name) + to_upper_camel(base_name)
+        if field_name in exclude_field_names:
+            # Already declared (with its correct native IEC type and default
+            # value) by render_atomic_device_blocks() for this same FB
+            # instance. Declaring it again here would produce a duplicate
+            # STRUCT member -- invalid IEC 61131-3.
+            continue
         if field_name in seen:
             collisions.setdefault(field_name, []).append(row.parameter_id)
             continue
@@ -708,18 +715,23 @@ def infer_process_pid_fields(
     parameters: dict[str, ParameterRec],
     parameter_defs: dict[str, ParameterDefRec],
 ) -> tuple[str | None, str | None]:
+    # Exact-match only. A substring/purpose-based heuristic here previously
+    # matched the wrong Parameter whenever any other Parameter on the same
+    # device also carried purpose PpFeedback, or had a name that merely
+    # *contains* "feedback"/"setpoint" (e.g. a status field named "At
+    # Setpoint" contains the substring "setpoint" and would win the match
+    # before the real Setpoint field, purely by alphabetical parameter_id
+    # tie-break). The atomic component template always names these fields
+    # exactly "Feedback" and "Setpoint" (see process-pid-seed-template.xml),
+    # so exact equality is both sufficient and deterministic.
     setpoint_field: str | None = None
     feedback_field: str | None = None
     for parameter, pdef in device_parameters(device.device_id, parameters, parameter_defs):
         field_name = field_name_for_parameter(root_device_id, device.device_id, physical_devices, parameter, pdef)
-        raw_name = (parameter.parameter_alias or pdef.parameter_name or "").lower()
-        if feedback_field is None and (
-            pdef.purpose_enum_id == "PpFeedback" or "feedback" in raw_name
-        ):
+        raw_name = (parameter.parameter_alias or pdef.parameter_name or "").strip().lower().replace(" ", "")
+        if feedback_field is None and raw_name == "feedback":
             feedback_field = field_name
-        if setpoint_field is None and (
-            "setpoint" in raw_name or "reference" in raw_name or "ref" == raw_name
-        ):
+        if setpoint_field is None and raw_name in ("setpoint", "reference", "ref"):
             setpoint_field = field_name
     return setpoint_field, feedback_field
 
@@ -1143,7 +1155,15 @@ def render_atomic_device_blocks(
                         f"    sleepBoostTime := dev.{field_name}SleepBoostTime,",
                         f"    trackingMode := dev.{field_name}TrackingMode,",
                         f"    trackingRef := dev.{field_name}TrackingRef,",
-                        "    clock := clks.clock100ms,",
+                        # clock10ms matches the field's own compiled-in default
+                        # (TickTime : TIME := T#10ms declared above). ProcessPid's
+                        # ramp math assumes 'clock' pulses at exactly the period
+                        # given by 'tickTime', so if a recipe overrides tickTime
+                        # to something other than 10ms, this line must be updated
+                        # by hand to the matching clks.clockXXms symbol -- there
+                        # is no generic/parametrized timebase in Clocks to derive
+                        # this from the recipe value automatically.
+                        "    clock := clks.clock10ms,",
                         f"    tickTime := dev.{field_name}TickTime,",
                         f"    setpointEpsilon := dev.{field_name}SetpointEpsilon);",
                     ]
@@ -1171,6 +1191,22 @@ def render_atomic_device_blocks(
             )
 
     return "\n".join(declarations), "\n\n".join(calls)
+
+
+def extract_declared_field_names(block: str) -> frozenset[str]:
+    """Field names already declared by a rendered DUT block (e.g. the atomic
+    device block). Used to keep render_parameter_declarations() from
+    re-declaring the same STRUCT member a second time with a different
+    (generic) type -- invalid IEC 61131-3."""
+    names: set[str] = set()
+    for line in block.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("(*"):
+            continue
+        if " : " not in stripped:
+            continue
+        names.add(stripped.split(" : ", 1)[0])
+    return frozenset(names)
 
 
 def render_blocking_device_signal_rules(
@@ -1285,16 +1321,24 @@ def main() -> int:
     request_map = load_request_map(args.request_map)
     device_scope = subtree_device_ids(args.device_id, devices)
 
+    # Render the atomic-device block first: it declares the full native-typed
+    # signature of each FB instance (e.g. ProcessPid's SetpointRampType as
+    # RampType, not a generic DINT). render_parameter_declarations() must
+    # skip those same field names below it would otherwise re-declare them
+    # with a generic type -- an invalid duplicate STRUCT member.
+    atomic_declarations, device_manager_calls = render_atomic_device_blocks(
+        args.device_id, devices, physical_devices, parameters, parameter_defs
+    )
+    atomic_field_names = extract_declared_field_names(atomic_declarations)
+
     analog_decl, digital_decl = render_parameter_declarations(
-        args.device_id, device_scope, devices, physical_devices, parameters, parameter_defs
+        args.device_id, device_scope, devices, physical_devices, parameters, parameter_defs,
+        exclude_field_names=atomic_field_names,
     )
     physical_inputs, physical_outputs = render_io_declarations(
         device_scope, request_items, device_requests, parameter_defs, parameters
     )
     state_request_declarations = render_state_request_declarations(statusflow_items, request_map)
-    atomic_declarations, device_manager_calls = render_atomic_device_blocks(
-        args.device_id, devices, physical_devices, parameters, parameter_defs
-    )
 
     replacements = {
         "${MAIN_STATUS_ENUM}": "MainStatus",

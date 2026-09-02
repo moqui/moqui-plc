@@ -1,0 +1,40 @@
+{attribute 'no_assign'}
+(* Device diagnostics *)
+FUNCTION_BLOCK DeviceDiagnostics
+VAR_EXTERNAL
+    dev : DeviceFacade;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+VAR_OUTPUT
+    error : BOOL;
+END_VAR
+
+error := TRUE;
+
+(* Signal management engine *)
+(* 
+ * Prepare a fresh scan (clears the accumulated output action).
+ * Then process each device signal in priority order.
+ * ImmediateStop -> faultRequest := TRUE -> Main enters Fault state.
+ *)
+dev.signalMgmt(operationType := SignalMgmtOperatingMode.Prepare);
+dev.signalMgmt.operationType := SignalMgmtOperatingMode.Process;
+
+(* Device faults *)
+(* LevelController blocking diagnostics *)
+dev.signalMgmt(code := 110, category := SignalCategory.Alarm, outputAction := SignalOutputAction.ImmediateStop, activationCondition := dev.levelController.invalidConfig, loggerName := dev.signalMgmt.loggerName);
+
+(* Environmental / safety diagnostics *)
+(* Safety logic is external; only modeled fault/stop indications are observed here. *)
+
+error := FALSE;
+
+(* Questions for the skill/user:
+ * 1. Which device faults are blocking and must trigger ImmediateStop?
+ * 2. For each blocking device, which signal should be monitored:
+ *    fault, invalidConfig, cmdError, externalFault, etc.?
+ * 3. Which environmental/safety predicates should become alarms?
+ * 4. Which predicates are warnings only and should not stop the machine?
+ *)

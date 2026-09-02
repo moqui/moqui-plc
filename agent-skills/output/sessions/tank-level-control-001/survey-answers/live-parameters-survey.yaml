@@ -1,0 +1,8 @@
+# Live parameters survey
+live_parameters:
+  - parameter_id: "P_TANK_LC_SETPOINT"
+    mqtt_key: "hsp"
+    notes: >-
+      Level setpoint (hsp), the only parameter approved for live MQTT write
+      in V1, per explicit developer choice. Gain/integrationTime/
+      derivationTime and the LL/HH thresholds remain recipe/config-only.

@@ -1,0 +1,12 @@
+# One PhysicalDevice per hardware CPU or CODESYS Application.
+machine_device_id: "DG_TANK_LEVEL_CTRL"
+controllers:
+  - controller_device_id: "TANKLEVELCONTROL_PLC"
+    controller_name: "Tank Level Control PLC"
+    controller_kind: "codesys_application"
+    application_id: "TankLevelControl"
+    device_type_enum_id: "DtPLC"
+    parent_device_id: "DG_TANK_LEVEL_CTRL"
+    notes: >-
+      Single CODESYS Application, single PLC, standalone (not part of a
+      larger plant) per explicit developer confirmation.

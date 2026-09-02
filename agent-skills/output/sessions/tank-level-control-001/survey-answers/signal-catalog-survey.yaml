@@ -1,0 +1,99 @@
+# Signal catalog survey
+naming_rules:
+  positive_logic_default: true
+  input_prefix: ""
+  output_prefix: ""
+  analog_suffix: ""
+  digital_suffix: ""
+  notes: >-
+    No systematic prefix/suffix convention for this small system; descriptive
+    camelCase names are used directly. All signals below belong to the single
+    elementary device TANK_LC (physical_device_name "levelController"), so
+    the PLC generator flattens every field as dev.levelController<Name> (the
+    only device_id that renders unprefixed is the Application/StatusFlow root
+    device itself, which must be a DeviceGroup per this tool's constraints
+    and cannot own signal-catalog rows directly).
+signals:
+  - signal_id: "LEVEL_IN"
+    device_id: "TANK_LC"
+    signal_name: "levelIn"
+    direction: "input"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "LT (level transmitter), 4-20mA scaled to 0-100% via processAnalogInput/scale utilities"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Physical AI from the level transmitter LT. Renders as
+      dev.levelControllerLevelIn. Wired manually in InputSignalUpdate
+      (field-engineer-owned). The same manual step also copies this raw
+      value into dev.levelControllerFeedback (the ProcessPid instance's
+      feedback input) since that wiring is genuinely site-specific.
+  - signal_id: "VALVE_OUT"
+    device_id: "TANK_LC"
+    signal_name: "valveOut"
+    direction: "output"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Main FSM output function per state: Run = PID output; Fault = frozen/forced by LL or HH; Standby = 0"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Physical AO driving the control valve top pressure (Pv), which
+      modulates F1. Renders as dev.levelControllerValveOut. Scaled to the
+      raw AO word in OutputSignalUpdate (manual, field-engineer-owned).
+  - signal_id: "RUN_CMD"
+    device_id: "TANK_LC"
+    signal_name: "runCmd"
+    direction: "input"
+    signal_kind: "digital"
+    iec_type: "BOOL"
+    source_rule: "Maintained Start/Stop selector or HMI command bit (site-specific, wired manually)"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Drives the Standby<->Run transition (TRUE=Run requested, FALSE=Standby
+      requested). Renders as dev.levelControllerRunCmd. Not specified in the
+      original P&ID description (which only covers the continuous control
+      diagram); this is the assistant's default engineering choice for how
+      an operator starts/stops the loop. Confirm or replace with the actual
+      HMI/operator command source before commissioning.
+  - signal_id: "LEVEL_LOW_LOW_THRESHOLD"
+    device_id: "TANK_LC"
+    signal_name: "levelLowLowThreshold"
+    direction: "input"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Recipe/DeviceConfig-configured supervisory threshold, not physical I/O (see device-config-survey.yaml)"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Not a physical signal. Modeled through the signal-catalog mechanism
+      only because the current tooling has no separate path to mint a
+      free-standing supervisory ParameterDef/Parameter outside an atomic
+      component or a physical I/O signal (signal.device_id must be an
+      elementary device, not the root DeviceGroup); direction=input/
+      purpose=PpFeedback is the closest available fit, not a literal claim
+      of wired I/O. Renders as dev.levelControllerLevelLowLowThreshold
+      (named "LowLow" rather than "LL" to avoid ambiguous consecutive-capital
+      camelCase tokenization in the generator). Tuned value (5%,
+      developer-confirmed) is set via device-config-survey.yaml, not this
+      base seed default.
+  - signal_id: "LEVEL_HIGH_HIGH_THRESHOLD"
+    device_id: "TANK_LC"
+    signal_name: "levelHighHighThreshold"
+    direction: "input"
+    signal_kind: "analog"
+    iec_type: "REAL"
+    source_rule: "Recipe/DeviceConfig-configured supervisory threshold, not physical I/O (see device-config-survey.yaml)"
+    gateway_query: ""
+    plc4j_query: ""
+    reverse_logic: false
+    notes: >-
+      Same tooling-gap rationale as LEVEL_LOW_LOW_THRESHOLD. Renders as
+      dev.levelControllerLevelHighHighThreshold. Tuned value (95%,
+      developer-confirmed) is set via device-config-survey.yaml.

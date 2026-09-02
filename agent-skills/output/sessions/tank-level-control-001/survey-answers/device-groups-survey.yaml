@@ -1,0 +1,27 @@
+# Explicit group model decided by the PLC developer; no groups are inferred.
+device_groups:
+  - group_device_id: "DG_TANK_LEVEL_CTRL"
+    group_name: "Tank Level Control"
+    parent_device_id: ""
+    device_type_enum_id: "DgtControl"
+    purpose_enum_id: "DepProcessControl"
+    notes: >-
+      Top-level (and only) subsystem group for this system. Owns the
+      TankLevelControlFlow supervisor FSM (matches
+      subsystem_id TANK_LEVEL_CTRL via the DG_ naming convention).
+device_group_members:
+  - group_device_id: "DG_TANK_LEVEL_CTRL"
+    member_device_id: "TANKLEVELCONTROL_PLC"
+    purpose_enum_id: "DgmpProcessPLC"
+    sequence_num: 10
+    notes: "Controller/PLC membership."
+  - group_device_id: "DG_TANK_LEVEL_CTRL"
+    member_device_id: "TANK_LC"
+    purpose_enum_id: "DgmpControlledDevice"
+    sequence_num: 20
+    notes: "Level controller (ProcessPid) membership."
+  - group_device_id: "DG_TANK_LEVEL_CTRL"
+    member_device_id: "TANK_LEVEL_GATEWAY"
+    purpose_enum_id: "DgmpEdgeGateway"
+    sequence_num: 30
+    notes: "Edge gateway membership for the MQTT projection."

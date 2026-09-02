@@ -1,0 +1,71 @@
+{attribute 'no_assign'}
+(* 
+ * MainRuleEngine - transition-condition logic for the supervisor FSM.
+ *
+ * Responsibilities:
+ *   1. Reset transition requests to safe defaults.
+ *   2. Run the signal management engine (fault / alarm / warning detection).
+ *   3. Compute boolean predicates from sensor feedback and recipe setpoints.
+ *   4. Implement the per-state transition-condition rules.
+ *
+ * Requests are reset every scan. A state persists until a reviewed transition
+ * condition asserts the corresponding request consumed by Main.
+ *)
+FUNCTION_BLOCK MainRuleEngine
+VAR_EXTERNAL
+    clks : Clocks;
+    dev : DeviceFacade;
+    workEffort : WorkEffort;
+END_VAR
+VAR_INPUT
+    operationType : OperatingMode := OperatingMode.Run;
+END_VAR
+VAR_OUTPUT
+    error : BOOL;
+END_VAR
+VAR
+    (* Device diagnostics *)
+    deviceDiags : DeviceDiagnostics;
+END_VAR
+
+(* Reset transition requests to FALSE before evaluating transition policy. *)
+dev.faultRequest := FALSE;
+dev.standbyRequest := FALSE;
+dev.runRequest := FALSE;
+
+deviceDiags(operationType := operationType, error => error);
+
+(* Compute sensor predicates *)
+dev.levelLL := dev.levelControllerLevelIn <= dev.levelControllerLevelLowLowThreshold; (* Low-Low level alarm (threshold confirmed by developer: 5%). *)
+dev.levelHH := dev.levelControllerLevelIn >= dev.levelControllerLevelHighHighThreshold; (* High-High level alarm (threshold confirmed by developer: 95%). *)
+dev.levelSensorFault := (dev.levelControllerLevelIn < -2.0) OR (dev.levelControllerLevelIn > 102.0); (* LT broken-wire/out-of-range detection, standard convention for a 4-20mA input scaled to 0-100%. Generic-fault trigger, per developer choice. *)
+
+(* Fault gate *)
+IF dev.levelLL OR dev.levelHH OR dev.levelSensorFault THEN
+    dev.faultRequest := TRUE;
+    RETURN;
+END_IF;
+
+(* Transition-condition rule engine. Conditions are evaluated by precedence. *)
+CASE dev.status OF
+    MainStatus.Standby :
+        (* State Standby transition conditions *)
+        IF dev.levelControllerRunCmd THEN
+            (* Start -> Run *)
+            dev.runRequest := TRUE;
+        END_IF;
+
+    MainStatus.Run :
+        (* State Run transition conditions *)
+        IF NOT dev.levelControllerRunCmd THEN
+            (* Stop -> Standby *)
+            dev.standbyRequest := TRUE;
+        END_IF;
+
+    MainStatus.Fault :
+        (* State Fault transition conditions *)
+        IF TRUE THEN
+            (* AutoRecover -> Standby *)
+            dev.standbyRequest := TRUE;
+        END_IF;
+END_CASE;

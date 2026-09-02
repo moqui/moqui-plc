@@ -178,36 +178,68 @@ underlying `moqui-plc` FB code:
   `enableTime`, not `dev.coldGlycolPump.enableTime`
 - stop and ask targeted follow-up questions if required data is missing
 
+## Gotchas
+
+- **`signal.device_id` must be an elementary device, never the root
+  DeviceGroup.** `validate_upstream_surveys()` rejects a signal whose
+  `device_id` is not one of the devices in
+  `elementary-device-classification-survey.yaml`. But the device whose
+  StatusFlow the FSM survey attaches to (and therefore the one that produces
+  unprefixed `dev.<field>` names downstream, see
+  `moqui-plc-designer`'s Gotchas) is always a `DeviceGroup`. In practice this
+  means every signal you model ends up with a device-name-prefixed field on
+  the PLC side (`dev.levelControllerLevelIn`, not `dev.levelIn`) — there is
+  no combination of survey choices that gives you both a valid signal and an
+  unprefixed field name. Pick device names accordingly; don't fight this by
+  trying to attach a signal to the DeviceGroup id.
+- **A supervisory/config value that isn't a physical signal and isn't an
+  atomic-component field has no native way to become a ParameterDef.**
+  `render_seed_from_surveys.py` only mints ParameterDef/Parameter rows from
+  `append_atomic_component_parameters()` (one atomic component template) or
+  from the `signals` loop (one per signal-catalog row). A free-standing value
+  like an alarm threshold consumed only by `MainRuleEngine` fits neither.
+  See `references/free-standing-parameters.md` for the accepted workaround
+  before modeling one as a fake signal without reading it first — the
+  workaround has real limits (wrong `purpose_enum_id`, no monitoring/control
+  DeviceRequest by default) that are easy to get wrong silently.
+
 ## References
 
-- `references/seed-survey-fields.md`
-- `references/seed-output-workflow.md`
-- `references/atomic-component-library.json`
-- `references/use-cases/mantle-hvac-reverse-engineering.md`
-- `references/mantle-hvac-like-seed-example.xml`
-- `references/seed-bundle-spec.example.json`
-- `references/base-device-seed-template.xml`
-- `references/digital-sensor-seed-template.xml`
-- `references/analog-sensor-seed-template.xml`
-- `references/actuator-seed-template.xml`
-- `references/actuator-group-seed-template.xml`
-- `references/process-pid-seed-template.xml`
-- `references/axis-seed-template.xml`
-- `references/axis-group-seed-template.xml`
-- `references/signal-mgmt-seed-template.xml`
-- `references/device-group-seed-template.xml`
-- `references/device-config-semantics.md`
-- `references/device-config-load-workflow.md`
-- `references/device-config-template.xml`
-- `references/actuator-device-config-template.xml`
-- `references/actuator-group-device-config-template.xml`
-- `references/process-pid-device-config-template.xml`
-- `references/axis-device-config-template.xml`
-- `references/axis-group-device-config-template.xml`
-- `references/signal-mgmt-device-config-template.xml`
-- `references/mqtt-device-request-seed-template.xml`
-- `references/opcua-device-request-seed-template.xml`
-- `references/gateway-wrapper-request-seed-template.xml`
-- `references/framework-ec-seed-template.xml`
-- `references/framework-ec-requests.md`
-- `references/mqtt-live-parameter-contract.md`
+Start with the two workflow files; load everything else on demand, matched
+to what's being modeled right now.
+
+- `references/seed-survey-fields.md` — read at the start of any survey pass.
+- `references/seed-output-workflow.md` — read before the first seed render
+  of a session.
+- `references/free-standing-parameters.md` — load only when a value doesn't
+  fit a physical signal or an atomic-component field (a supervisory
+  threshold, not sensor/actuator I/O).
+- `references/atomic-component-library.json` — load when deciding which
+  logical model (`Actuator`, `ProcessPid`, ...) fits a device, or which
+  fields belong to its `configRecipe` group.
+- `references/use-cases/mantle-hvac-reverse-engineering.md` and
+  `references/mantle-hvac-like-seed-example.xml` — load only as a worked
+  example when starting from an unfamiliar or ambiguous domain.
+- `references/seed-bundle-spec.example.json` — load when composing a seed
+  from fragments with `render_seed_bundle.py`.
+- `references/<component>-seed-template.xml` (`base-device`,
+  `digital-sensor`, `analog-sensor`, `actuator`, `actuator-group`,
+  `process-pid`, `axis`, `axis-group`, `signal-mgmt`, `device-group`) — open
+  only the one matching the device/signal type currently being modeled.
+- `references/device-config-semantics.md` and
+  `references/device-config-load-workflow.md` — read before authoring the
+  first `DeviceConfig`/`DeviceRuleSet`/`DeviceRule` in a session.
+- `references/device-config-template.xml` and
+  `references/<component>-device-config-template.xml` (same component names
+  as the seed templates above) — open only the one matching the atomic
+  component whose recipe is being written.
+- `references/mqtt-device-request-seed-template.xml`,
+  `references/opcua-device-request-seed-template.xml`,
+  `references/gateway-wrapper-request-seed-template.xml`,
+  `references/framework-ec-seed-template.xml` — load the one matching the
+  transport family actually being modeled for the current `DeviceRequest`.
+- `references/framework-ec-requests.md` — load when modeling the standard
+  framework `ec` read/write request family specifically.
+- `references/mqtt-live-parameter-contract.md` — load before filling
+  `live-parameters-survey.yaml` or reviewing a generated
+  `JsonToParametersMapper`.

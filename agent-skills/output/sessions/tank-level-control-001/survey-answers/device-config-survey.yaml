@@ -1,0 +1,276 @@
+# Atomic configurations composed by ordered DeviceRuleSet/DeviceRule rows.
+device_configs:
+  - device_config_id: "CFG_PROCESS_PID_TANK_LEVEL"
+    parent_config_id: ""
+    config_name: "Tank Level PID Startup Config"
+    config_type_enum_id: "DctApplyConfig"
+    purpose_enum_id: "DcpRunConfig"
+    device_type_enum_id: "DtMoquiPlcProcessPID"
+    control_method_enum_id: "DcmPIDControl"
+    approximated_function_id: ""
+    parameters:
+      - parameter_id: "CFG_P_TANK_LC_CONTROL_SYSTEM_ID"
+        parameter_def_id: "PD_TANK_LC_CONTROL_SYSTEM_ID"
+        parameter_alias: "controlSystemId"
+        sequence_num: 10
+        numeric_value: ""
+        symbolic_value: "TANK_LC"
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_CONTROL_SYSTEM_NAME"
+        parameter_def_id: "PD_TANK_LC_CONTROL_SYSTEM_NAME"
+        parameter_alias: "controlSystemName"
+        sequence_num: 20
+        numeric_value: ""
+        symbolic_value: "Tank Level Controller"
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_FEEDBACK_MULTIPLIER"
+        parameter_def_id: "PD_TANK_LC_FEEDBACK_MULTIPLIER"
+        parameter_alias: "feedbackMultiplier"
+        sequence_num: 30
+        numeric_value: 1.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT"
+        parameter_def_id: "PD_TANK_LC_SETPOINT"
+        parameter_alias: "setpoint"
+        sequence_num: 40
+        numeric_value: 50.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_AT_SETPOINT_HYSTERESIS"
+        parameter_def_id: "PD_TANK_LC_AT_SETPOINT_HYSTERESIS"
+        parameter_alias: "atSetpointHysteresis"
+        sequence_num: 50
+        numeric_value: 2.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_MULTIPLIER"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_MULTIPLIER"
+        parameter_alias: "setpointMultiplier"
+        sequence_num: 60
+        numeric_value: 1.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_MIN"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_MIN"
+        parameter_alias: "setpointMin"
+        sequence_num: 70
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_MAX"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_MAX"
+        parameter_alias: "setpointMax"
+        sequence_num: 80
+        numeric_value: 100.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_RAMP_TYPE"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_RAMP_TYPE"
+        parameter_alias: "setpointRampType"
+        sequence_num: 90
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_INCREASE_TIME"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_INCREASE_TIME"
+        parameter_alias: "setpointIncreaseTime"
+        sequence_num: 100
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_DECREASE_TIME"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_DECREASE_TIME"
+        parameter_alias: "setpointDecreaseTime"
+        sequence_num: 110
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_FREEZE_ENABLE"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_FREEZE_ENABLE"
+        parameter_alias: "setpointFreezeEnable"
+        sequence_num: 120
+        numeric_value: ""
+        symbolic_value: "N"
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_DEVIATION_INVERSION"
+        parameter_def_id: "PD_TANK_LC_DEVIATION_INVERSION"
+        parameter_alias: "deviationInversion"
+        sequence_num: 130
+        numeric_value: ""
+        symbolic_value: "N"
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_OUTPUT_MIN"
+        parameter_def_id: "PD_TANK_LC_OUTPUT_MIN"
+        parameter_alias: "outputMin"
+        sequence_num: 140
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_OUTPUT_MAX"
+        parameter_def_id: "PD_TANK_LC_OUTPUT_MAX"
+        parameter_alias: "outputMax"
+        sequence_num: 150
+        numeric_value: 100.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_OUTPUT_FREEZE_ENABLE"
+        parameter_def_id: "PD_TANK_LC_OUTPUT_FREEZE_ENABLE"
+        parameter_alias: "outputFreezeEnable"
+        sequence_num: 160
+        numeric_value: ""
+        symbolic_value: "N"
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_GAIN"
+        parameter_def_id: "PD_TANK_LC_GAIN"
+        parameter_alias: "gain"
+        sequence_num: 170
+        numeric_value: 10.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_INTEGRATION_TIME"
+        parameter_def_id: "PD_TANK_LC_INTEGRATION_TIME"
+        parameter_alias: "integrationTime"
+        sequence_num: 180
+        numeric_value: 60.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_DERIVATION_TIME"
+        parameter_def_id: "PD_TANK_LC_DERIVATION_TIME"
+        parameter_alias: "derivationTime"
+        sequence_num: 190
+        numeric_value: 2.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_OFFSET"
+        parameter_def_id: "PD_TANK_LC_OFFSET"
+        parameter_alias: "offset"
+        sequence_num: 200
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_DEADBAND_RANGE"
+        parameter_def_id: "PD_TANK_LC_DEADBAND_RANGE"
+        parameter_alias: "deadbandRange"
+        sequence_num: 210
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_DEADBAND_DELAY"
+        parameter_def_id: "PD_TANK_LC_DEADBAND_DELAY"
+        parameter_alias: "deadbandDelay"
+        sequence_num: 220
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SLEEP_LEVEL"
+        parameter_def_id: "PD_TANK_LC_SLEEP_LEVEL"
+        parameter_alias: "sleepLevel"
+        sequence_num: 230
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SLEEP_DELAY"
+        parameter_def_id: "PD_TANK_LC_SLEEP_DELAY"
+        parameter_alias: "sleepDelay"
+        sequence_num: 240
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_WAKEUP_DEVIATION"
+        parameter_def_id: "PD_TANK_LC_WAKEUP_DEVIATION"
+        parameter_alias: "wakeupDeviation"
+        sequence_num: 250
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_WAKEUP_DELAY"
+        parameter_def_id: "PD_TANK_LC_WAKEUP_DELAY"
+        parameter_alias: "wakeupDelay"
+        sequence_num: 260
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SLEEP_BOOST_LEVEL"
+        parameter_def_id: "PD_TANK_LC_SLEEP_BOOST_LEVEL"
+        parameter_alias: "sleepBoostLevel"
+        sequence_num: 270
+        numeric_value: 0.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SLEEP_BOOST_TIME"
+        parameter_def_id: "PD_TANK_LC_SLEEP_BOOST_TIME"
+        parameter_alias: "sleepBoostTime"
+        sequence_num: 280
+        numeric_value: 0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_TICK_TIME"
+        parameter_def_id: "PD_TANK_LC_TICK_TIME"
+        parameter_alias: "tickTime"
+        sequence_num: 290
+        numeric_value: 10
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_TANK_LC_SETPOINT_EPSILON"
+        parameter_def_id: "PD_TANK_LC_SETPOINT_EPSILON"
+        parameter_alias: "setpointEpsilon"
+        sequence_num: 300
+        numeric_value: 0.000001
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_LEVEL_LOW_LOW_THRESHOLD"
+        parameter_def_id: "PD_LEVEL_LOW_LOW_THRESHOLD"
+        parameter_alias: "levelLowLowThreshold"
+        sequence_num: 310
+        numeric_value: 5.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+      - parameter_id: "CFG_P_LEVEL_HIGH_HIGH_THRESHOLD"
+        parameter_def_id: "PD_LEVEL_HIGH_HIGH_THRESHOLD"
+        parameter_alias: "levelHighHighThreshold"
+        sequence_num: 320
+        numeric_value: 95.0
+        symbolic_value: ""
+        parameter_enum_id: ""
+    notes: >-
+      Full ProcessPid configRecipe surface plus the two supervisory alarm
+      thresholds (folded into this same config since both are recipe values
+      bound to TANK_LC; the thresholds are not literal ProcessPid FB inputs,
+      just parameters carried on the same device for convenience). Tuned
+      values confirmed by the developer: gain=10, integrationTime=60s,
+      derivationTime=2s, setpoint=50%, outputMin/Max=0/100,
+      levelLowLowThreshold=5%, levelHighHighThreshold=95%.
+      atSetpointHysteresis=2% is an untuned starting value (status-only
+      field, low risk) flagged for field tuning. deviationInversion=N
+      because deviation=setpoint-feedback (not inverted) already gives the
+      correct direct-acting sense: feedback below setpoint increases the
+      output, opening the inlet valve. setpointFreezeEnable/
+      outputFreezeEnable start at N; both are overridden dynamically every
+      scan by the Main FSM output function, so their static recipe value
+      only applies before the very first scan.
+device_rule_sets:
+  - device_rule_set_id: "DRS_TANK_LEVEL_STARTUP"
+    parent_rule_set_id: ""
+    root_device_id: "TANK_LC"
+    purpose_enum_id: "DrspConfiguration"
+    sequence_num: 10
+    rule_set_name: "Tank Level Control Startup Recipe"
+    rules:
+      - device_rule_id: "DR_TANK_LC_APPLY_PID_CONFIG"
+        parent_rule_id: ""
+        device_config_id: "CFG_PROCESS_PID_TANK_LEVEL"
+        target_device_id: "TANK_LC"
+        rule_type_enum_id: "DrtApplyConfig"
+        rule_name: "Apply Tank Level PID Startup Config"
+        priority: 10
+        run_device: false
+        service_name: ""
+        status_id: ""
+        status_flow_id: ""
+        notes: >-
+          Binds the ProcessPid startup tuning (gain=10, Ti=60s, Td=2s,
+          setpoint=50%) plus the LL/HH alarm thresholds to TANK_LC.
+          deviceTypeEnumId compatibility: TANK_LC and
+          CFG_PROCESS_PID_TANK_LEVEL both use DtMoquiPlcProcessPID.
+    notes: "Single-device ruleset; only one DeviceConfig/DeviceRule needed for this system."

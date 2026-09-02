@@ -1,0 +1,14 @@
+# Gateway topology survey
+gateways:
+  - gateway_device_id: "TANK_LEVEL_GATEWAY"
+    gateway_name: "Tank Level Control Gateway"
+    gateway_device_type_enum_id: "DtEdgeGateway"
+    gateway_member_purpose_enum_id: "DgmpEdgeGateway"
+    rest_base_uri: "http://localhost:8081"
+    rest_timeout_seconds: 30
+    scoped_subsystem_ids: ["TANK_LEVEL_CTRL"]
+    scoped_device_ids: []
+    notes: >-
+      Local dev moqui-device-gateway REST base URI placeholder (matches the
+      convention used by the HVAC demo). Replace with the actual deployment
+      URL before commissioning.

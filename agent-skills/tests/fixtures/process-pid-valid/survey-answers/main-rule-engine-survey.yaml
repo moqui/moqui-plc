@@ -1,0 +1,63 @@
+# Code-owned predicates and transition policy; never persisted as executable DB expressions.
+fsms:
+  - fsm_id: "TANK_LEVEL_MAIN"
+    status_flow_id: "TankLevelControlFlow"
+    predicates:
+      - name: "levelLL"
+        expression: "dev.levelControllerLevelIn <= dev.levelControllerLevelLowLowThreshold"
+        comment: "Low-Low level alarm (threshold confirmed by developer: 5%)."
+      - name: "levelHH"
+        expression: "dev.levelControllerLevelIn >= dev.levelControllerLevelHighHighThreshold"
+        comment: "High-High level alarm (threshold confirmed by developer: 95%)."
+      - name: "levelSensorFault"
+        expression: "(dev.levelControllerLevelIn < -2.0) OR (dev.levelControllerLevelIn > 102.0)"
+        comment: >-
+          LT broken-wire/out-of-range detection, standard convention for a
+          4-20mA input scaled to 0-100%. Generic-fault trigger, per developer
+          choice.
+    transitions:
+      - from_status_id: "TlcStandby"
+        to_status_id: "TlcRun"
+        to_fsm_id: ""
+        name: "Start"
+        condition: "dev.levelControllerRunCmd"
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: "Same-flow transition; auto-generates dev.runRequest := TRUE."
+      - from_status_id: "TlcRun"
+        to_status_id: "TlcStandby"
+        to_fsm_id: ""
+        name: "Stop"
+        condition: "NOT dev.levelControllerRunCmd"
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: "Same-flow transition; auto-generates dev.standbyRequest := TRUE."
+      - from_status_id: "TlcFault"
+        to_status_id: "TlcStandby"
+        to_fsm_id: ""
+        name: "AutoRecover"
+        condition: "TRUE"
+        consume_condition: ""
+        request_assignments: []
+        apply_assignments: []
+        precedence: 1
+        notes: >-
+          Unconditional on purpose: this state's transition CASE only runs on
+          scans where the global fault_condition is already FALSE (the
+          MainRuleEngine fault gate RETURNs early while fault_condition is
+          TRUE), so reaching this line already means the alarm/fault
+          condition has cleared. Implements the developer-approved auto-clear
+          recovery policy (no manual fault-reset command in V1).
+    global_overrides:
+      fault_condition: "dev.levelLL OR dev.levelHH OR dev.levelSensorFault"
+      reset_condition: "NOT (dev.levelLL OR dev.levelHH OR dev.levelSensorFault)"
+      notes: >-
+        reset_condition is documentation-only in the current generator (not
+        consumed by render_statusflow_templates.py); the actual auto-clear
+        recovery is implemented by the unconditional TlcFault -> TlcStandby
+        transition above, which is only ever evaluated once fault_condition
+        is already FALSE.

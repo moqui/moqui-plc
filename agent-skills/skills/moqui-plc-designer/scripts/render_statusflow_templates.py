@@ -638,7 +638,13 @@ def main() -> int:
         raise SystemExit(f"No StatusFlowItems found for {args.statusflow_id}")
 
     initial_state = next((item.enum_name for item in items if item.is_initial), items[0].enum_name)
-    component_name = args.component_name or normalize_component_name(args.statusflow_id)
+    # Always normalize, whether the name came from --component-name or was
+    # derived from the StatusFlow id. Previously an explicit --component-name
+    # skipped normalization while render_device_catalog_from_seed.py always
+    # normalized, so the same --component-name value produced two different
+    # output directory names (different casing) when the two scripts were
+    # run standalone against the same Application.
+    component_name = normalize_component_name(args.component_name or args.statusflow_id)
     request_map = load_request_map(args.request_map)
     explicit_fault_state = args.fault_state
     if not explicit_fault_state and fsm and fsm["fault_status_id"]:

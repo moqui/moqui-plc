@@ -1,0 +1,18 @@
+{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE MainStatus : (
+    Standby := 0,
+    Run,
+    Fault
+); END_TYPE
+
+(* Questions for the skill/user:
+ * 1. Which StatusFlow is used for the main orchestration FSM?
+ * 2. In which order should the states appear in the enum?
+ * 3. Which state is the initial steady state?
+ * 4. Which state is the fault state?
+ *
+ * Generation note:
+ * - This enum is typically derived from StatusFlowItem entries related to the selected main StatusFlow.
+ * - The generated names should match the identifiers used by Main.pou and MainRuleEngine.pou.
+ *)

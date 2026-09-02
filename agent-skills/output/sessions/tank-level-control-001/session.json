@@ -1,0 +1,88 @@
+{
+  "sessionId": "tank-level-control-001",
+  "projectName": "Tank Level Feedback Control (Scenario 1)",
+  "customerName": "",
+  "createdAt": "2026-09-02T13:35:05Z",
+  "updatedAt": "2026-09-02T14:59:50Z",
+  "status": "needs_review",
+  "currentStage": "plc_design",
+  "currentSkill": "moqui-plc-designer",
+  "workflowOrder": [
+    "moqui-device-seed-designer",
+    "moqui-plc-designer",
+    "moqui-device-config-designer",
+    "moqui-plc-config"
+  ],
+  "paths": {
+    "surveyAnswersDir": "survey-answers",
+    "seedDataDir": "seed-data",
+    "generatedPlcDir": "generated-plc",
+    "generatedRecipesDir": "generated-recipes",
+    "generatedConfigDir": "generated-config",
+    "attachmentsDir": "attachments",
+    "notesDir": "notes",
+    "exportsDir": "exports",
+    "architectureContext": "notes/project-architecture-context.md"
+  },
+  "artifacts": {
+    "seedData": [
+      "seed-data\\survey-derived-seed.xml"
+    ],
+    "generatedPlc": [
+      "generated-plc\\TankLevelControl",
+      "generated-plc\\codesys-applications\\TankLevelControl\\runtime\\component\\main"
+    ],
+    "generatedRecipes": [],
+    "generatedConfig": [],
+    "attachments": [],
+    "surveys": [
+      "survey-answers/system-decomposition-survey.yaml",
+      "survey-answers/controller-topology-survey.yaml",
+      "survey-answers/device-groups-survey.yaml",
+      "survey-answers/device-config-survey.yaml",
+      "survey-answers/approval-survey.yaml",
+      "survey-answers/elementary-device-classification-survey.yaml",
+      "survey-answers/signal-catalog-survey.yaml",
+      "survey-answers/sampling-domains-survey.yaml",
+      "survey-answers/live-parameters-survey.yaml",
+      "survey-answers/gateway-topology-survey.yaml",
+      "survey-answers/transport-architecture-survey.yaml",
+      "survey-answers/main-fsm-survey.yaml",
+      "survey-answers/main-rule-engine-survey.yaml"
+    ]
+  },
+  "steps": {
+    "system_decomposition": {
+      "status": "reviewed",
+      "notes": "Validated system decomposition survey."
+    },
+    "device_classification": {
+      "status": "reviewed",
+      "notes": "Validated elementary device classification survey."
+    },
+    "signal_catalog": {
+      "status": "reviewed",
+      "notes": "Validated signal catalog survey."
+    },
+    "sampling_design": {
+      "status": "reviewed",
+      "notes": "Validated sampling domains survey."
+    },
+    "seed_design": {
+      "status": "generated",
+      "notes": "Generated survey-derived seed draft from upstream engineering surveys; review entity IDs, enums, and request semantics."
+    },
+    "plc_design": {
+      "status": "generated",
+      "notes": "Generated device catalogs for component main; cross-check generated PLC declarations against seed data before downstream use."
+    },
+    "config_recipe": {
+      "status": "pending",
+      "notes": ""
+    },
+    "plc_framework_config": {
+      "status": "pending",
+      "notes": ""
+    }
+  }
+}

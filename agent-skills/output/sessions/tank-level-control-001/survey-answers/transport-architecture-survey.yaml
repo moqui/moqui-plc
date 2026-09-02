@@ -1,0 +1,40 @@
+# Transport architecture survey
+transport_architecture:
+  primary_transport_mode: "gateway"
+  allows_hybrid_projection: false
+  notes: >-
+    Single continuous control loop. MQTT via moqui-device-gateway only, per
+    developer choice, consistent with the reference HVAC demo architecture.
+    No OPC UA, no plc4j.
+gateway_projection:
+  required: true
+  rationale: >-
+    hsp (level setpoint) live-write via MqttParameterSub, and standard
+    framework device/fault log publication via LogDispatcher, both chosen by
+    the developer over OPC UA/plc4j.
+gateway_transports:
+  - transport_id: "MQTT_MAIN"
+    gateway_device_id: "TANK_LEVEL_GATEWAY"
+    protocol: "mqtt"
+    broker_uri: "paho-mqtt5:?brokerUrl=tcp://localhost:1883&qos=1"
+    connection_name: ""
+    driver_enum_id: ""
+    transport_enum_id: ""
+    transport_config: ""
+    options: ""
+    scoped_domain_ids: ["FAST"]
+    supports_plc_logs: true
+    plc_log_topic: "moqui-plc"
+    supports_live_parameters: true
+    live_parameter_topic: "moqui/tank-level-control/parameters/live"
+    notes: >-
+      Development broker URI (no credentials embedded, matching the official
+      seed convention). Production deployment must inject broker credentials
+      through deployment configuration, not seed data, exactly as documented
+      for the HVAC demo.
+plc4j_projection:
+  required: false
+  default_run_service_name: "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
+  connection_strategy: ""
+  notes: "Not used for this system."
+plc4j_connections: []

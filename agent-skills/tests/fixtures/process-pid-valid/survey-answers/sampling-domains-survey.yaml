@@ -1,0 +1,19 @@
+# Sampling domains survey
+domains:
+  - domain_id: "FAST"
+    controller_device_id: "TANKLEVELCONTROL_PLC"
+    domain_name: "Fast Control Loop"
+    natural_frequency_class: "fast"
+    scan_time: "T#10MS"
+    transport_scope: "gateway"
+    transport_projection: "gateway"
+    devices: ["TANK_LC"]
+    signals: []
+    notes: >-
+      10ms PID/task cycle (matches ProcessPid.tickTime convention used
+      elsewhere in moqui-plc). No gateway-cyclic monitoring DeviceRequest is
+      generated for V1: live values are covered by the live-parameter write
+      channel (setpoint only, per the approved whitelist) and the standard
+      framework LoggerFacade/LogDispatcher path, not a separate cyclic
+      read-back request. A future iteration may add a ParameterLogger-style
+      periodic snapshot (as in mantle-hvac) if a historian is required.

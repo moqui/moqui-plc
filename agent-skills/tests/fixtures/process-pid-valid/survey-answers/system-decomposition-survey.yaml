@@ -1,0 +1,37 @@
+# System decomposition survey
+project_scope:
+  machine_name: "TankLevelControl"
+  process_description: >-
+    Single tank level control loop (Seborg/Edgar/Mellichamp "Process Dynamics
+    and Control", Fig. 1-3/1-4, feedback control strategy 1, scenario 1).
+    Inlet flow F1 is manipulated via a pneumatic control valve driven by a
+    level PID controller (LC). Outlet flow F2 is an unmodeled disturbance
+    determined by a downstream process (e.g. steam generation demand); no
+    sensor/actuator is modeled on the F2 stream in this loop.
+  control_objective: >-
+    Maintain tank liquid level h at setpoint hsp (default 50% of instrument
+    span) by modulating the inlet valve position (Pv, 0-100%) based on level
+    feedback hm from the level transmitter LT, rejecting the F2 disturbance.
+  safety_scope: >-
+    Basic process-level alarms only: Low-Low (5%) forces the valve open,
+    High-High (95%) forces the valve closed. No functional safety scope;
+    ESD/safety PLC/safety relays are out of framework per the architecture
+    boundary (moqui-plc does not own safety behavior).
+  notes: >-
+    Single CODESYS Application, single PLC, standalone (not part of a larger
+    plant) per explicit developer confirmation. Units: level in % of
+    instrument span (0-100%). PID tuning (Gain=10, Integration Time=60s,
+    Derivation Time=2s) and alarm thresholds (LL=5%, HH=95%) confirmed by the
+    developer and carried in the DeviceConfig/recipe layer, not as static seed
+    defaults.
+system_tree:
+  - subsystem_id: "TANK_LEVEL_CTRL"
+    parent_subsystem_id: ""
+    subsystem_name: "Tank Level Control"
+    subsystem_type: "ProcessControlLoop"
+    control_responsibility: >-
+      Level control of the tank via the inlet valve (F1): a single continuous
+      ProcessPid loop with a supervisory FSM (Standby/Run/Fault) and level
+      alarm interlocks (LL/HH) that override the valve output directly.
+    candidate_fsm: "TankLevelControlFlow (Standby/Run/Fault)"
+    notes: "Root and only subsystem; contains one ProcessPid device (TANK_LC)."

@@ -1,0 +1,84 @@
+(* 
+ * DeviceFacade implementation for managing devices and logical parameters.
+ *
+ * Naming rules:
+ *   deviceName + parameterName or parameterName -> logical signal
+ *   deviceName + parameterName or parameterName + Min/Max -> limits
+ *
+ * All digital signals (boolean) are active-high (positive logic).
+ * All durations are expressed in seconds TUnit.
+ *)
+TYPE DeviceFacade : STRUCT
+    (* ========== Analog process/environment parameters ========== *)
+    levelControllerLevelHighHighThreshold : REAL; (* Same tooling-gap rationale as LEVEL_LOW_LOW_THRESHOLD. Renders as dev.levelControllerLevelHighHighThreshold. Tuned value (95%, developer-confirmed) is set via device-config-survey.yaml. *)
+    levelControllerLevelIn : REAL; (* Physical AI from the level transmitter LT. Renders as dev.levelControllerLevelIn. Wired manually in InputSignalUpdate (field-engineer-owned). The same manual step also copies this raw value into dev.levelControllerFeedback (the ProcessPid instance's feedback input) since that wiring is genuinely site-specific. *)
+    levelControllerLevelLowLowThreshold : REAL; (* Not a physical signal. Modeled through the signal-catalog mechanism only because the current tooling has no separate path to mint a free-standing supervisory ParameterDef/Parameter outside an atomic component or a physical I/O signal (signal.device_id must be an elementary device, not the root DeviceGroup); direction=input/ purpose=PpFeedback is the closest available fit, not a literal claim of wired I/O. Renders as dev.levelControllerLevelLowLowThreshold (named "LowLow" rather than "LL" to avoid ambiguous consecutive-capital camelCase tokenization in the generator). Tuned value (5%, developer-confirmed) is set via device-config-survey.yaml, not this base seed default. *)
+    levelControllerFeedback : REAL; (* Process feedback. *)
+    levelControllerOutputActual : REAL; (* Current controller output. *)
+    levelControllerSetpoint : REAL; (* Process setpoint. *)
+    levelControllerValveOut : REAL; (* Physical AO driving the control valve top pressure (Pv), which modulates F1. Renders as dev.levelControllerValveOut. Scaled to the raw AO word in OutputSignalUpdate (manual, field-engineer-owned). *)
+
+    (* ========== Digital process/environment parameters ========== *)
+    levelControllerRunCmd : BOOL; (* Drives the Standby<->Run transition (TRUE=Run requested, FALSE=Standby requested). Renders as dev.levelControllerRunCmd. Not specified in the original P&ID description (which only covers the continuous control diagram); this is the assistant's default engineering choice for how an operator starts/stops the loop. Confirm or replace with the actual HMI/operator command source before commissioning. *)
+    levelControllerActive : BOOL; (* PID active status. *)
+    levelControllerAtSetpoint : BOOL; (* At setpoint status. *)
+    levelControllerSleepMode : BOOL; (* Sleep mode active. *)
+
+    (* Boolean predicates - computed each scan by MainRuleEngine *)
+    levelLL : BOOL; (* Low-Low level alarm (threshold confirmed by developer: 5%). *)
+    levelHH : BOOL; (* High-High level alarm (threshold confirmed by developer: 95%). *)
+    levelSensorFault : BOOL; (* LT broken-wire/out-of-range detection, standard convention for a 4-20mA input scaled to 0-100%. Generic-fault trigger, per developer choice. *)
+
+    (* Operating-mode flags and process timing (mapped from recipe). *)
+    (* Project-specific process fields are declared through explicit seed parameters. *)
+
+    (* Main FSM state and transition request/acknowledge commands *)
+    status : MainStatus := MainStatus.Standby;
+    lastStatus : MainStatus := MainStatus.Standby;
+    standbyRequest : BOOL;
+    runRequest : BOOL;
+    faultRequest : BOOL;
+    resetRequest : BOOL;
+
+    (* Subsystem FSM states exposed for diagnostics and upstream publication. *)
+    (* No subsystem FSMs. *)
+
+    (* ========== Atomic devices ========== *)
+    levelControllerEnable : BOOL;
+    levelControllerReset : BOOL;
+    levelControllerControlSystemId : STRING;
+    levelControllerControlSystemName : STRING;
+    levelControllerFeedbackMultiplier : REAL := 1.0;
+    levelControllerAtSetpointHysteresis : REAL;
+    levelControllerSetpointMultiplier : REAL := 1.0;
+    levelControllerSetpointMin : REAL;
+    levelControllerSetpointMax : REAL;
+    levelControllerSetpointRampType : RampType := RampType.Linear;
+    levelControllerSetpointIncreaseTime : TIME := T#0s;
+    levelControllerSetpointDecreaseTime : TIME := T#0s;
+    levelControllerSetpointFreezeEnable : BOOL;
+    levelControllerDeviationInversion : BOOL;
+    levelControllerOutputMin : REAL;
+    levelControllerOutputMax : REAL;
+    levelControllerOutputFreezeEnable : BOOL;
+    levelControllerGain : REAL := 1.0;
+    levelControllerIntegrationTime : REAL := 0.0;
+    levelControllerDerivationTime : REAL := 0.0;
+    levelControllerOffset : REAL := 0.0;
+    levelControllerDeadbandRange : REAL;
+    levelControllerDeadbandDelay : TIME;
+    levelControllerSleepLevel : REAL := 0.0;
+    levelControllerSleepDelay : TIME;
+    levelControllerWakeupDeviation : REAL;
+    levelControllerWakeupDelay : TIME;
+    levelControllerSleepBoostLevel : REAL := 0.0;
+    levelControllerSleepBoostTime : TIME;
+    levelControllerTrackingMode : BOOL := FALSE;
+    levelControllerTrackingRef : REAL := 0.0;
+    levelControllerTickTime : TIME := T#10ms;
+    levelControllerSetpointEpsilon : REAL := 0.000001;
+    levelController : ProcessPid;
+
+    (* Signal management - centralised fault / alarm / warning engine *)
+    signalMgmt : SignalMgmt;
+END_STRUCT END_TYPE

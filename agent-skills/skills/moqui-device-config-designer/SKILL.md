@@ -4,7 +4,7 @@ description: Use when generating or validating PLC config or txtrecipe templates
 compatibility: Requires Python 3.14+
 license: ../../LICENSE.md
 metadata:
-  author: moqui-induatrial
+  author: moqui-industrial
   version: "1.0"
 ---
 

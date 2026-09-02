@@ -103,6 +103,13 @@ logs or source snapshots that merely duplicate tracked repository files.
 10. Record whether the plant projects onto `moqui-device-gateway`, `moqui-plc4j`, or both.
 11. Run `moqui-device-seed-designer` and keep the reviewed seed XML in `seed-data/`.
    Prefer session-aware helpers such as `render_seed_bundle.py --session-dir ...`.
+   This step is not complete once the atomic-component defaults are in the
+   seed: any atomic-component parameter whose real value differs from its
+   template default (a real PID gain, a real setpoint, a real threshold) only
+   reaches the generated PLC through a `DeviceConfig` applied by a
+   `DeviceRuleSet`/`DeviceRule` in this same seed. Skipping that leaves the
+   generated code compiling and running against the template's literal
+   defaults with no warning at any later step.
 12. Run `moqui-plc-designer` only against the seed XML saved in the workspace.
 13. Run `moqui-device-config-designer` only against the same seed XML and generated PLC artifacts.
 14. Optionally run `moqui-plc-config` for `MoquiConf.gvl`.
@@ -147,12 +154,12 @@ logs or source snapshots that merely duplicate tracked repository files.
 - `references/moqui-device-knowledge.md` (load for device seed/entities/services)
 - `references/moqui-device-gateway-knowledge.md` (load for transport/runtime work)
 - `references/moqui-plc-knowledge.md` (load for deterministic PLC/code generation)
-- `references/session-layout.md`
-- `references/session-schema.json`
-- `references/workflow-order.md`
-- `references/controller-and-group-model.md`
-- `references/eplan-source-workflow.md`
-- `scripts/README.txt`
+- `references/session-layout.md` (load when creating or restructuring a session workspace by hand)
+- `references/session-schema.json` (load when validating or hand-editing `session.json`)
+- `references/workflow-order.md` (load when unsure which stage comes next for the current session)
+- `references/controller-and-group-model.md` (load before defining `PhysicalDevice`/`DeviceGroup` topology)
+- `references/eplan-source-workflow.md` (load only when importing EPLAN CSV/PDF sources)
+- `scripts/README.txt` (load before running any helper script for the first time in a session)
 
 ## Output Style
 
