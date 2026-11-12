@@ -5,7 +5,8 @@ RuSTy and IronPLC do not currently provide the complete PLC platform and librari
 required to run moqui-plc. Neither compiling the complete framework nor running
 its CODESYS applications is a supported outcome today. Compiler diagnostics below
 record the gaps; they are not a claim of a working platform port. The Rust device
-gateway is a separate process and does not depend on either compiler.
+gateway (moqui-device-gateway, branch `mr-moqui`) is a component of MR-Moqui that runs
+inside the Moqui process; it does not depend on either compiler.
 
 This directory opens the canonical `iec61131/` tree to PLC runtimes built on
 open-source compilers, with a Rust runtime as the main target. It contains no
