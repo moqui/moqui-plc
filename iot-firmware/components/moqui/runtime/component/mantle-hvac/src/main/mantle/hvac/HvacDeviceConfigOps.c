@@ -10,7 +10,6 @@ static const char * const s_recipes[] = {
     "Phase3HvacHeating",
     "Phase4HvacDrying_Progressive",
     "Phase5HvacDrying_Intensive",
-    "TestRecipes",
 };
 #define RECIPE_COUNT ((uint16_t)(sizeof(s_recipes) / sizeof(s_recipes[0])))
 
@@ -27,14 +26,13 @@ static bool hvac_load_fn(const char *name, void *ctx) {
 static uint32_t list_configs(void *ctx, const char *path, const char *type,
                               char names[][64], uint16_t max, uint16_t *count) {
     (void)ctx; (void)path; (void)type;
-    /* Return the single active recipe for this startup cycle.
-     * In production: read the persisted recipe name from NVS.
-     * DeviceConfigMgmt loads each returned name sequentially — returning one
-     * avoids R_TRIG starvation if mainDone stays high across multi-recipe loads. */
-    if (max < 1U) { *count = 0U; return 0U; }
-    strncpy(names[0], s_recipes[0], 63);
-    names[0][63] = '\0';
-    *count = 1U;
+    uint16_t n = (max < RECIPE_COUNT) ? max : RECIPE_COUNT;
+    if (n != RECIPE_COUNT) { *count = 0U; return 1U; }
+    for (uint16_t i = 0U; i < n; i++) {
+        strncpy(names[i], s_recipes[i], 63U);
+        names[i][63] = '\0';
+    }
+    *count = n;
     return 0U;
 }
 

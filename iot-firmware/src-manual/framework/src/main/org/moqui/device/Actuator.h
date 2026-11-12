@@ -32,6 +32,8 @@ typedef struct {
     bool *disableRequest;
 
     /* VAR_INPUT — actuator metadata */
+    char actuatorIdStorage[64];
+    char actuatorNameStorage[64];
     const char           *actuatorId;
     const char           *actuatorName;
     ActuatorActuationType actuationType;

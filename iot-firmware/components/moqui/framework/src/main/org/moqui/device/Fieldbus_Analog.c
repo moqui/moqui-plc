@@ -6,12 +6,12 @@ float scale_value(float value, float min_in, float max_in, float min_out, float 
     return min_out + (value - min_in) * (max_out - min_out) / (max_in - min_in);
 }
 
-float processAnalogInput(uint16_t physicalValue, uint16_t minPhysicalValue, uint16_t maxPhysicalValue, 
+float processAnalogInput(uint16_t physicalValue, uint16_t minPhysicalValue, uint16_t maxPhysicalValue,
                          float minValue, float maxValue, float offset, float scalingFactor, int16_t significantDigits) {
     float inputValue = (float)physicalValue;
     inputValue = scale_value(inputValue, (float)minPhysicalValue, (float)maxPhysicalValue, minValue, maxValue);
     inputValue = inputValue * scalingFactor + offset;
-    
+
     if (inputValue < minValue) inputValue = minValue;
     if (inputValue > maxValue) inputValue = maxValue;
 
@@ -25,15 +25,19 @@ float processAnalogInput(uint16_t physicalValue, uint16_t minPhysicalValue, uint
     return inputValue;
 }
 
-bool processAnalogOutput(float parameterValue, uint16_t minPhysicalValue, uint16_t maxPhysicalValue, 
-                         float minValue, float maxValue, float offset, float scalingFactor, 
-                         int16_t significantDigits, bool littleEndian, 
+bool processAnalogOutput(float parameterValue, uint16_t minPhysicalValue, uint16_t maxPhysicalValue,
+                         float minValue, float maxValue, float offset, float scalingFactor,
+                         int16_t significantDigits, bool littleEndian,
                          uint8_t *byteAnalogOutput, uint16_t *wordAnalogOutput, uint32_t *dWordAnalogOutput) {
+    if (!isfinite(parameterValue) || !isfinite(offset) || !isfinite(scalingFactor) ||
+        scalingFactor == 0.0f || !isfinite(minValue) || !isfinite(maxValue) ||
+        maxValue <= minValue || maxPhysicalValue < minPhysicalValue ||
+        (!byteAnalogOutput && !wordAnalogOutput && !dWordAnalogOutput)) { return false; }
     float outputValue = (parameterValue - offset) / scalingFactor;
-    
+
     if (outputValue < minValue) outputValue = minValue;
     if (outputValue > maxValue) outputValue = maxValue;
-    
+
     outputValue = scale_value(outputValue, minValue, maxValue, (float)minPhysicalValue, (float)maxPhysicalValue);
 
     if (significantDigits == 0) {
@@ -43,6 +47,8 @@ bool processAnalogOutput(float parameterValue, uint16_t minPhysicalValue, uint16
         outputValue = roundf(outputValue * factor) / factor;
     }
 
+    if (!isfinite(outputValue) || outputValue < 0.0f || outputValue > UINT16_MAX ||
+        (byteAnalogOutput && outputValue > UINT8_MAX)) { return false; }
     if (byteAnalogOutput) *byteAnalogOutput = (uint8_t)outputValue;
 
     if (littleEndian) {
@@ -56,8 +62,10 @@ bool processAnalogOutput(float parameterValue, uint16_t minPhysicalValue, uint16
     return true;
 }
 
-bool processCyclicInFieldbusData(ActuatorModel model, FieldbusProtocol fieldbus, uint16_t statusWord, 
+bool processCyclicInFieldbusData(ActuatorModel model, FieldbusProtocol fieldbus, uint16_t statusWord,
                                  bool *enabledSensor, bool *disabledSensor, bool *externalFault) {
+    (void)fieldbus;
+    if (!enabledSensor || !disabledSensor || !externalFault) { return false; }
     *enabledSensor = false;
     *disabledSensor = false;
     *externalFault = false;
@@ -66,13 +74,13 @@ bool processCyclicInFieldbusData(ActuatorModel model, FieldbusProtocol fieldbus,
         case ACTUATOR_MODEL_ABBACH580:
             *enabledSensor = (statusWord & (1 << 0)) && (statusWord & (1 << 1)) && (statusWord & (1 << 2));
             *disabledSensor = !(statusWord & (1 << 0)) || !(statusWord & (1 << 1)) || !(statusWord & (1 << 2));
-            *externalFault = (statusWord & (1 << 3)) || (statusWord & (1 << 4)) || (statusWord & (1 << 5)) || 
+            *externalFault = (statusWord & (1 << 3)) || (statusWord & (1 << 4)) || (statusWord & (1 << 5)) ||
                              (statusWord & (1 << 6)) || (statusWord & (1 << 9));
             break;
         case ACTUATOR_MODEL_CTM700:
         case ACTUATOR_MODEL_DANFOSS_FC102:
-            /* Status word bit-mapping differs per drive datasheet — not yet implemented */
-            break;
+            /* No verified mapping exists for these drive models yet. */
+            return false;
         default:
             return false;
     }

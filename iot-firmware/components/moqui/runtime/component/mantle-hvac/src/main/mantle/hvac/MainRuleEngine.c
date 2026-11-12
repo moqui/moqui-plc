@@ -2,6 +2,7 @@
 #include <math.h>
 
 void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationType, bool *error) {
+    (void)operationType;
     float tempDeviation;
     float rhDeviation;
 
@@ -16,25 +17,25 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
     *error = false;
 
     // Compute predicates
-    dev->tempInRange = (dev->tempFeedback >= dev->tempMin + dev->tempHysteresis) && 
+    dev->tempInRange = (dev->tempFeedback >= dev->tempMin + dev->tempHysteresis) &&
                        (dev->tempFeedback <= dev->tempMax - dev->tempHysteresis);
-    
+
     tempDeviation = dev->tempFeedback - dev->tempSetpoint;
     if (tempDeviation < 0.0f) tempDeviation = -tempDeviation;
     dev->tempAtSetpoint = tempDeviation <= dev->tempHysteresis;
     /* Normal thermostat thresholds are independent from absolute alarm limits. */
     dev->tempAboveSetpointBand = dev->tempFeedback >= (dev->tempSetpoint + dev->tempHysteresis);
     dev->tempBelowSetpointBand = dev->tempFeedback <= (dev->tempSetpoint - dev->tempHysteresis);
-    
+
     dev->tempOverMax = dev->tempFeedback > dev->tempMax;
     dev->tempOverMin = dev->tempFeedback > dev->tempMin;
     dev->tempUnderMin = dev->tempFeedback < dev->tempMin;
     dev->tempUnderMax = dev->tempFeedback < dev->tempMax;
-    
+
     rhDeviation = dev->rhFeedback - dev->rhSetpoint;
     if (rhDeviation < 0.0f) rhDeviation = -rhDeviation;
     dev->rhAtSetpoint = rhDeviation <= dev->rhHysteresis;
-    
+
     dev->rhOverMax = dev->rhFeedback > dev->rhMax - dev->rhHysteresis;
     dev->rhUnderMin = dev->rhFeedback < dev->rhMin + dev->rhHysteresis;
     dev->rhOverMin = dev->rhFeedback > dev->rhMin;
@@ -62,7 +63,7 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
             dev->actualRuntime += 1;
             if (dev->estimatedRuntime > 0) {
                 dev->processRemainingDuration = dev->processEstimatedDuration - dev->processActualDuration;
-                if (!dev->timeBreakEnabled && 
+                if (!dev->timeBreakEnabled &&
                     dev->actualRuntime >= dev->estimatedRuntime &&
                     dev->actualRuntime >= dev->minRuntime) {
                     dev->timeBreakEnabled = true;

@@ -12,9 +12,14 @@
 #include "InputSignalUpdate.h"
 #include "OutputSignalUpdate.h"
 #include "DeviceConfigMgmt.h"
-/* #include "Main.h" // In real integration, include Main.h here */
+typedef void (*MoquiMainUpdate)(void *context, const Clocks *clks,
+    OperatingMode operationType, bool enable, bool configReset,
+    bool *done, bool *error);
 
 typedef struct {
+    MoquiMainUpdate mainUpdate;
+    void *mainContext;
+
     /* VAR_INPUT */
     bool enable;
     bool init;
@@ -40,7 +45,7 @@ typedef struct {
     uint32_t retryCount;
     uint32_t retryTime;
     bool autoReset;
-    
+
 } MoquiStart;
 
 void MoquiStart_Update(MoquiStart *start, Clocks *clks);

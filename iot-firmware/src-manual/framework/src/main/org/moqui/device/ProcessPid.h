@@ -62,6 +62,8 @@ typedef struct {
     /* VAR_INPUT */
     bool         enable;
     bool         reset;
+    char controlSystemIdStorage[64];
+    char controlSystemNameStorage[64];
     const char  *controlSystemId;
     const char  *controlSystemName;
 

@@ -12,7 +12,6 @@ Output mirrors the source tree hierarchy under --target-dir (not flat).
 
 import argparse
 import re
-import shutil
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -195,17 +194,23 @@ def collect_preserved_manual_overrides(
     if target_root.exists():
         search_roots.append(target_root)
 
+    # Existing C is a hand-maintained runtime, not disposable transpiler output.
+    # Discover support files too: they may not have an IEC source counterpart.
+    stems = set(PRESERVE_C_STEMS)
+    for root in search_roots:
+        for file in root.rglob("*"):
+            if file.is_file() and file.suffix in (".c", ".h"):
+                stems.add(file.relative_to(root).with_suffix(""))
     preserved: dict[Path, dict[str, str]] = {}
-    for stem in PRESERVE_C_STEMS:
-        for root in search_roots:
-            found: dict[str, str] = {}
+    for stem in stems:
+        found: dict[str, str] = {}
+        for root in reversed(search_roots):
             for ext in (".c", ".h"):
                 candidate = root / stem.with_suffix(ext)
                 if candidate.is_file():
-                    found[ext] = candidate.read_text(encoding="utf-8", errors="ignore")
-            if found:
-                preserved[stem] = found
-                break
+                    found[ext] = candidate.read_text(encoding="utf-8-sig")
+        if found:
+            preserved[stem] = found
     return preserved
 
 
@@ -231,7 +236,7 @@ def main() -> None:
     parser.add_argument(
         "--clean",
         action="store_true",
-        help="Wipe target tree before generating (skips preserved stems).",
+        help="Clean unpreserved IEC projections; retain runtime and platform files.",
     )
     args = parser.parse_args()
 
@@ -241,9 +246,14 @@ def main() -> None:
 
     preserved = collect_preserved_manual_overrides(manual_preserve_root, target_dir)
 
-    if args.clean:
-        if target_dir.exists():
-            shutil.rmtree(target_dir)
+    # Never delete platform/build files from a runnable firmware tree. Clean
+    # applies only to projected IEC files that are not preserved C overrides.
+    if args.clean and target_dir.exists():
+        for source in source_dir.rglob("*.st"):
+            stem = source.relative_to(source_dir).with_suffix("")
+            if stem not in preserved:
+                for ext in (".c", ".h"):
+                    (target_dir / stem.with_suffix(ext)).unlink(missing_ok=True)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Transpiling  : {source_dir}")
@@ -257,7 +267,7 @@ def main() -> None:
     for st_file in sorted(source_dir.rglob("*.st")):
         relative_stem = st_file.relative_to(source_dir).with_suffix("")
 
-        if relative_stem in PRESERVE_C_STEMS:
+        if relative_stem in preserved or relative_stem in PRESERVE_C_STEMS:
             # Write the authoritative hand-maintained version.
             stem_files = preserved.get(relative_stem, {})
             if stem_files:
@@ -289,6 +299,13 @@ def main() -> None:
 
         print(f"  transpiled: {relative_stem}")
         transpiled += 1
+
+    # Restore support files and corrected runtime files without a direct ST path.
+    for stem, files in preserved.items():
+        for ext, content in files.items():
+            dest = target_dir / stem.with_suffix(ext)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
 
     print()
     print(f"Done — transpiled: {transpiled}, preserved: {preserved_count}, skipped (empty): {skipped}")

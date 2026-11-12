@@ -1,5 +1,6 @@
 #include "MoquiStart.h"
 #include "MoquiConf.h"
+#include <stddef.h>
 
 /* MISRA C:2012 Rule 15.5 deviation: early returns used for guard clauses throughout. */
 
@@ -19,8 +20,6 @@ void MoquiStart_Update(MoquiStart *start, Clocks *clks) {
     /* I/O signal scan — reads hardware inputs and writes outputs each cycle */
     start->inputProcessing.operationType = start->operationType;
     InputSignalUpdate_Update(&start->inputProcessing);
-    start->outputProcessing.operationType = start->operationType;
-    OutputSignalUpdate_Update(&start->outputProcessing);
 
     /* Config loading sequencer */
     start->configMgmt.enable = start->enable;
@@ -56,8 +55,17 @@ void MoquiStart_Update(MoquiStart *start, Clocks *clks) {
                     start->enable = false;
                     start->status = MOQUI_START_STATUS_IDLE;
                 } else {
-                    /* Call main(operationType, enable...) */
-                    start->mainInitPending = false;
+                    if (start->mainUpdate == NULL) {
+                        start->error = true;
+                        start->status = MOQUI_START_STATUS_ERROR;
+                    } else {
+                        start->mainUpdate(start->mainContext, clks,
+                            start->mainInitPending ? OPERATING_MODE_INIT : OPERATING_MODE_RUN,
+                            start->enable, start->deviceConfigContextResetRequest,
+                            &start->mainDone, &start->error);
+                        start->mainInitPending = false;
+                        if (start->error) { start->status = MOQUI_START_STATUS_ERROR; }
+                    }
                     start->deviceConfigContextResetRequest = false;
                 }
             }
@@ -92,5 +100,7 @@ void MoquiStart_Update(MoquiStart *start, Clocks *clks) {
             break;
     }
 
+    start->outputProcessing.operationType = start->operationType;
+    OutputSignalUpdate_Update(&start->outputProcessing);
     start->init = false;
 }

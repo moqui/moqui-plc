@@ -24,7 +24,7 @@ VAR_GLOBAL CONSTANT
 	JSON_PAYLOAD_MAX_SIZE : UINT := 8192;
 	JSON_LINE_BREAK : WSTRING(2) := "$R$N";
 	JSON_ELEMENT_LIST_MAX_SIZE : UINT := 100;
-	LOG_APPENDER_BATCH_SIZE : UINT := 10;
+	LOG_APPENDER_BATCH_SIZE : UINT := 4;
 	logTopic : WSTRING(1024) := "moqui-plc";
 	logAppenderTimeout : UINT := 50000;
 	(* Topic for receiving commands from Moqui *)
@@ -155,7 +155,7 @@ VAR_GLOBAL CONSTANT
 	(* QoS-Level for publish *)
 	logPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
 	(* TRUE: Stores the message on broker *)
-	logPubRetain : BOOL := TRUE;
+	logPubRetain : BOOL := FALSE;
 	(* When packet got already send and now should got resend, FALSE: First time *)
 	logReDelivery : BOOL := TRUE;
 

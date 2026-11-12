@@ -1,4 +1,4 @@
-﻿#ifndef PLATFORM_H
+#ifndef PLATFORM_H
 #define PLATFORM_H
 
 /*
@@ -71,6 +71,7 @@ int  pal_mqtt_publish(const char *topic, const char *payload, int len, int qos);
 
 /* Subscribe to a topic filter.  Returns msg_id or -1. */
 int  pal_mqtt_subscribe(const char *topic, int qos);
+int  pal_mqtt_unsubscribe(const char *topic);
 
 /* Register the application-level receive callback (replaces any previous). */
 void pal_mqtt_set_rx_cb(PalMqttRxCb cb);

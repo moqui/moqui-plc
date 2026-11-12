@@ -5,7 +5,7 @@
 /* MISRA C:2012 Rule 15.5 deviation: early returns used for guard clauses. */
 
 void MqttParameterPub_Update(MqttParameterPub *pub, bool paramsPubEnable) {
-    char json_buf[JSON_PAYLOAD_MAX_SIZE];
+    static char json_buf[JSON_PAYLOAD_MAX_SIZE];
 
     if (!pub->init) { pub->init = true; }
 

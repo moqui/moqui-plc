@@ -1,7 +1,7 @@
 #include "DeviceManager.h"
 
 void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationType) {
-    
+
     /* Cold glycol group */
     dev->coldGlycolPump.operationType = operationType;
     dev->coldGlycolPump.clock = clks->clock100ms;
@@ -9,11 +9,14 @@ void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode o
     dev->coldGlycolPump.disableRequest = &dev->coldGroupDisableRequest;
     Actuator_Update(&dev->coldGlycolPump);
 
+    /* VAR_IN_OUT requests are consumed by Actuator; the valve follows the
+     * persistent pump command rather than the transient acknowledgment bit. */
     dev->coldGlycolValve.feedback    = dev->tempFeedback;
     dev->coldGlycolValve.setpoint    = dev->tempSetpoint;
-    dev->coldGlycolValve.enable      = dev->coldGroupEnableRequest;
+    dev->coldGlycolValve.enable      = dev->coldGlycolPump.enable;
     dev->coldGlycolValve.reset       = false;
     dev->coldGlycolValve.clock       = clks->clock100ms;
+    /* This application samples the PID every clock100ms pulse. */
     dev->coldGlycolValve.tickTimeMs  = 100U;
     ProcessPidFull_Update(&dev->coldGlycolValve);
 
@@ -26,7 +29,7 @@ void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode o
 
     dev->hotGlycolValve.feedback    = dev->tempFeedback;
     dev->hotGlycolValve.setpoint    = dev->tempSetpoint;
-    dev->hotGlycolValve.enable      = dev->hotGroupEnableRequest;
+    dev->hotGlycolValve.enable      = dev->hotGlycolPump.enable;
     dev->hotGlycolValve.reset       = false;
     dev->hotGlycolValve.clock       = clks->clock100ms;
     dev->hotGlycolValve.tickTimeMs  = 100U;
@@ -64,15 +67,4 @@ void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode o
     dev->lowFlowDamper.disableRequest = &dev->lowFlowDamperDisableRequest;
     Actuator_Update(&dev->lowFlowDamper);
 
-    /* Air mixing fan — FB wired to the bool request fields */
-    dev->airMixingFan.operationType = operationType;
-    dev->airMixingFan.clock = clks->clock100ms;
-    dev->airMixingFan.enableRequest  = &dev->airMixingFanEnableRequest;
-    dev->airMixingFan.disableRequest = &dev->airMixingFanDisableRequest;
-    if (dev->airMixingEnabled) {
-        dev->airMixingFanEnableRequest = true;
-    } else {
-        dev->airMixingFanDisableRequest = true;
-    }
-    Actuator_Update(&dev->airMixingFan);
 }

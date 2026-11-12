@@ -3,6 +3,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <math.h>
+#include "JsonFields.h"
 
 /*
  * MISRA C:2012 Rule 11.3 deviation: pointer casts via (uint8_t *) + offsetof
@@ -66,118 +69,45 @@ void JsonToParametersMapper_Apply(const char *key, const char *value,
         /* MISRA C:2012 Rule 11.3 deviation: descriptor-table field write. */
         void *fptr = (void *)(((uint8_t *)dev) + s_mappings[i].offset);
 
+        char *end;
+        errno = 0;
         switch (s_mappings[i].type) {
-            case MAP_F32:
-                *(float *)fptr = strtof(value, NULL);
+            case MAP_F32: {
+                float v = strtof(value, &end);
+                if (end != value && *end == '\0' && errno == 0 && isfinite(v)) { *(float *)fptr = v; }
                 break;
+            }
             case MAP_U16:
-                *(uint16_t *)fptr = (uint16_t)strtoul(value, NULL, 10);
+            case MAP_U32: {
+                unsigned long v = strtoul(value, &end, 10);
+                if (value[0] == '-' || end == value || *end != '\0' || errno != 0) { break; }
+                if (s_mappings[i].type == MAP_U16 && v <= UINT16_MAX) { *(uint16_t *)fptr = (uint16_t)v; }
+                if (s_mappings[i].type == MAP_U32 && v <= UINT32_MAX) { *(uint32_t *)fptr = (uint32_t)v; }
                 break;
-            case MAP_U32:
-                *(uint32_t *)fptr = (uint32_t)strtoul(value, NULL, 10);
-                break;
+            }
             case MAP_BOOL:
-                *(bool *)fptr = (strncmp(value, "true", 4) == 0);
-                break;
-            default:
+                if (strcmp(value, "true") == 0) { *(bool *)fptr = true; }
+                else if (strcmp(value, "false") == 0) { *(bool *)fptr = false; }
                 break;
         }
         return; /* Key matched — no need to continue */
     }
     /* Unknown key: silently ignored (non-blocking, as per ST specification). */
 }
-/*
- * 6-DOF robot arm trajectory mapping (moqui-device export#Trajectory)
- *
- * JSON payload shape (MQTT topic e.g. moqui/robot/arm1/trajectory):
- *   { "approximatedFunctionId": "100051", "waypointCount": 10,
- *     "axes": { "J1": [θ0,θ1,...,θ9], "J2": [...], ..., "J6": [...] } }
- *
- * The "axes" value is a nested object; each axis value is a float array.
- * ParseAndApply() below handles FLAT objects only and cannot parse this.
- * A dedicated JsonToParametersMapper_ParseAndApply_Trajectory() would be needed
- * that detects the opening '[' after "J1":"J6" keys and iterates the array,
- * e.g.:
- *
- *   if (strcmp(key, "J1") == 0 && value[0] == '[') {
- *       size_t idx = 0;
- *       const char *p = value + 1;
- *       while (*p && *p != ']' && idx < TRAJECTORY_POINT_LIST_MAX_SIZE) {
- *           dev->trajectory.points[idx].pos.x = strtof(p, (char **)&p);
- *           while (*p == ',' || *p == ' ') p++;
- *           idx++;
- *       }
- *       dev->trajectory.pointCount = (int32_t)idx;
- *   }
- *   // J2→pos.y, J3→pos.z, J4→pos.a, J5→pos.b, J6→pos.c
- *
- * The MapDesc descriptor table (s_mappings[]) applies to scalar fields only
- * and is not extended for array types.
- */
-
-/* -----------------------------------------------------------------------
- * Minimal JSON scanner — flat object {"k":v, "k":v, ...}
- * Handles: numeric scalars, booleans (true/false), quoted strings.
- * Does NOT handle nested objects or arrays.
- * ----------------------------------------------------------------------- */
+/* Validate the entire object first. Unknown envelope/nested keys do not
+ * become writes to matching keys inside their values. */
 void JsonToParametersMapper_ParseAndApply(const char *json, int json_len,
                                           DeviceFacade *dev) {
-    const char *p;
-    const char *end;
-    char key_buf[64];
-    char val_buf[64];
-    size_t klen;
-    size_t vlen;
-    const char *ks;
-    const char *ke;
-    const char *vs;
-    const char *ve;
-
-    if (!json || !dev) { return; }
-    if (json_len <= 0) { json_len = (int)strlen(json); }
-
-    p   = json;
-    end = json + json_len;
-
-    while (p < end) {
-        /* Find the opening '"' of the next key */
-        while (p < end && *p != '"') { p++; }
-        if (p >= end) { break; }
-        ks = p + 1;
-
-        /* Find the closing '"' of the key */
-        p = ks;
-        while (p < end && *p != '"') { p++; }
-        if (p >= end) { break; }
-        ke = p;
-        p++; /* skip closing '"' */
-
-        /* Skip ':' and optional whitespace */
-        while (p < end && (*p == ':' || *p == ' ')) { p++; }
-        if (p >= end) { break; }
-
-        /* Parse value: quoted string, boolean, or numeric */
-        if (*p == '"') {
-            vs = p + 1;
-            p  = vs;
-            while (p < end && *p != '"') { p++; }
-            ve = p;
-            if (p < end) { p++; }
-        } else {
-            vs = p;
-            while (p < end && *p != ',' && *p != '}' && *p != ' ') { p++; }
-            ve = p;
-        }
-
-        /* Copy key and value to null-terminated buffers, then dispatch */
-        klen = (size_t)(ke - ks);
-        vlen = (size_t)(ve - vs);
-        if (klen == 0U || klen >= sizeof(key_buf)) { continue; }
-        if (vlen >= sizeof(val_buf)) { vlen = sizeof(val_buf) - 1U; }
-
-        memcpy(key_buf, ks, klen); key_buf[klen] = '\0';
-        memcpy(val_buf, vs, vlen); val_buf[vlen] = '\0';
-
-        JsonToParametersMapper_Apply(key_buf, val_buf, dev);
+    if (!json || !dev || json_len < 0) { return; }
+    size_t len = json_len > 0 ? (size_t)json_len : strlen(json);
+    if (!JsonFields_Valid(json, len)) { return; }
+    for (size_t i = 0U; i < MAPPINGS_COUNT; ++i) {
+        const char *value;
+        size_t size;
+        char token[64];
+        if (!JsonFields_Find(json, len, s_mappings[i].key, &value, &size) || size >= sizeof(token)) { continue; }
+        memcpy(token, value, size);
+        token[size] = '\0';
+        JsonToParametersMapper_Apply(s_mappings[i].key, token, dev);
     }
 }

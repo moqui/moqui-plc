@@ -1,9 +1,10 @@
-﻿#include "ParametersToJsonMapper.h"
+#include "ParametersToJsonMapper.h"
 #include "MoquiConf.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include <math.h>
 
 /* Documentation-only Application-specific parameter-replication example.
  * MqttParameterPub is disabled by default. Generate and review a peer-PLC
@@ -168,20 +169,58 @@ bool serialize_pid_state(const Pid *pid, char *output_buffer, size_t max_len) {
 /* -----------------------------------------------------------------------
  * LogEvent -> JSON
  * ----------------------------------------------------------------------- */
-bool serialize_log_event(const LogEvent *ev, char *output_buffer, size_t max_len) {
-    int written;
-    if (!ev || !output_buffer || max_len == 0U) { return false; }
-    written = snprintf(output_buffer, max_len,
-        "{\"id\":\"%s\",\"logger\":\"%s\",\"level\":%d,"
-        "\"marker\":%d,\"ts\":%llu,\"src\":\"%s\","
-        "\"msg\":\"%s\",\"rpt\":%u}",
-        ev->logEventId,
-        ev->loggerName,
-        (int)ev->level,
-        (int)ev->marker,
-        (unsigned long long)ev->logEventDate,
-        ev->source,
-        ev->payload.message,
-        (unsigned)ev->repeatCount);
-    return (written > 0) && ((size_t)written < max_len);
+static bool escape_json(const char *src, size_t max_src, char *out, size_t max) {
+    static const char hex[] = "0123456789abcdef";
+    size_t n = 0U;
+    for (size_t i = 0U; i < max_src; ++i) {
+        unsigned char c = (unsigned char)src[i];
+        if (c == 0U) { out[n] = '\0'; return true; }
+        size_t need = c < 32U ? 6U : c == '"' || c == '\\' ? 2U : 1U;
+        if (need >= max - n) { return false; }
+        if (c < 32U) {
+            out[n++] = '\\'; out[n++] = 'u'; out[n++] = '0'; out[n++] = '0';
+            out[n++] = hex[c >> 4]; out[n++] = hex[c & 15U];
+        } else {
+            if (need == 2U) { out[n++] = '\\'; }
+            out[n++] = (char)c;
+        }
+    }
+    return false;
+}
+bool serialize_log_event(const LogEvent *ev, char *out, size_t max) {
+    char id[6U * sizeof(ev->logEventId) + 1U];
+    char logger[6U * sizeof(ev->loggerName) + 1U];
+    char source[6U * sizeof(ev->source) + 1U];
+    char payload[6U * sizeof(ev->payload.message) + 32U];
+    if (!ev || !out || max == 0U ||
+        !escape_json(ev->logEventId, sizeof(ev->logEventId), id, sizeof(id)) ||
+        !escape_json(ev->loggerName, sizeof(ev->loggerName), logger, sizeof(logger)) ||
+        !escape_json(ev->source, sizeof(ev->source), source, sizeof(source))) { return false; }
+    const char *field;
+    switch (ev->payloadType) {
+        case LOG_PAYLOAD_TYPE_TEXT: {
+            char text[6U * sizeof(ev->payload.message) + 1U];
+            if (!escape_json(ev->payload.message, sizeof(ev->payload.message), text, sizeof(text))) { return false; }
+            snprintf(payload, sizeof(payload), "\"%s\"", text);
+            field = "message";
+            break;
+        }
+        case LOG_PAYLOAD_TYPE_NUMERIC:
+            if (!isfinite(ev->payload.numericValue)) { return false; }
+            snprintf(payload, sizeof(payload), "%.17g", ev->payload.numericValue);
+            field = "numericValue";
+            break;
+        case LOG_PAYLOAD_TYPE_ENUM:
+            snprintf(payload, sizeof(payload), "%u", (unsigned)ev->payload.enumValue);
+            field = "enumValue";
+            break;
+        default: return false;
+    }
+    int n = snprintf(out, max,
+        "{\"logEventId\":\"%s\",\"loggerName\":\"%s\",\"source\":\"%s\","
+        "\"level\":%d,\"marker\":%d,\"uptimeMs\":%llu,\"type\":%d,\"repeatCount\":%u,\"%s\":%s}",
+        id, logger, source, (int)ev->level, (int)ev->marker,
+        (unsigned long long)ev->logEventDate, (int)ev->payloadType,
+        (unsigned)ev->repeatCount, field, payload);
+    return n > 0 && (size_t)n < max;
 }

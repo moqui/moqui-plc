@@ -13,8 +13,7 @@ if(NOT ${target} STREQUAL "linux")
         "platform/esp32/time_platform.c"
     )
 else()
-    set(_platform_requires "")
-    set(_platform_srcs "")
+    message(FATAL_ERROR "No Linux network PAL is provided. Run python3 tools/test_host.py for portable runtime checks.")
 endif()
 
 if(CONFIG_MOQUI_ENABLE_TEST_SUITE)
@@ -64,6 +63,7 @@ idf_component_register(
 
         # util
         "${FRAMEWORK}/util/ClockGeneration.c"
+        "${FRAMEWORK}/util/JsonFields.c"
         "${FRAMEWORK}/util/EndianUtils.c"
         "${FRAMEWORK}/util/Filter.c"
         "${FRAMEWORK}/util/IIRFilter.c"

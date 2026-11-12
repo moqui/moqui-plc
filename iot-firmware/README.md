@@ -10,6 +10,8 @@ The **Moqui IoT framework** allows IEC 61131-3 Structured Text programs (functio
 
 The included HVAC application (`runtime/component/mantle-hvac`) is an example component and a collection of patterns for implementing custom runtime components — it shows how to structure device logic, recipe loading, rule engines, and test suites on top of the framework.
 
+The control task is the sole owner of the application state and logger ring. MQTT callbacks enqueue bounded messages; live writes are applied before the next scan. Physical I/O hooks must be wired for the target board, and network connectivity must be configured by the application.
+
 The framework is designed to be portable. See [PORTING.md](PORTING.md) for STM32, Infineon, and TI targets.
 
 ---
@@ -17,7 +19,7 @@ The framework is designed to be portable. See [PORTING.md](PORTING.md) for STM32
 ## Architecture
 
 ```
-Core 1 — Control Task (100 ms)        Core 0 — IoT Task
+Core 1 — Control Task (10 ms)        Core 0 — IoT Task
   MoquiStart_Update                     MqttClient_Task
   <application>_Update                    drain pub queue -> broker
   MqttLogAppender_Update
@@ -56,7 +58,7 @@ docker run --rm -v "$PWD":/project espressif/idf:latest \
 
 ## Running the test suite (QEMU)
 
-The `HvacTestSuite` validates the framework with 30 functional scenarios. No hardware or network required.
+The `HvacTestSuite` validates the framework with 32 functional scenarios. No hardware or network required.
 
 ```bash
 # 1. Merge binaries into a single QEMU flash image
@@ -79,23 +81,33 @@ docker run --rm -v "$PWD":/project -w /project espressif/idf:latest bash -lc "
 Expected output ends with:
 
 ```
-I (...) HvacTestSuite: All 30 HvacTestSuite scenarios PASSED!
+I (...) HvacTestSuite: All 32 HvacTestSuite scenarios PASSED!
 ```
 
 ---
 
 ## Testing the MQTT log pipeline (`moqui-log`)
 
-This test exercises the full log path: `LoggerFacade` ring buffer -> `MqttLogAppender` -> broker.
+The firmware path is `LoggerFacade` ring buffer -> `MqttLogAppender` -> MQTT
+publish queue -> broker. The gateway receives the canonical map-of-events
+envelope, for example:
 
-Log persistence uses model identifiers directly. `loggerName` is the exact
-owning `Device.deviceId`; an empty `source` produces a `DeviceLog`, while a
-non-empty `source` is the exact pre-existing `Parameter.parameterId` and
-produces a `ParameterLog`. The HVAC `ParameterLogger` emits the 29 modeled
-numeric parameters once per `clock1minute` pulse after `DeviceManager_Update`.
-The ring retains a complete snapshot across multiple ten-event MQTT batches.
+```json
+{"1":{"loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","type":1,"numericValue":23.5,"uptimeMs":12000,"repeatCount":1}}
+```
 
-> QEMU does not emulate WiFi. `tools/qemu_log_bridge.sh` bridges QEMU stdout to the broker by converting each `ESP_LOG` line into a `LogEvent` JSON published via `mosquitto_pub`.
+`loggerName` is the exact owning `Device.deviceId`; empty `source` denotes a
+DeviceLog and non-empty `source` an existing `Parameter.parameterId`.
+The 29-field ParameterLogger snapshot is retained across ten-event drains.
+`uptimeMs` is monotonic time since boot, never an epoch timestamp. In the absence
+of an RTC timestamp the receiving gateway assigns the observation date.
+Queue saturation is best-effort; inspect `MqttClient_DroppedMessages()` and
+`MqttParameterSub.droppedMessages` rather than assuming lossless delivery.
+
+QEMU does not emulate WiFi. `tools/qemu_log_bridge.sh` forwards console **text**
+events only, with the same envelope and identity fields. It is not an end-to-end
+validation of numeric telemetry or the device MQTT connection. Registered device
+identifiers are required for persisted console events.
 
 **1. Start ActiveMQ** — the compose file is in the `moqui-framework` repository:
 
@@ -120,10 +132,11 @@ docker run --rm --network=host -v "$PWD":/project -w /project espressif/idf:late
       -nographic 2>&1" | bash tools/qemu_log_bridge.sh localhost 1883
 ```
 
-Each log line arrives on `moqui-log` as:
+The bridge escapes JSON, uses the host reception date and publishes synchronously.
+To inspect its output without a broker:
 
-```json
-{"id":"00000035","logger":"HvacTestSuite","level":2,"marker":0,"ts":2445,"src":"HvacTestSuite","msg":"pass[1]: Init -> Standby","rpt":0}
+```bash
+printf '[I][HVAC_DEMO_PLC] Started\n' | bash tools/qemu_log_bridge.sh --dry-run
 ```
 
 ---
@@ -168,3 +181,27 @@ Debug controls: `F5` continue · `F10` step over · `F11` step into · `Shift+F1
 | Infineon PSoC 6 / XMC | Outlined — see [PORTING.md](PORTING.md) |
 | TI C2000 | Out of scope (no OS, no TCP/IP) — see PORTING.md |
 | Linux | Not supported — ESP-IDF 6.2 bug in linux target |
+
+## Portable regression checks
+
+From the repository root:
+
+```bash
+python3 iot-firmware/tools/test_host.py
+ASAN_OPTIONS=detect_leaks=0 python3 iot-firmware/tools/test_host.py --sanitize
+python3 -m unittest discover -s scripts/tests -q
+```
+
+The host runner compiles the runtime C files and both application entry-point
+variants, executes all 32 existing HVAC scenarios and regression cases for scan
+ordering, clocks, initialization, multi-recipe progression, JSON bounds, typed
+log payloads, command ownership and MQTT fragments. The ESP MQTT tests use API
+stubs; they do not replace an ESP-IDF build or board/broker integration tests.
+LeakSanitizer may be unavailable in restricted containers; the second command
+keeps AddressSanitizer and UndefinedBehaviorSanitizer enabled.
+
+The default FreeRTOS tick must resolve the 10 ms control period. The demo is
+best-effort firmware, with no hard-real-time or MISRA certification claim.
+A deployable Linux PAL is not provided; use the host runner for portable checks.
+The ST bootstrap converter preserves existing C and authoritative `src-manual`
+overrides, including support files, even with `--clean`.

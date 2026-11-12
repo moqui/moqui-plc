@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+#include <math.h>
+#include "JsonFields.h"
 
 static LoggerFacade s_log = { .enable = true, .loggerName = MOQUI_APPLICATION_DEVICE_ID };
 
@@ -49,81 +52,64 @@ static const RecipeEntry s_registry[] = {
 
 #define REGISTRY_SIZE (sizeof(s_registry) / sizeof(s_registry[0]))
 
-/*
- * Minimal JSON scanner — works on flat and one-level-nested objects with numeric,
- * boolean, and string scalar values. Handles our recipe format exactly.
- * Not a general-purpose parser; does not handle strings containing '{', '}', or ':'.
- */
-
-static const char *scan_key(const char *json, const char *key, size_t json_len) {
-    /* Build '"key":' pattern */
-    char pat[72];
-    int pat_len = snprintf(pat, sizeof(pat), "\"%s\"", key);
-    if (pat_len <= 0 || pat_len >= (int)sizeof(pat)) return NULL;
-
-    const char *end = json + json_len;
-    const char *p = json;
-    while (p < end) {
-        const char *found = (const char *)memmem(p, (size_t)(end - p), pat, (size_t)pat_len);
-        if (!found) return NULL;
-        /* Skip to value — past optional whitespace and ':' */
-        const char *v = found + pat_len;
-        while (v < end && (*v == ' ' || *v == '\t' || *v == '\n' || *v == '\r')) v++;
-        if (v >= end || *v != ':') { p = found + 1; continue; }
-        v++;
-        while (v < end && (*v == ' ' || *v == '\t' || *v == '\n' || *v == '\r')) v++;
-        return v; /* points to first char of value */
-    }
-    return NULL;
+/* All lookups are top-level within a validated object and bounded by len. */
+static bool token(const char *json, size_t len, const char *key, char out[64]) {
+    const char *v;
+    size_t n;
+    if (!JsonFields_Find(json, len, key, &v, &n) || n >= 64U) { return false; }
+    memcpy(out, v, n);
+    out[n] = '\0';
+    return true;
 }
-
-static float get_float(const char *json, size_t json_len, const char *key, float def) {
-    const char *v = scan_key(json, key, json_len);
-    if (!v) return def;
-    return strtof(v, NULL);
+static float get_float(const char *json, size_t len, const char *key, float def) {
+    char text[64], *end;
+    if (!token(json, len, key, text)) { return def; }
+    errno = 0;
+    float v = strtof(text, &end);
+    return end != text && *end == '\0' && errno == 0 && isfinite(v) ? v : def;
 }
-
-static uint32_t get_u32(const char *json, size_t json_len, const char *key, uint32_t def) {
-    const char *v = scan_key(json, key, json_len);
-    if (!v) return def;
-    return (uint32_t)strtoul(v, NULL, 10);
+static uint32_t get_u32(const char *json, size_t len, const char *key, uint32_t def) {
+    char text[64], *end;
+    if (!token(json, len, key, text) || text[0] == '-') { return def; }
+    errno = 0;
+    unsigned long v = strtoul(text, &end, 10);
+    return end != text && *end == '\0' && errno == 0 && v <= UINT32_MAX ? (uint32_t)v : def;
 }
-
-static uint16_t get_u16(const char *json, size_t json_len, const char *key, uint16_t def) {
-    return (uint16_t)get_u32(json, json_len, key, def);
+static uint16_t get_u16(const char *json, size_t len, const char *key, uint16_t def) {
+    uint32_t v = get_u32(json, len, key, def);
+    return v <= UINT16_MAX ? (uint16_t)v : def;
 }
-
-static bool get_bool(const char *json, size_t json_len, const char *key, bool def) {
-    const char *v = scan_key(json, key, json_len);
-    if (!v) return def;
-    if (strncmp(v, "true", 4) == 0)  return true;
-    if (strncmp(v, "false", 5) == 0) return false;
+static bool get_bool(const char *json, size_t len, const char *key, bool def) {
+    char text[64];
+    if (!token(json, len, key, text)) { return def; }
+    if (strcmp(text, "true") == 0) { return true; }
+    if (strcmp(text, "false") == 0) { return false; }
     return def;
 }
-
-/* Extract the substring bounded by the '{' '}' of the given key's nested object. */
-static bool get_object(const char *json, size_t json_len,
-                       const char *key, const char **obj_start, size_t *obj_len) {
-    const char *v = scan_key(json, key, json_len);
-    if (!v || *v != '{') return false;
-    v++; /* skip '{' */
-    int depth = 1;
-    const char *p = v;
-    const char *end = json + json_len;
-    while (p < end && depth > 0) {
-        if (*p == '{') depth++;
-        else if (*p == '}') depth--;
-        p++;
+static bool get_object(const char *json, size_t len, const char *key,
+                       const char **obj, size_t *obj_len) {
+    return JsonFields_Find(json, len, key, obj, obj_len) && **obj == '{';
+}
+static void get_identity(const char *json, size_t len, const char *key,
+                         char storage[64], const char **target) {
+    const char *v;
+    size_t n;
+    if (JsonFields_Find(json, len, key, &v, &n) && n >= 2U &&
+        v[0] == '"' && n - 2U < 64U && memchr(v + 1, '\\', n - 2U) == NULL) {
+        memcpy(storage, v + 1, n - 2U);
+        storage[n - 2U] = '\0';
+        *target = storage;
     }
-    if (depth != 0) return false;
-    *obj_start = v;
-    *obj_len   = (size_t)(p - 1 - v);
-    return true;
 }
 
 static void load_actuator(const char *json, size_t json_len, const char *key, Actuator *act) {
     const char *obj; size_t len;
     if (!get_object(json, json_len, key, &obj, &len)) return;
+    get_identity(obj, len, "actuatorId", act->actuatorIdStorage, &act->actuatorId);
+    get_identity(obj, len, "actuatorName", act->actuatorNameStorage, &act->actuatorName);
+    act->actuationType = (ActuatorActuationType)get_u16(obj, len, "actuationType", act->actuationType);
+    act->feedbackType = (ActuatorFeedbackType)get_u16(obj, len, "feedbackType", act->feedbackType);
+    act->model = (ActuatorModel)get_u16(obj, len, "model", act->model);
     act->enableTime        = get_u16(obj, len, "enableTime",        act->enableTime);
     act->disableTime       = get_u16(obj, len, "disableTime",       act->disableTime);
     act->diagnosticsEnable = get_bool(obj, len, "diagnosticsEnable",act->diagnosticsEnable);
@@ -132,6 +118,15 @@ static void load_actuator(const char *json, size_t json_len, const char *key, Ac
 static void load_pid(const char *json, size_t json_len, const char *key, ProcessPid *pid) {
     const char *obj; size_t len;
     if (!get_object(json, json_len, key, &obj, &len)) return;
+    get_identity(obj, len, "controlSystemId", pid->controlSystemIdStorage, &pid->controlSystemId);
+    get_identity(obj, len, "controlSystemName", pid->controlSystemNameStorage, &pid->controlSystemName);
+    pid->feedbackMultiplier = get_float(obj, len, "feedbackMultiplier", 1.0f);
+    pid->setpointMultiplier = get_float(obj, len, "setpointMultiplier", 1.0f);
+    pid->setpointMin = get_float(obj, len, "setpointMin", pid->setpointMin);
+    pid->setpointMax = get_float(obj, len, "setpointMax", pid->setpointMax);
+    pid->atSetpointHysteresis = get_float(obj, len, "atSetpointHysteresis", pid->atSetpointHysteresis);
+    pid->tickTimeMs = get_u32(obj, len, "tickTimeMs", 100U);
+    pid->setpointEpsilon = get_float(obj, len, "setpointEpsilon", 0.000001f);
     pid->gain            = get_float(obj, len, "gain",            pid->gain);
     pid->integrationTime = get_float(obj, len, "integrationTime", pid->integrationTime);
     pid->derivationTime  = get_float(obj, len, "derivationTime",  pid->derivationTime);
@@ -156,6 +151,9 @@ bool DeviceConfigLoader_Load(const char *recipeName, DeviceFacade *dev) {
 
     const char *json = entry->json_start;
     size_t jlen = (size_t)(entry->json_end - entry->json_start);
+
+    if (jlen > 0U && json[jlen - 1U] == '\0') { --jlen; }
+    if (!JsonFields_Valid(json, jlen)) { return false; }
 
     /* Temperature / RH setpoints and limits */
     dev->tempSetpoint          = get_float(json, jlen, "tempSetpoint",          dev->tempSetpoint);

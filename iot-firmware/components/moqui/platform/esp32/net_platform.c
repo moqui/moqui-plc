@@ -24,7 +24,7 @@ bool pal_net_is_connected(void) {
 
 void pal_net_get_mac_str(char *out, size_t max) {
     uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_BASE);
+    ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_BASE));
     snprintf(out, max, "%02x%02x%02x%02x%02x%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }

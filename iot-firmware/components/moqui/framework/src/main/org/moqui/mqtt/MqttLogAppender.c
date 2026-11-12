@@ -19,7 +19,7 @@
 
 void MqttLogAppender_Update(MqttLogAppender *appender) {
     uint16_t i;
-    char json_buf[512U];
+    static char json_buf[MQTT_PUB_PAYLOAD_MAX];
 
     if (!appender->init) { appender->init = true; }
 
@@ -40,7 +40,12 @@ void MqttLogAppender_Update(MqttLogAppender *appender) {
         for (i = 0U;
              (i < appender->logBufferSize) && (i < (uint16_t)LOG_APPENDER_BATCH_SIZE);
              i++) {
-            if (serialize_log_event(&appender->logBuffer[i], json_buf, sizeof(json_buf))) {
+            /* The gateway consumes the canonical map-of-events batch envelope. */
+            memcpy(json_buf, "{\"1\":", 5U);
+            if (serialize_log_event(&appender->logBuffer[i], json_buf + 5U, sizeof(json_buf) - 6U)) {
+                size_t size = strlen(json_buf);
+                json_buf[size] = '}';
+                json_buf[size + 1U] = '\0';
                 MqttClient_PublishLog(json_buf);
             } else {
                 appender->error   = true;

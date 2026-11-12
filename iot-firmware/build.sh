@@ -10,7 +10,7 @@
 #   ./build.sh linux             # Build for Linux/POSIX target (preview, limited support)
 #
 
-set -e
+set -euo pipefail
 
 # Color codes
 RED='\033[0;31m'
@@ -48,7 +48,7 @@ if $HAS_DOCKER; then
     BUILD_METHOD="Docker"
     echo -e "${GREEN}✓ Using Docker${NC}"
 else
-    if [[ -z "$IDF_PATH" ]]; then
+    if [[ -z "${IDF_PATH:-}" ]]; then
         echo -e "${RED}✗ Error: Docker not found and IDF_PATH not set${NC}"
         echo "Install Docker or set: export IDF_PATH=/path/to/esp-idf"
         exit 1
@@ -61,13 +61,13 @@ fi
 build_with_docker() {
     local target=$1
     local action=$2
-    
+
     # Use --preview flag for linux target
     local preview_flag=""
     if [[ "$target" == "linux" ]]; then
         preview_flag="--preview"
     fi
-    
+
     case "$action" in
         build)
             echo -e "${BLUE}Building firmware for $target...${NC}"
@@ -91,13 +91,17 @@ build_with_docker() {
 build_with_local() {
     local target=$1
     local action=$2
-    
+
     source "$IDF_PATH/export.sh" > /dev/null 2>&1
-    
+
     case "$action" in
         build)
             echo -e "${BLUE}Building firmware for $target...${NC}"
-            idf.py set-target $target
+            if [[ "$target" == "linux" ]]; then
+                idf.py --preview set-target "$target"
+            else
+                idf.py set-target "$target"
+            fi
             idf.py build 2>&1 | tee build.log
             ;;
         clean)

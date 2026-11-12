@@ -217,8 +217,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.lastStatus = MAIN_STATUS_STANDBY;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_STANDBY &&
-                !suite->dev.coldGroupEnableRequest &&
-                !suite->dev.hotGroupEnableRequest  &&
+                !suite->dev.coldGlycolPump.enable  &&
+                !suite->dev.hotGlycolPump.enable   &&
                 !suite->dev.ahuFanEnableRequest    &&
                 !suite->dev.airFlowEnableRequest) {
                 suite->pass[3] = true;
@@ -233,8 +233,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.status = MAIN_STATUS_VENTILATION;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_VENTILATION &&
-                !suite->dev.coldGroupEnableRequest &&
-                !suite->dev.hotGroupEnableRequest  &&
+                !suite->dev.coldGlycolPump.enable  &&
+                !suite->dev.hotGlycolPump.enable   &&
                 suite->dev.ahuFanEnableRequest     &&
                 suite->dev.airFlowEnableRequest) {
                 suite->pass[4] = true;
@@ -273,8 +273,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.tempFeedback = T_HOT;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_COOLING &&
-                suite->dev.coldGroupEnableRequest  &&
-                !suite->dev.hotGroupEnableRequest  &&
+                suite->dev.coldGlycolPump.enable   &&
+                !suite->dev.hotGlycolPump.enable   &&
                 suite->dev.ahuFanEnableRequest) {
                 suite->pass[7] = true;
                 suite->cycles  = 0U;
@@ -313,8 +313,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.tempFeedback = T_COLD;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_HEATING &&
-                !suite->dev.coldGroupEnableRequest &&
-                suite->dev.hotGroupEnableRequest   &&
+                !suite->dev.coldGlycolPump.enable  &&
+                suite->dev.hotGlycolPump.enable    &&
                 suite->dev.ahuFanEnableRequest) {
                 suite->pass[10] = true;
                 suite->cycles   = 0U;
@@ -353,8 +353,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.tempFeedback = T_NORMAL;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_DRYING &&
-                suite->dev.coldGroupEnableRequest &&
-                suite->dev.hotGroupEnableRequest  &&
+                suite->dev.coldGlycolPump.enable  &&
+                suite->dev.hotGlycolPump.enable   &&
                 suite->dev.ahuFanEnableRequest) {
                 suite->pass[13] = true;
                 suite->cycles   = 0U;
@@ -625,8 +625,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->dev.ductTempFeedback = DUCT_HOT;
             run(suite, OPERATING_MODE_RUN, true);
             if (suite->dev.status == MAIN_STATUS_FAULT &&
-                !suite->dev.coldGroupEnableRequest &&
-                !suite->dev.hotGroupEnableRequest  &&
+                !suite->dev.coldGlycolPump.enable  &&
+                !suite->dev.hotGlycolPump.enable   &&
                 !suite->dev.ahuFanEnableRequest    &&
                 !suite->dev.airFlowEnableRequest) {
                 suite->pass[32] = true;

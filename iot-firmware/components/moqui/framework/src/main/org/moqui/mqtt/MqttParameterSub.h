@@ -30,6 +30,8 @@ typedef struct {
     /* VAR */
     bool init;
     bool subscribed;
+    uint32_t generation;
+    uint32_t droppedMessages;
 } MqttParameterSub;
 
 void MqttParameterSub_Update(MqttParameterSub *sub, bool paramsSubEnable);

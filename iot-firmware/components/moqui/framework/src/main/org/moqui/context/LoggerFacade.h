@@ -63,8 +63,8 @@ void LoggerFacade_LogFmt(const LoggerFacade *logger, LogLevel level,
 
 /*
  * Copy up to maxLen pending LogEvent entries from the internal ring buffer
- * into out[], then clear the buffer.  *outCount receives the number copied.
- * Call from the MQTT appender task before invoking MqttLogAppender_Update.
+ * into out[], retaining the remaining entries.  *outCount receives the number copied.
+ * Call only from the same application task that writes the ring.
  */
 void LoggerFacade_DrainBuffer(LogEvent *out, uint16_t maxLen, uint16_t *outCount);
 

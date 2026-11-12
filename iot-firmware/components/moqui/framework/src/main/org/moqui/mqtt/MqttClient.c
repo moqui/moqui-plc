@@ -1,10 +1,12 @@
 #include "MqttClient.h"
+#include "sdkconfig.h"
 #include "platform.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 /* MISRA C:2012 Rule 15.5 deviation: early return used for guard clause. */
 
@@ -19,6 +21,9 @@ static const char *s_log_topic = MOQUI_LOG_TOPIC;
 static StaticQueue_t   s_queue_buf;
 static uint8_t         s_queue_storage[MQTT_QUEUE_LENGTH * sizeof(MqttPubMsg)];
 static QueueHandle_t   s_pub_queue;
+static atomic_uint_least32_t s_dropped;
+
+uint32_t MqttClient_DroppedMessages(void) { return atomic_load(&s_dropped); }
 
 /* ------------------------------------------------------------------ */
 
@@ -49,9 +54,14 @@ static void enqueue_msg(const char *topic, const char *payload, int qos) {
     msg.topic[sizeof(msg.topic) - 1U] = '\0';
     strncpy(msg.payload, payload, sizeof(msg.payload) - 1U);
     msg.payload[sizeof(msg.payload) - 1U] = '\0';
+    if (strlen(topic) >= sizeof(msg.topic) || strlen(payload) >= sizeof(msg.payload)) {
+        atomic_fetch_add(&s_dropped, 1U);
+        return;
+    }
     msg.qos = qos;
+    msg.attempts = 0U;
     /* Non-blocking: drop if full (high-priority control task must not stall). */
-    (void)xQueueSend(s_pub_queue, &msg, 0U);
+    if (xQueueSend(s_pub_queue, &msg, 0U) != pdTRUE) { atomic_fetch_add(&s_dropped, 1U); }
 }
 
 void MqttClient_PublishActuatorState(const Actuator *actuator) {
@@ -91,12 +101,14 @@ void MqttClient_Task(void *pvParameters) {
                 if (mid < 0) {
                     printf("[W][MqttClient] Publish failed on %s, re-queuing.\n", msg.topic);
                     /* Re-enqueue once; drop on second failure to avoid stall. */
-                    (void)xQueueSend(s_pub_queue, &msg, 0U);
+                    if (msg.attempts++ > 0U || xQueueSend(s_pub_queue, &msg, 0U) != pdTRUE) {
+                        atomic_fetch_add(&s_dropped, 1U);
+                    }
                 } else {
                     printf("[D][MqttClient] Published mid=%d topic=%s\n", mid, msg.topic);
                 }
             }
-            /* If not connected, message is dropped (QoS 0 approach for IoT). */
+            else { atomic_fetch_add(&s_dropped, 1U); }
         }
         /* Yield briefly between drains to let lower-priority tasks run. */
         taskYIELD();

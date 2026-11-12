@@ -82,6 +82,8 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
 
             if (!self->configOps->listConfigs) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_WARN, "listConfigs not implemented.");
+                self->error = true;
+                self->errorId = 0x5002U;
                 break;
             }
             self->errorId = self->configOps->listConfigs(self->configOps->context,
@@ -95,12 +97,20 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
                 return;
             }
 
+            if (self->configNameListSize > DEVICE_CONFIG_LIST_MAX_SIZE + 1U) {
+                self->error = true;
+                self->errorId = 0x5003U;
+                self->configNameListSize = 0U;
+                return;
+            }
             sort_name_list(self);
             break;
 
         case DEVICE_CONFIG_CMD_CREATE:
             if (!self->configOps->createConfig) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_WARN, "createConfig not implemented.");
+                self->error = true;
+                self->errorId = 0x5002U;
                 break;
             }
             self->errorId = self->configOps->createConfig(self->configOps->context,
@@ -116,6 +126,8 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
         case DEVICE_CONFIG_CMD_SAVE:
             if (!self->configOps->saveConfig) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_WARN, "saveConfig not implemented.");
+                self->error = true;
+                self->errorId = 0x5002U;
                 break;
             }
             self->errorId = self->configOps->saveConfig(self->configOps->context,
@@ -131,6 +143,8 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
         case DEVICE_CONFIG_CMD_LOAD:
             if (!self->configOps->loadConfig) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_WARN, "loadConfig not implemented.");
+                self->error = true;
+                self->errorId = 0x5002U;
                 break;
             }
             self->errorId = self->configOps->loadConfig(self->configOps->context,
@@ -146,6 +160,8 @@ void DeviceConfigCmds_Update(DeviceConfigCmds *self)
         case DEVICE_CONFIG_CMD_DELETE:
             if (!self->configOps->deleteConfig) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_WARN, "deleteConfig not implemented.");
+                self->error = true;
+                self->errorId = 0x5002U;
                 break;
             }
             self->errorId = self->configOps->deleteConfig(self->configOps->context,

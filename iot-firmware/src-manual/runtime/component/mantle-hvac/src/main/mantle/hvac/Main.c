@@ -13,6 +13,13 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
 
     if (operationType == OPERATING_MODE_INIT) {
         LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Setup and configuration of all devices.");
+        dev->signalMgmt.operationType = SIGNAL_MGMT_OPERATING_MODE_RESET;
+        dev->signalMgmt.loggerName = MOQUI_APPLICATION_DEVICE_ID;
+        SignalMgmt_Update(&dev->signalMgmt);
+        s_airDistrib.operationType = OPERATING_MODE_INIT;
+        s_airDistrib.enable = false;
+        s_airDistrib.clock1s = false;
+        AirDistributionController_Update(&s_airDistrib, dev);
         dev->status = MAIN_STATUS_STANDBY;
         dev->actualRuntime = 0;
         dev->actualBreakDuration = 0;
@@ -24,6 +31,10 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
     } else if (deviceConfigContextResetRequest) {
         LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Reset HVAC device config context.");
         dev->status = MAIN_STATUS_STANDBY;
+        s_airDistrib.operationType = OPERATING_MODE_INIT;
+        s_airDistrib.enable = false;
+        s_airDistrib.clock1s = false;
+        AirDistributionController_Update(&s_airDistrib, dev);
         dev->lastStatus = MAIN_STATUS_STANDBY;
         dev->actualRuntime = 0;
         dev->actualBreakDuration = 0;

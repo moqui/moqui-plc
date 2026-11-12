@@ -1,6 +1,6 @@
 # Porting Guide
 
-All framework and runtime code (`framework/`, `runtime/`) has no platform dependencies and recompiles unchanged on any C99 toolchain.
+All framework and runtime code (`framework/`, `runtime/`) uses C11. The transport layer also depends on FreeRTOS queues and tasks. A port must provide compatible RTOS and PAL implementations.
 
 Porting requires **three new files** and **two small edits**.
 
@@ -10,7 +10,7 @@ Porting requires **three new files** and **two small edits**.
 
 ```
 platform/
-├── platform.h          ← contract (8 functions) — do not modify
+├── platform.h          ← platform contract
 ├── esp32/              ← current implementation (~150 lines total)
 │   ├── mqtt_platform.c
 │   ├── net_platform.c
@@ -38,6 +38,7 @@ void pal_mqtt_init(const char *broker_uri);
 bool pal_mqtt_is_connected(void);
 int  pal_mqtt_publish(const char *topic, const char *payload, int len, int qos);
 int  pal_mqtt_subscribe(const char *topic, int qos);
+int  pal_mqtt_unsubscribe(const char *topic);
 void pal_mqtt_set_rx_cb(PalMqttRxCb cb);
 ```
 
@@ -120,3 +121,15 @@ Modern TI families that *can* run the full iot-firmware stack:
 | **C2000 F28P65x** | TMS320F28P650DK | Newest C2000 with FPU64 + FreeRTOS support; still limited RAM (~1 MB) but viable for the process layer without MQTT |
 
 Porting to **CC3235S** is essentially identical to the ESP32 path — FreeRTOS, lwIP, TI's MQTT client library maps directly to the PAL interface. The three PAL files and `LoggerFacade.c` are the only files that change.
+
+## Receive and ownership contract
+
+Deliver a complete MQTT topic and payload to the callback, reassembling fragments
+beforehand. The callback only enqueues commands. The application/control task
+owns `DeviceFacade`, applies pending live writes and reads telemetry snapshots;
+network event tasks must never mutate it directly. The ESP32 PAL uses C11 atomics
+for connection state and callback publication. Subscribe and unsubscribe operate
+on the exact configured topic. Size/queue limits reject messages rather than
+truncating them into different commands. Configure the board network before
+expecting broker connectivity; `pal_hardware_init` initializes NVS/netif/event
+infrastructure, not a board-specific WiFi or Ethernet connection.

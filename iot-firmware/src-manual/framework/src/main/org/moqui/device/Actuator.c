@@ -131,6 +131,12 @@ void Actuator_Update(Actuator *self)
     bool reqEnable;
     bool reqDisable;
 
+    if (self->operationType == OPERATING_MODE_INIT) {
+        Actuator_Init(self);
+        return;
+    }
+    if (self->operationType != OPERATING_MODE_RUN) { return; }
+
     if (self->notInitialized) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Actuator not initialized.");
     }

@@ -126,7 +126,10 @@ static void ton_update(TonTimer *t, uint32_t tickMs)
         return;
     }
     if (!t->q) {
-        t->etMs += tickMs;
+        if (t->etMs < t->ptMs) {
+            uint32_t remaining = t->ptMs - t->etMs;
+            t->etMs += tickMs < remaining ? tickMs : remaining;
+        }
         if (t->etMs >= t->ptMs) { t->q = true; }
     }
 }
@@ -177,7 +180,7 @@ void ProcessPidFull_Update(ProcessPid *self)
     configOk = ((self->controlSystemId   != NULL) && (self->controlSystemId[0]   != '\0')) ||
                ((self->controlSystemName != NULL) && (self->controlSystemName[0] != '\0'));
 
-    if (!configOk ||
+    if (!configOk || self->tickTimeMs == 0U ||
         (self->integrationTime < 0.0f) || (self->derivationTime < 0.0f) ||
         (self->gain <= 0.0f) ||
         (self->setpointMin > self->setpointMax) ||

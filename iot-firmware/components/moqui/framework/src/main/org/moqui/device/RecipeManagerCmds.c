@@ -25,8 +25,9 @@ void RecipeManagerCmds_Update(RecipeManagerCmds *cmds) {
         cmds->done  = ok;
         cmds->error = !ok;
     } else {
-        /* No loader — succeed silently (simulation / test mode) */
-        cmds->done = true;
+        /* A missing loader cannot complete a physical configuration. */
+        cmds->done = false;
+        cmds->error = true;
     }
     cmds->busy = false;
 }

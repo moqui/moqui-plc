@@ -37,7 +37,6 @@ void DeviceConfigMgmt_Update(DeviceConfigMgmt *self)
             if (self->configCmds.error) {
                 self->status = DEVICE_CONFIG_MGMT_RESETTING;
             } else {
-                self->currentConfigIndex = 0U;
                 self->status = DEVICE_CONFIG_MGMT_LOAD;
             }
             break;
@@ -68,6 +67,7 @@ void DeviceConfigMgmt_Update(DeviceConfigMgmt *self)
             if (configCompletedEdge) {
                 self->done = false;
                 LOGGER_LOG(&self->logger, LOG_LEVEL_INFO, "Device config completed.");
+                self->busy = true;
                 self->currentConfigIndex++;
                 self->status = DEVICE_CONFIG_MGMT_LOAD;
             }

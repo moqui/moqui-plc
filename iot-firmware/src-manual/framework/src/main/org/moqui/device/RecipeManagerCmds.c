@@ -1,0 +1,33 @@
+#include "RecipeManagerCmds.h"
+
+void RecipeManagerCmds_Update(RecipeManagerCmds *cmds) {
+    if (!cmds->init) {
+        cmds->logger.enable = true;
+        cmds->logger.loggerName = MOQUI_APPLICATION_DEVICE_ID;
+        cmds->init = true;
+    }
+
+    if (!cmds->execute) {
+        cmds->done = false;
+        cmds->busy = false;
+        cmds->error = false;
+        return;
+    }
+
+    if (cmds->done) return; /* Already completed this execute pulse */
+
+    cmds->busy = true;
+    LOGGER_LOG(&cmds->logger, LOG_LEVEL_DEBUG, "Loading recipe: %s",
+               cmds->recipeName ? cmds->recipeName : "(null)");
+
+    if (cmds->loadFn) {
+        bool ok = cmds->loadFn(cmds->recipeName, cmds->loadCtx);
+        cmds->done  = ok;
+        cmds->error = !ok;
+    } else {
+        /* A missing loader cannot complete a physical configuration. */
+        cmds->done = false;
+        cmds->error = true;
+    }
+    cmds->busy = false;
+}
