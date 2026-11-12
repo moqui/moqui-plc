@@ -83,7 +83,7 @@ def main() -> int:
         checks.append({"check": f"repository:{repo}", "ok": path.is_dir(), "detail": str(path)})
 
     required_files = {
-        "codesys-project": workspace / "moqui-plc" / "codesys" / "moqui.projectarchive",
+        "codesys-project": workspace / "moqui-plc" / "codesys-v3" / "moqui.projectarchive",
         "hvac-seed": workspace / "moqui-device" / "data" / "HVACDemoData.xml",
         "hvac-gateway-demo-data": workspace / "moqui-device" / "data" / "HVACDemoGatewayData.xml",
         "artemis-compose": workspace / "moqui-deploy" / "industrial" / "activemq-compose.yml",

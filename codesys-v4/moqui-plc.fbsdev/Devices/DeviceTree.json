@@ -1,0 +1,9 @@
+{
+	"deviceName": "CODESYS_Virtual_Control_for_Linux_SL",
+	"identification": {
+		"type": 4096,
+		"id": "0000 1007",
+		"version": "4.22.0.0"
+	},
+	"children": []
+}

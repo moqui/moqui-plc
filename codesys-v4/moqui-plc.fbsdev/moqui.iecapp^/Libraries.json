@@ -1,0 +1,71 @@
+{
+	"references": {
+		"Standard": {
+			"$type": "Placeholder",
+			"placeholder": "Standard"
+		},
+		"CAA": {
+			"$type": "ManagedLibrary",
+			"libraryId": "CAA Types Extern, 3.5.17 (CAA Technical Workgroup)"
+		},
+		"JSON": {
+			"$type": "ManagedLibrary",
+			"libraryId": "JSON Utilities SL, 1.13.0 (CODESYS)"
+		},
+		"MQTT": {
+			"$type": "ManagedLibrary",
+			"libraryId": "MQTT Client SL, 1.13.0 (CODESYS)"
+		},
+		"NBS": {
+			"$type": "ManagedLibrary",
+			"libraryId": "Net Base Services, 5.0.0 (CODESYS)"
+		},
+		"Recipe_Management": {
+			"$type": "ManagedLibrary",
+			"libraryId": "Recipe Management, 4.7.0 (System)"
+		},
+		"SysTimeRtc": {
+			"$type": "ManagedLibrary",
+			"libraryId": "SysTimeRtc, 3.5.22 (System)"
+		},
+		"Util": {
+			"$type": "ManagedLibrary",
+			"libraryId": "Util, 3.5.22 (System)",
+			"allowUnqualifiedAccess": true
+		},
+		"SM3_Basic": {
+			"$type": "ManagedLibrary",
+			"libraryId": "SM3_Basic, 4.20.0 (CODESYS)"
+		},
+		"SM3_Robotics": {
+			"$type": "ManagedLibrary",
+			"libraryId": "SM3_Robotics, 4.20.1 (CODESYS)",
+			"allowUnqualifiedAccess": true
+		}
+	},
+	"placeholderOverrides": {
+		"SM3_Basic": "SM3_Basic, 4.20.0 (CODESYS)",
+		"SM3_CNC": "SM3_CNC, 4.20.0 (CODESYS)",
+		"SM3_CPKernelDefaults": "SM3_CPKernelDefaults, 4.19.0 (CODESYS)",
+		"SM3_CamBuilder": "SM3_CamBuilder, 4.19.0 (CODESYS)",
+		"SM3_CommonPublic": "SM3_CommonPublic, 4.20.0 (CODESYS)",
+		"SM3_Drive_CAN": "SM3_Drive_CAN, 4.19.0 (CODESYS)",
+		"SM3_Drive_CAN_Brunner": "SM3_Drive_CAN_Brunner, 4.14.0 (3S - Smart Software Solutions GmbH)",
+		"SM3_Drive_CAN_DS402_IP": "SM3_Drive_CAN_DS402_IP, 4.19.0 (CODESYS)",
+		"SM3_Drive_CiA_DSP402": "SM3_Drive_CiA_DSP402, 4.19.0 (CODESYS)",
+		"SM3_Dynamics": "SM3_Dynamics, 4.18.0 (CODESYS)",
+		"SM3_Error": "SM3_Error, 4.20.0 (CODESYS)",
+		"SM3_Math": "SM3_Math, 4.20.2 (CODESYS)",
+		"SM3_RBase": "SM3_RBase, 4.20.0 (CODESYS)",
+		"SM3_RCP": "SM3_RCP, 4.20.0 (CODESYS)",
+		"SM3_RError": "SM3_RError, 4.18.0 (CODESYS)",
+		"SM3_Ramps": "SM3_Ramps, 4.18.0 (CODESYS)",
+		"SM3_Robotics": "SM3_Robotics, 4.20.1 (CODESYS)",
+		"SM3_Shared": "SM3_Shared, 4.20.0 (CODESYS)",
+		"SM3_StringUtils": "SM3_StringUtils, 4.19.0 (CODESYS)",
+		"SM3_TrajectoryGeneration": "SM3_TrajectoryGeneration, 4.18.0 (CODESYS)",
+		"SM3_Transformation": "SM3_Transformation, 4.20.0 (CODESYS)",
+		"TextListUtils": "TextListUtils, 4.7.0 (System)"
+	},
+	"libraryParameters": {}
+}

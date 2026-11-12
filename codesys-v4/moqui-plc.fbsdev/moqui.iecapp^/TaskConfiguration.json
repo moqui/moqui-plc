@@ -1,0 +1,143 @@
+{
+	"taskGroups": [
+		{
+			"groupName": "IEC-Tasks",
+			"tasks": {
+				// "StartTask": {
+				// 	"calls": [
+				// 		"MoquiStart"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "LogDispatcherTask": {
+				// 	"calls": [
+				// 		"LogDispatcher"
+				// 	],
+				// 	"priority": 3,
+				// 	"type": "Cyclic",
+				// 	"interval": 1000000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "MqttParameterPubTask": {
+				// 	"calls": [
+				// 		"MqttParameterPub"
+				// 	],
+				// 	"priority": 3,
+				// 	"type": "Cyclic",
+				// 	"interval": 3000000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "MqttParameterSubTask": {
+				// 	"calls": [
+				// 		"MqttParameterSub"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 1000000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "AxisTestSuiteTask": {
+				// 	"calls": [
+				// 		"AxisTestSuite"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "TestSuiteTask": {
+				// 	"calls": [
+				// 		"TestSuite"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "DeviceTestSuiteTask": {
+				// 	"calls": [
+				// 		"DeviceTestSuite"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				"TestRobotArmPlanningTask": {
+					"calls": [
+						"TestRobotArmPlanning"
+					],
+					"priority": 11,
+					"type": "Cyclic",
+					"interval": 20000,
+					"watchdogEnable": false,
+					"watchdogTime": 0,
+					"watchdogSensitivity": 0
+				},
+				"AxisGroupTestSuiteTask": {
+					"calls": [
+						"AxisGroupTestSuite"
+					],
+					"priority": 1,
+					"type": "Cyclic",
+					"interval": 10000,
+					"watchdogEnable": false,
+					"watchdogTime": 0,
+					"watchdogSensitivity": 0
+				}
+				// "ActuatorGroupTestSuiteTask": {
+				// 	"calls": [
+				// 		"ActuatorGroupTestSuite"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "TestTripodPlanningTask": {
+				// 	"calls": [
+				// 		"TestTripodPlanning"
+				// 	],
+				// 	"priority": 11,
+				// 	"type": "Freewheeling",
+				// 	"interval": 20000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+				// "PickAndPlaceTestSuiteTask": {
+				// 	"calls": [
+				// 		"PickAndPlaceTestSuite"
+				// 	],
+				// 	"priority": 1,
+				// 	"type": "Cyclic",
+				// 	"interval": 10000,
+				// 	"watchdogEnable": false,
+				// 	"watchdogTime": 0,
+				// 	"watchdogSensitivity": 0
+				// },
+			},
+			"coreConfig": "FixedPinned"
+		}
+	],
+	"systemEvents": []
+}

@@ -102,8 +102,10 @@ application layer.
 
 The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any
 compliant IDE (CODESYS, Siemens AX, etc.). The repository also includes
-`codesys/moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
+`codesys-v3/moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
 for demos, manual validation, and automated test execution.
+`codesys-v4/` holds the CODESYS 4 project, generated from the canonical tree by
+`scripts/convert-iec61131-to-codesys4.py` (see [codesys-v4/README.md](codesys-v4/README.md)).
 
 
 ## Project Structure and Platform Ports
@@ -144,8 +146,10 @@ The directory `iec61131/moqui` is the canonical source of truth for the PLC fram
 
 The current platform paths are:
 
-- `codesys/moqui.projectarchive`: the complete CODESYS project archive used for development,
+- `codesys-v3/moqui.projectarchive`: the complete CODESYS project archive used for development,
   validation, demonstrations, and test execution;
+- `codesys-v4`: the CODESYS 4 project, whose application is generated from the
+  canonical IEC tree by `scripts/convert-iec61131-to-codesys4.py`;
 - `iec61131/moqui`: the clean IEC 61131-3 export used as the vendor-neutral reference;
 - `simatic-ax`: the SIMATIC AX port, generated from the canonical IEC tree with a
   limited set of manually maintained AX-specific overrides;
@@ -237,7 +241,7 @@ conversion in `doubleWordToReal`/`longWordToLongReal`. See
 [rust-plc/README.md](rust-plc/README.md) for the full list of rewrites,
 remaining errors, findings, and what a Rust runtime has to add.
 
-`codesys/moqui.projectarchive` is a permanent repository artifact and must always be kept.
+`codesys-v3/moqui.projectarchive` is a permanent repository artifact and must always be kept.
 It is not a generated build directory and must not be removed during repository
 cleanup.
 
@@ -280,7 +284,7 @@ To open the CODESYS project for testing, you need to download the CODESYS IDE fr
 
 ## Demo Project Archive
 
-Use `codesys/moqui.projectarchive` to open the full demo project directly in CODESYS.
+Use `codesys-v3/moqui.projectarchive` to open the full demo project directly in CODESYS.
 This archive is the recommended starting point when you want to explore the
 framework behavior, run the included test suites, or prepare a local demo
 environment without importing the source tree manually.
@@ -504,7 +508,7 @@ and the moqui-plc `master` branch, with the `HVAC_DEMO_GATEWAY` identity, the
 
 ### 6. Configure and run CODESYS
 
-Open `moqui-plc/codesys/moqui.projectarchive`. For MQTT testing, use the local
+Open `moqui-plc/codesys-v3/moqui.projectarchive`. For MQTT testing, use the local
 `CODESYS Control Win V3 - x64` runtime rather than IDE Simulation: Simulation
 may execute the PLC logic without creating the external MQTT socket.
 

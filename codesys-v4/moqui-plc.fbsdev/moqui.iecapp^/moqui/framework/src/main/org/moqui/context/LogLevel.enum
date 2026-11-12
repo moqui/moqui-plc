@@ -1,0 +1,10 @@
+TYPE LogLevel : (
+	Trace := 0,
+	Debug,
+	Info,
+	Warn,
+	Error,
+	Fatal,
+	All,
+	Off
+); END_TYPE

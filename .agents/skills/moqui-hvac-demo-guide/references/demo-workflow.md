@@ -64,7 +64,7 @@ from the modeled requests, without a hidden route list.
 
 Ask the user to:
 
-1. open `codesys/moqui.projectarchive`
+1. open `codesys-v3/moqui.projectarchive`
 2. connect the IDE to CODESYS Control Win
 3. verify `MoquiConf` broker/topic values
 4. configure `MoquiStart`, `MqttParameterSub`, and `LogDispatcher` task calls

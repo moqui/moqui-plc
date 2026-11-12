@@ -18,7 +18,7 @@ Operate only a local developer demonstration composed of:
 - `moqui-device-gateway` running inside MR-Moqui (a separate Quarkus process
   only on the Java line, moqui-plc `master`)
 - Mosquitto command-line clients as observers or test publishers
-- `codesys/moqui.projectarchive` running on CODESYS Control Win
+- `codesys-v3/moqui.projectarchive` running on CODESYS Control Win
 
 Do not present this workflow as a production deployment. Do not design or
 configure Kubernetes, Swarm, TLS, secret management, backups, network
