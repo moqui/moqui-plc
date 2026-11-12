@@ -20,6 +20,10 @@ type-check the code with:
 
 IronPLC does not use RuSTy: they are two separate compilers, both written in Rust.
 
+[PLAN.md](PLAN.md) is the complete plan for building a Rust PLC runtime for this code on Linux PREEMPT_RT, on
+Intel's Edge Control Libraries (IgH EtherCAT, RTmotion) and moqui-device-gateway. It is a plan only: nothing in it is
+implemented yet.
+
 ## What compiles and what does not
 
 The moqui-plc code compiles only when every dependency is satisfied.
