@@ -34,6 +34,7 @@ COMMON_EXCLUDED_PATH_PARTS = frozenset({
 })
 
 COMMON_EXCLUDED_FILE_STEMS = frozenset({
+    "mqttcommunication",
     "mqttparameterpub",
     "mqttparametersub",
 })

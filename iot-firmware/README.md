@@ -90,19 +90,38 @@ I (...) HvacTestSuite: All 32 HvacTestSuite scenarios PASSED!
 
 The firmware path is `LoggerFacade` ring buffer -> `MqttLogAppender` -> MQTT
 publish queue -> broker. The gateway receives the canonical map-of-events
-envelope, for example:
+envelope; the keys have a fixed width so that a reader that sorts keys keeps the
+order, for example:
 
 ```json
-{"1":{"loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","type":1,"numericValue":23.5,"uptimeMs":12000,"repeatCount":1}}
+{"001":{"logEventId":"0000002a","loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","level":2,"marker":0,"uptimeMs":12000,"type":1,"repeatCount":1,"sequence":42,"numericValue":23.5}}
 ```
 
 `loggerName` is the exact owning `Device.deviceId`; empty `source` denotes a
 DeviceLog and non-empty `source` an existing `Parameter.parameterId`.
-The 29-field ParameterLogger snapshot is retained across ten-event drains.
 `uptimeMs` is monotonic time since boot, never an epoch timestamp. In the absence
 of an RTC timestamp the receiving gateway assigns the observation date.
-Queue saturation is best-effort; inspect `MqttClient_DroppedMessages()` and
-`MqttParameterSub.droppedMessages` rather than assuming lossless delivery.
+
+The ring and the appender follow `LogRingBuffer.st` and `LogDispatcher.st`:
+
+- the control task owns the ring; `MqttLogAppender_Update` queues at most one
+  message of up to `LOG_APPENDER_BATCH_SIZE` records per cycle (QoS
+  `LOG_PUB_QOS`, 1) and releases the records only when the publish queue
+  accepted the message; while the broker is not connected the records wait in
+  the ring, so the 29-field ParameterLogger snapshot spans several messages
+  without losses;
+- a full ring refuses new records and counts them
+  (`LoggerFacade_DroppedCount`); the next message starts with one `Warn` record
+  "N log events dropped";
+- events below `LoggerFacade_SetMinLevel` (default `LOG_MIN_LEVEL_DEFAULT`,
+  DEBUG; INFO is advisable in production) are neither printed nor stored, and an
+  event equal to the previous one within `LOG_SUPPRESS_DURATION_MS` is written
+  once more as a summary with `repeatCount` = repetitions.
+
+Messages already queued are lost if the connection drops before the IoT task
+publishes them; inspect `MqttClient_DroppedMessages()`,
+`MqttParameterSub.droppedMessages` and the appender's `discardedCount` rather
+than assuming lossless delivery.
 
 QEMU does not emulate WiFi. `tools/qemu_log_bridge.sh` forwards console **text**
 events only, with the same envelope and identity fields. It is not an end-to-end

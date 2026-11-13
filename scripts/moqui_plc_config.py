@@ -210,3 +210,96 @@ COMPILE_ST_EXCLUDED_FILES = {
     "rusty": ("configuration.st",),
     "ironplc": (),
 }
+
+# ---------------------------------------------------------------------------
+# convert-iec61131-to-codesys4.py: the CODESYS 4 application
+# ---------------------------------------------------------------------------
+#
+# The application of the CODESYS 4 project, relative to the repository root. The generated objects go to
+# <application>^/<CODESYS4_SOURCE_FOLDER>/, in the folders of the canonical tree.
+CODESYS4_APPLICATION = os.path.join("codesys-v4", "moqui-plc.fbsdev", "moqui.iecapp")
+CODESYS4_SOURCE_FOLDER = "moqui"
+
+# Objects of the CODESYS 4 project template that the generated application replaces.
+CODESYS4_REMOVED_OBJECTS = ("PROG.prg.st",)
+
+# Canonical objects left out of the CODESYS 4 application, with the variables declared with their type.
+# NetworkDiagnostics walks the Ethernet adapter of the device tree through Device Diagnosis, which CODESYS 4 does
+# not generate for its device-tree nodes.
+CODESYS4_EXCLUDED_OBJECTS = ("NetworkDiagnostics",)
+
+# Tasks of iec61131/configuration.st that run by default. The other tasks stay in TaskConfiguration.json as
+# comments: uncomment one to run it.
+CODESYS4_ENABLED_TASKS = ("AxisGroupTestSuiteTask", "TestRobotArmPlanningTask")
+
+# The device of the project and the task that runs its I/O bus cycle (an enabled task).
+CODESYS4_DEVICE = os.path.join("codesys-v4", "moqui-plc.fbsdev", "Devices", "CODESYS_Virtual_Control_for_Linux_SL.device.json")
+CODESYS4_BUS_CYCLE_TASK = "AxisGroupTestSuiteTask"
+
+# The objects that CODESYS 3.5 generates from the device tree (SoftMotion drives, axis groups, cam table) and that
+# the code references by name. CODESYS 4 has no SoftMotion device tree: the declarations of the device-tree
+# interface become the global variable list deviceTree, with virtual drives, so the application compiles and the
+# single-axis tests run without hardware. The axis groups still need their kinematics configured before the
+# group tests can run. The Ethernet adapter is left out with NetworkDiagnostics, its only user.
+CODESYS4_DEVICE_TREE = os.path.join("rust-plc", "interfaces", "device-tree", "DeviceTree.st")
+CODESYS4_DEVICE_TREE_LIST = "deviceTree"
+CODESYS4_DEVICE_TREE_EXCLUDED = ("ethernet",)
+CODESYS4_DEVICE_TREE_TYPES = {
+    "SM3_Basic.AXIS_REF_SM3": "SM3_Basic.AXIS_REF_VIRTUAL_SM3",
+    "MC_CAM_REF": "SM3_Basic.MC_CAM_REF",
+}
+
+# CODESYS 4 installation and its command line; MOQUI_PLC_C4_CLI overrides the command.
+CODESYS4_INSTALL_DIR = os.environ.get("MOQUI_PLC_CODESYS4_DIR", "/opt/codesys-4")
+CODESYS4_CLI = os.path.join(CODESYS4_INSTALL_DIR, "c4-cli")
+
+# Library namespace -> managed library, as in the CODESYS 3.5 project. CODESYS 4 ships all of them except
+# Recipe Management and SoftMotion, which --install-libraries takes from the CODESYS 3.5 project archive.
+CODESYS4_LIBRARIES = {
+    "CAA": "CAA Types Extern, 3.5.17 (CAA Technical Workgroup)",
+    "JSON": "JSON Utilities SL, 1.13.0 (CODESYS)",
+    "MQTT": "MQTT Client SL, 1.13.0 (CODESYS)",
+    "NBS": "Net Base Services, 5.0.0 (CODESYS)",
+    "Recipe_Management": "Recipe Management, 4.7.0 (System)",
+    "SysTimeRtc": "SysTimeRtc, 3.5.22 (System)",
+    "Util": "Util, 3.5.22 (System)",
+    "SM3_Basic": "SM3_Basic, 4.20.0 (CODESYS)",
+    "SM3_Robotics": "SM3_Robotics, 4.20.1 (CODESYS)",
+}
+
+# Libraries whose symbols the canonical tree uses without a qualifier and that codesys_namespaces does not
+# qualify (Util.PID, Util.RAMP_REAL, SM3_Robotics.SMC_RCNST).
+CODESYS4_UNQUALIFIED_LIBRARIES = ("Util", "SM3_Robotics")
+
+# The SoftMotion libraries reach their dependencies through placeholders that, in CODESYS 3.5, the SoftMotion
+# package resolves. The visualization placeholders stay unresolved: they are optional and moqui-plc has no
+# visualization.
+CODESYS4_PLACEHOLDER_OVERRIDES = {
+    "SM3_Basic": "SM3_Basic, 4.20.0 (CODESYS)",
+    "SM3_CNC": "SM3_CNC, 4.20.0 (CODESYS)",
+    "SM3_CPKernelDefaults": "SM3_CPKernelDefaults, 4.19.0 (CODESYS)",
+    "SM3_CamBuilder": "SM3_CamBuilder, 4.19.0 (CODESYS)",
+    "SM3_CommonPublic": "SM3_CommonPublic, 4.20.0 (CODESYS)",
+    "SM3_Drive_CAN": "SM3_Drive_CAN, 4.19.0 (CODESYS)",
+    "SM3_Drive_CAN_Brunner": "SM3_Drive_CAN_Brunner, 4.14.0 (3S - Smart Software Solutions GmbH)",
+    "SM3_Drive_CAN_DS402_IP": "SM3_Drive_CAN_DS402_IP, 4.19.0 (CODESYS)",
+    "SM3_Drive_CiA_DSP402": "SM3_Drive_CiA_DSP402, 4.19.0 (CODESYS)",
+    "SM3_Dynamics": "SM3_Dynamics, 4.18.0 (CODESYS)",
+    "SM3_Error": "SM3_Error, 4.20.0 (CODESYS)",
+    "SM3_Math": "SM3_Math, 4.20.2 (CODESYS)",
+    "SM3_RBase": "SM3_RBase, 4.20.0 (CODESYS)",
+    "SM3_RCP": "SM3_RCP, 4.20.0 (CODESYS)",
+    "SM3_RError": "SM3_RError, 4.18.0 (CODESYS)",
+    "SM3_Ramps": "SM3_Ramps, 4.18.0 (CODESYS)",
+    "SM3_Robotics": "SM3_Robotics, 4.20.1 (CODESYS)",
+    "SM3_Shared": "SM3_Shared, 4.20.0 (CODESYS)",
+    "SM3_StringUtils": "SM3_StringUtils, 4.19.0 (CODESYS)",
+    "SM3_TrajectoryGeneration": "SM3_TrajectoryGeneration, 4.18.0 (CODESYS)",
+    "SM3_Transformation": "SM3_Transformation, 4.20.0 (CODESYS)",
+    "TextListUtils": "TextListUtils, 4.7.0 (System)",
+}
+
+# --install-libraries: the CODESYS 3.5 project archive the libraries come from, and the CODESYS 4 repository
+# (a name from the library repository preferences, or a path) they go to.
+CODESYS4_LIBRARY_ARCHIVE = os.path.join("codesys-v3", "moqui.projectarchive")
+CODESYS4_LIBRARY_REPOSITORY = "Default"

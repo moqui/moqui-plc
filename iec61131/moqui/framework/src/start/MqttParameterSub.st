@@ -1,3 +1,7 @@
+(*
+ * Live parameter writes from Moqui: subscribes liveParamsSubTopic and applies each payload with
+ * DeserializeJsonToParameters. Called by MqttCommunication, which owns the broker connection.
+ *)
 PROGRAM MqttParameterSub
 	VAR_EXTERNAL CONSTANT
 		JSON_PAYLOAD_MAX_SIZE : UINT;
@@ -43,15 +47,6 @@ PROGRAM MqttParameterSub
 	IF NOT paramsSubEnable THEN
 		done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
 	    RETURN;
-	END_IF;
-
-	(* Connect to the broker *)
-	connectionFactory(connect := TRUE, error => error, errorId => errorId);
-	(* Reset and retry on next cycle *)
-	IF connectionFactory.connection.xError THEN
-		connectionFactory(connect := FALSE, error => error, errorId => errorId);
-		done := FALSE; busy := FALSE;
-		RETURN;
 	END_IF;
 
 	(* Manage subscriber enable: disable for one cycle on error to reset the FB *)

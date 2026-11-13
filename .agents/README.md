@@ -157,3 +157,7 @@ Planned evolution:
 - add an eval workspace for skill quality regression using saved sessions as realistic fixtures
 - strengthen automated model-vs-generated cross-checks so the seed/model stays
   the persistent declaration layer for both PLC and gateway outputs
+
+Gateway guides default to Rust (`mr-moqui`). Use `--gateway-runtime quarkus`
+for the Java gateway (`main`, formerly `master`). HVAC prerequisite checks default
+to `mr-moqui`; select `--framework-runtime java` for the Java framework.

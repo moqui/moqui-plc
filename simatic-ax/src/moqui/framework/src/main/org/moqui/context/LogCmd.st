@@ -1,8 +1,4 @@
 TYPE LogCmd : (
     Idle, (* Waiting for commands *)
-    Push, (* Inserting a new log entry *)
-	IncrementLast, (* Update the last log entry *)
-	Peek, (* Read a log entry without removing it *)
-	Pop, (* It actually removes the appended log entries *)
-    Clear (* Complete buffer reset *)
+    Push (* Inserting a new log entry *)
 ); END_TYPE

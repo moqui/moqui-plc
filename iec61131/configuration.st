@@ -11,18 +11,9 @@ CONFIGURATION Plc
 
       (* Kind: Cyclic; SourcePath: Plc / PLC Logic / moqui / Task Configuration *)
       (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)
-      TASK LogDispatcherTask(INTERVAL := T#1000ms, PRIORITY := 3);
-      PROGRAM LogDispatcherInstance WITH LogDispatcherTask : LogDispatcher;
-
-      (* Kind: Cyclic; SourcePath: Plc / PLC Logic / moqui / Task Configuration *)
-      (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)
-      TASK MqttParameterPubTask(INTERVAL := T#3000ms, PRIORITY := 3);
-      PROGRAM MqttParameterPubInstance WITH MqttParameterPubTask : MqttParameterPub;
-
-      (* Kind: Cyclic; SourcePath: Plc / PLC Logic / moqui / Task Configuration *)
-      (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)
-      TASK MqttParameterSubTask(INTERVAL := T#1000ms, PRIORITY := 1);
-      PROGRAM MqttParameterSubInstance WITH MqttParameterSubTask : MqttParameterSub;
+      (* MqttCommunication owns the broker connection and calls MqttParameterSub, MqttParameterPub and LogDispatcher. *)
+      TASK MqttCommunicationTask(INTERVAL := T#100ms, PRIORITY := 3);
+      PROGRAM MqttCommunicationInstance WITH MqttCommunicationTask : MqttCommunication;
 
 
       (* Test tasks *)
@@ -35,6 +26,12 @@ CONFIGURATION Plc
       (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)
       TASK TestSuiteTask(INTERVAL := T#10ms, PRIORITY := 1);
       PROGRAM TestSuiteInstance WITH TestSuiteTask : TestSuite;
+
+      (* Kind: Cyclic; SourcePath: Plc / PLC Logic / moqui / Task Configuration / test *)
+      (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)
+      (* Run without MqttCommunicationTask: the suite reads its own log buffer. *)
+      TASK LogTestSuiteTask(INTERVAL := T#100ms, PRIORITY := 2);
+      PROGRAM LogTestSuiteInstance WITH LogTestSuiteTask : LogTestSuite;
 
       (* Kind: Cyclic; SourcePath: Plc / PLC Logic / moqui / Task Configuration / test *)
       (* WatchdogEnabled: False; WatchdogTime: n/a; Sensitivity: 1 *)

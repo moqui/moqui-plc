@@ -14,6 +14,8 @@
 #include "Fieldbus_Analog.h"
 #include "ParametersToJsonMapper.h"
 #include "ParameterLogger.h"
+#include "LoggerFacade.h"
+#include "MqttLogAppender.h"
 #include "DeviceManager.h"
 
 extern void host_receive(const char *, const char *);
@@ -117,17 +119,21 @@ static void test_json_mqtt(void) {
     for (unsigned i=0;i<12;i++) { host_receive(MOQUI_LIVE_PARAMS_SUB_TOPIC,"{\"tempSetpoint\":18}"); }
     MqttParameterSub_Update(&sub,true); assert(sub.droppedMessages == 2 && dev.tempSetpoint == 18);
 }
+static void drain_ring(void) {
+    LogEvent discard[10]; uint16_t count;
+    do { LoggerFacade_PeekBuffer(discard,10,&count); LoggerFacade_ReleaseBuffer(count); } while (count);
+}
 static void test_logs(void) {
     LoggerFacade logger={.enable=true,.loggerName="HVAC_DEMO_PLC"};
     LogEvent log; uint16_t count;
-    LogEvent discard[10];
-    do { LoggerFacade_DrainBuffer(discard,10,&count); } while (count);
+    drain_ring();
     LoggerFacade_LogNumeric(&logger,LOG_LEVEL_INFO,"HvacTempSetpoint",23.5);
-    LoggerFacade_DrainBuffer(&log,1,&count); assert(count==1);
+    LoggerFacade_PeekBuffer(&log,1,&count); assert(count==1); LoggerFacade_ReleaseBuffer(count);
+    assert(log.repeatCount==1 && log.sequence>0);
     char json[2048];
     assert(serialize_log_event(&log,json,sizeof(json)));
     assert(JsonFields_Valid(json,strlen(json)) && strstr(json,"\"numericValue\":23.5"));
-    assert(strstr(json,"\"loggerName\":\"HVAC_DEMO_PLC\""));
+    assert(strstr(json,"\"loggerName\":\"HVAC_DEMO_PLC\"") && strstr(json,"\"sequence\":"));
     log.payloadType=LOG_PAYLOAD_TYPE_TEXT;
     strcpy(log.payload.message,"quoted \"text\"\nbackslash \\");
     assert(serialize_log_event(&log,json,sizeof(json)) && JsonFields_Valid(json,strlen(json)));
@@ -135,9 +141,67 @@ static void test_logs(void) {
     assert(!serialize_log_event(&log,json,sizeof(json)));
     DeviceFacade dev={0}; Clocks clocks={.clock1minute=true};
     ParameterLogger_Update(&dev,&clocks,OPERATING_MODE_RUN);
-    unsigned total=0;
-    do { LoggerFacade_DrainBuffer(discard,10,&count); total+=count; } while (count);
+    unsigned total=0; LogEvent discard[10];
+    do { LoggerFacade_PeekBuffer(discard,10,&count); LoggerFacade_ReleaseBuffer(count); total+=count; } while (count);
     assert(total==29);
+
+    /* Level threshold: Debug is below Info, kept at Debug, nothing is kept at Off. */
+    LoggerFacade_SetMinLevel(LOG_LEVEL_INFO);
+    LoggerFacade_Log(&logger,LOG_LEVEL_DEBUG,"debug chatter");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==0);
+    LoggerFacade_SetMinLevel(LOG_LEVEL_DEBUG);
+    LoggerFacade_Log(&logger,LOG_LEVEL_DEBUG,"debug kept");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==1); LoggerFacade_ReleaseBuffer(count);
+    LoggerFacade_SetMinLevel(LOG_LEVEL_OFF);
+    LoggerFacade_Log(&logger,LOG_LEVEL_FATAL,"off");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==0);
+    LoggerFacade_SetMinLevel(LOG_MIN_LEVEL_DEFAULT);
+
+    /* Equal events are counted and written once as a summary before the next event. */
+    LoggerFacade_Log(&logger,LOG_LEVEL_WARN,"repeated");
+    LoggerFacade_Log(&logger,LOG_LEVEL_WARN,"repeated");
+    LoggerFacade_Log(&logger,LOG_LEVEL_WARN,"repeated");
+    LoggerFacade_Log(&logger,LOG_LEVEL_ERROR,"repeated");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==3);
+    assert(discard[0].repeatCount==1 && discard[1].repeatCount==2 && discard[2].repeatCount==1);
+    assert(discard[2].level==LOG_LEVEL_ERROR && discard[1].sequence+1==discard[2].sequence);
+    LoggerFacade_ReleaseBuffer(count);
+
+    /* A full ring refuses new records instead of overwriting unpublished ones. */
+    uint32_t dropped=LoggerFacade_DroppedCount();
+    char text[32];
+    for (unsigned i=0;i<LOG_MAX_SIZE+5U;i++) { snprintf(text,sizeof(text),"fill %u",i); LoggerFacade_Log(&logger,LOG_LEVEL_INFO,text); }
+    assert(LoggerFacade_DroppedCount()==dropped+5U);
+    LoggerFacade_PeekBuffer(discard,1,&count); assert(count==1 && strcmp(discard[0].payload.message,"fill 0")==0);
+
+    /* Batch payload: drop report first, fixed-width keys, valid JSON. */
+    LogEvent report=discard[0]; strcpy(report.payload.message,"5 log events dropped: log buffer full");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==10);
+    uint16_t keys=0;
+    uint16_t taken=MqttLogAppender_BuildPayload(&report,discard,count,json,sizeof(json),&keys);
+    assert(taken>0 && keys==taken+1U && JsonFields_Valid(json,strlen(json)));
+    assert(strncmp(json,"{\"001\":{",8)==0 && strstr(json,"\"002\":{") && strstr(json,"log events dropped"));
+    taken=MqttLogAppender_BuildPayload(NULL,discard,count,json,64U,&keys);
+    assert(taken==0 && keys==0 && strcmp(json,"{}")==0);
+
+    /* The appender releases records only when the publish queue accepted the message. */
+    MqttClient_Init(NULL);
+    MqttLogAppender appender={0};
+    MqttLogAppender_Update(&appender,false);
+    LoggerFacade_PeekBuffer(discard,1,&count); assert(!appender.done && count==1 && strcmp(discard[0].payload.message,"fill 0")==0);
+    unsigned published=0;
+    for (unsigned i=0;i<20U;i++) { MqttLogAppender_Update(&appender,true); if (appender.done) { published++; } }
+    /* 101 records (the drop report included) in at most 10 queued messages: the ring is empty */
+    LoggerFacade_PeekBuffer(discard,10,&count);
+    assert(published==10U && count==0 && appender.publishedCount==LOG_MAX_SIZE+1U);
+    assert(appender.reportedDropCount==LoggerFacade_DroppedCount() && !appender.error);
+    /* The publish queue (10 messages) is now full: a new record stays in the ring */
+    LoggerFacade_Log(&logger,LOG_LEVEL_INFO,"kept while the queue is full");
+    MqttLogAppender_Update(&appender,true);
+    LoggerFacade_PeekBuffer(discard,10,&count);
+    assert(appender.error && !appender.done && count==1 && strcmp(discard[0].payload.message,"kept while the queue is full")==0);
+    drain_ring();
+
     uint16_t out=123;
     assert(!processAnalogOutput(10,0,100,0,100,0,0,0,true,NULL,&out,NULL) && out==123);
     bool en,dis,fault;

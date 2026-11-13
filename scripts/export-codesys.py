@@ -67,9 +67,7 @@ TASK_CONFIGURATION_NAME = "Task Configuration"
 TASK_CONFIGURATION_FILE = "configuration.st"
 TASK_PROGRAM_HINTS = {
     "StartTask": "MoquiStart",
-    "LogDispatcherTask": "LogDispatcher",
-    "MqttParameterPubTask": "MqttParameterPub",
-    "MqttParameterSubTask": "MqttParameterSub",
+    "MqttCommunicationTask": "MqttCommunication",
     "TestSuiteTask": "TestSuite",
     "PickAndPlaceTestSuiteTask": "PickAndPlaceTestSuite",
 }

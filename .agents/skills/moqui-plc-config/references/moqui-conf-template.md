@@ -12,12 +12,16 @@ Use this structure to summarize chosen values before editing `MoquiConf.gvl`.
 
 - `LOG_MAX_SIZE` =
 - `defaultLogLevel` =
+- `defaultLogSuppressDuration` =
+- `defaultLogSuppressDuplicates` =
 - `LOG_SOURCE_LIST_MAX_SIZE` =
 - `LOG_JSON_PAYLOAD_MAX_SIZE` =
 - `JSON_PAYLOAD_MAX_SIZE` =
 - `LOG_APPENDER_BATCH_SIZE` =
 - `logTopic` =
 - `logAppenderTimeout` =
+- `logPublishMaxAttempts` =
+- `mqttReconnectDelay` =
 - `moquiCmdsTopic` =
 - `liveParamsSubTopic` =
 - `liveParamsSubTimeout` =
@@ -57,6 +61,7 @@ Use this structure to summarize chosen values before editing `MoquiConf.gvl`.
 - `paramsPubRetain` =
 - `logPubQoS` =
 - `logPubRetain` =
+- `logMessageExpiryInterval` =
 - `subscriptionIdentifier` =
 - `paramsSubQoS` =
 - `paramsSubFilterMode` =

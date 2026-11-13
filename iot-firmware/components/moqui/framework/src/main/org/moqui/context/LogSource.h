@@ -7,14 +7,17 @@
 
 /* LOG_SOURCE_LIST_MAX_SIZE defined in MoquiConf.h */
 
-/* Since LogRingBuffer was replaced by native ESP_LOG in Phase 8, */
-/* this struct is kept for interface compatibility. */
+/*
+ * Port of LogSource.st, kept for interface compatibility. On IoT targets every
+ * LoggerFacade writes the single ring of LoggerFacade.c from the control task,
+ * and MqttLogAppender is its only consumer (see LoggerFacade_PeekBuffer).
+ */
 typedef struct {
     LoggerFacade *logRef;
-    uint16_t lastLogSize;
-    uint16_t lastHead;
-    uint16_t lastTail;
-    uint32_t lastOverflowCount;
+    uint16_t readSlot;
+    uint32_t reportedDropCount;
+    uint32_t publishedCount;
+    uint32_t discardedCount;
 } LogSource;
 
 #endif /* LOG_SOURCE_H */

@@ -10,7 +10,9 @@ metadata:
 # Moqui Device Gateway Startup
 
 Use this skill when the user asks to prepare or guide the first startup of
-`moqui-device-gateway` for a modeled PLC/gateway application.
+`moqui-device-gateway` for a modeled PLC/gateway application. On MR-Moqui the
+gateway is a component that runs inside Moqui: starting it means installing the
+component, loading the reviewed seed and starting Moqui.
 
 ## Goal
 
@@ -29,7 +31,9 @@ Keep gateway startup model-driven and data-driven:
 2. Identify:
    - gateway candidates from `DeviceGroupMember.purposeEnumId = DgmpEdgeGateway`
    - in-scope PLC/controller devices in the same groups
-   - active `DeviceRequest` rows routed through `DrrMoquiDeviceGateway`
+   - active `DeviceRequest` rows whose `runServiceName` is a protocol service of
+     the gateway (`moqui.device.gateway.MqttServices`, `OpcUaServices`,
+     `ModbusServices`, `FileServices` or `PlcLogServices`, verb `run#DeviceRequest`)
 3. Check for structural gaps that would block first startup:
    - missing gateway identity
    - missing gateway group membership
@@ -51,6 +55,8 @@ Keep gateway startup model-driven and data-driven:
 ## Helper Script
 
 - `scripts/render_gateway_startup_guide.py`
+  - defaults to the MR-Moqui component; use `--gateway-runtime quarkus` for the
+    Java/Quarkus gateway (its seeds come from the moqui-plc `master` branch)
   - reads `--seed` or `--session-dir`
   - generates a Markdown first-startup checklist
   - writes by default into `generated-config/gateway-startup-guide.md` when a

@@ -2,7 +2,7 @@
   "includes": [
     "base",
     "opcua",
-    "gateway_wrapper"
+    "recipe_export"
   ],
   "variables": {
     "DEVICE_ID": "VIRTUAL_PLC_OPCUA_S001",
@@ -74,9 +74,8 @@
     "OPCUA_WRITE_QUERY_1": "ns=2;s=Demo.Dynamic.Scalar.Double",
     "ITEM_TYPE_ENUM_ID_3": "DritReal",
 
-    "GATEWAY_DEVICE_ID": "MOQUI_DEVICE_GATEWAY_1",
-    "GATEWAY_DEVICE_NAME": "Moqui Device Gateway 1",
-    "GATEWAY_BASE_URL": "http://localhost:8081",
-    "TIMEOUT": "30"
+    "RECIPE_EXPORT_URI": "file:/var/lib/moqui/recipes/VIRTUAL_PLC_OPCUA_S001",
+    "RECIPE_RULE_SET_ID": "VPL_OPCUA_RULE_SET_S001",
+    "TIMEOUT": "30000"
   }
 }

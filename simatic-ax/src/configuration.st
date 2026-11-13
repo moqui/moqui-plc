@@ -14,7 +14,8 @@ CONFIGURATION moqui
 
         	LOG_MAX_SIZE : UINT := UINT#100;
         	defaultLogLevel : LogLevel := LogLevel#Debug;
-        	defaultLogSuppressDuration : TIME := T#0S; (* T#10s; *)
+        	(* Window in which equal consecutive events are only counted (T#0S disables suppression) *)
+        	defaultLogSuppressDuration : TIME := T#10S;
         	defaultLogSuppressDuplicates : BOOL := TRUE;
         	LOG_SOURCE_LIST_MAX_SIZE : UINT := UINT#50;
 
@@ -62,7 +63,9 @@ CONFIGURATION moqui
         	heartbeat : ULINT;
 
             logSourceList : ARRAY[1..LOG_SOURCE_LIST_MAX_SIZE] OF LogSource;
-            logSourceListSize : UINT := UINT#0;
+            logSourceListSize : DINT := DINT#0;
+            (* Lowest level written by every LoggerFacade (All = Trace; Off = none); Info is advisable in production *)
+            logMinLevel : LogLevel := LogLevel#Debug;
 
         	(* Facade for managing devices and logical parameters. *)
         	dev : DeviceFacade;

@@ -1,0 +1,19 @@
+FUNCTION round : REAL
+	VAR_INPUT
+	    inputValue : REAL;
+	    decimals : INT;
+	END_VAR
+	VAR
+	    factor : REAL;
+	    tempValue : REAL;
+	END_VAR
+
+	factor := TO_REAL(EXP(LN(10.0) * decimals));
+	tempValue := inputValue * factor;
+    
+	IF tempValue >= 0 THEN
+	    round := TO_REAL(TRUNC(tempValue + 0.5)) / factor;
+	ELSE
+	    round := TO_REAL(TRUNC(tempValue - 0.5)) / factor;
+	END_IF;
+	END_FUNCTION

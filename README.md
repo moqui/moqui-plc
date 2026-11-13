@@ -27,7 +27,8 @@ relational schema that governs maintenance, configuration, recipes, audit, and
 lifecycle — the Silverston-lineage model inherited through OFBiz/Moqui. The PLC
 program is a *runtime projection of that model*, the same way
 [moqui-device-gateway](https://github.com/moqui/moqui-device-gateway) projects the
-same model into Apache Camel edge routes.
+same model into field communication: Apache Camel routes in the Java gateway,
+or a Rust/Tokio component inside MR-Moqui (`mr-moqui`).
 
 That is the claim worth making: not one more code generator fed by a diagram, but
 the **first no-code/low-code automation where the controller is generated from the
@@ -101,8 +102,10 @@ application layer.
 
 The IEC 61131-3 source exports under `iec61131/moqui` can be imported into any
 compliant IDE (CODESYS, Siemens AX, etc.). The repository also includes
-`codesys/moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
+`codesys-v3/moqui.projectarchive`, a ready-to-open CODESYS project archive that can be used
 for demos, manual validation, and automated test execution.
+`codesys-v4/` holds the CODESYS 4 project, generated from the canonical tree by
+`scripts/convert-iec61131-to-codesys4.py` (see [codesys-v4/README.md](codesys-v4/README.md)).
 
 
 ## Project Structure and Platform Ports
@@ -143,8 +146,10 @@ The directory `iec61131/moqui` is the canonical source of truth for the PLC fram
 
 The current platform paths are:
 
-- `codesys/moqui.projectarchive`: the complete CODESYS project archive used for development,
+- `codesys-v3/moqui.projectarchive`: the complete CODESYS project archive used for development,
   validation, demonstrations, and test execution;
+- `codesys-v4`: the CODESYS 4 project, whose application is generated from the
+  canonical IEC tree by `scripts/convert-iec61131-to-codesys4.py`;
 - `iec61131/moqui`: the clean IEC 61131-3 export used as the vendor-neutral reference;
 - `simatic-ax`: the SIMATIC AX port, generated from the canonical IEC tree with a
   limited set of manually maintained AX-specific overrides;
@@ -193,11 +198,12 @@ commands, external library namespaces and the files left out per target.
 
 ### Open-source ST compilers (RuSTy, IronPLC)
 
-The canonical tree targets CODESYS, but it can be type-checked with two
+The canonical tree targets CODESYS. Experimental checks are available with two
 open-source compilers written in Rust: [RuSTy](https://github.com/PLC-lang/rusty)
 (ST to native code via LLVM) and [IronPLC](https://github.com/ironplc/ironplc)
-(ST to bytecode). This is an opening for anyone who wants to run moqui-plc on a
-Rust PLC runtime. It is not a runtime.
+(ST to bytecode). This is an opening for simple programs and compiler experiments. These platforms
+do not currently provide the complete PLC runtime/libraries needed to run moqui-plc;
+the complete framework is not supported on either target today.
 
 **The code compiles only when every dependency is satisfied.** The CODESYS
 libraries the code uses (SoftMotion, MQTT, JSON, TLS, recipes, device
@@ -222,7 +228,7 @@ variable list qualifiers, `UNION`, and a few compiler-specific forms), runs the
 compiler, and writes `report.json` with every diagnostic tagged by origin.
 `iec61131/` is never modified.
 
-Current result (RuSTy master, IronPLC 0.249):
+Recorded compiler measurements (RuSTy master, IronPLC 0.249; not a working PLC port):
 
 | | without interfaces | with interfaces |
 |---|---:|---:|
@@ -235,13 +241,64 @@ conversion in `doubleWordToReal`/`longWordToLongReal`. See
 [rust-plc/README.md](rust-plc/README.md) for the full list of rewrites,
 remaining errors, findings, and what a Rust runtime has to add.
 
-`codesys/moqui.projectarchive` is a permanent repository artifact and must always be kept.
+`codesys-v3/moqui.projectarchive` is a permanent repository artifact and must always be kept.
 It is not a generated build directory and must not be removed during repository
 cleanup.
 
 `MoquiStart` is the entry-point orchestrator: it initializes clocks, diagnostics,
 logging, input/output processing, configuration loading, and then dispatches the
 application `Main` POU.
+
+## Logging and MQTT communication
+
+The logging follows the log4j model: each block has a `LoggerFacade` (the
+logger), events go to a buffer, and one appender publishes them.
+
+```text
+LoggerFacade (control tasks)            MqttCommunication (MqttCommunicationTask, 100 ms)
+  level threshold, duplicate summary       connectionFactory: connect, reconnect after mqttReconnectDelay
+  -> own LogRingBuffer  ---------------->  MqttParameterSub   live parameter writes, first
+     (one producer, one consumer)          MqttParameterPub   optional peer-PLC replication
+                                           LogDispatcher      log batches -> MqttLogAppender -> logTopic
+```
+
+- **Buffers.** Each `LoggerFacade` owns a `LogRingBuffer` of `LOG_MAX_SIZE`
+  records with one producer (the facade's task) and one consumer
+  (`LogDispatcher`). Each counter has a single writer and is exchanged with the
+  atomic `__XADD`, so no lock is needed and no task ever waits. A full buffer
+  refuses new records and counts them; published records are never overwritten.
+- **Level and repetitions.** Events below the global `logMinLevel` (`ec`,
+  default `Debug`; `Info` is advisable in production) are ignored. An event equal
+  to the previous one of the same facade within `defaultLogSuppressDuration`
+  (10 s) is only counted and later written once with `repeatCount` = repetitions.
+- **Dispatching.** `LogDispatcher` visits the sources in turn and publishes at
+  most `LOG_APPENDER_BATCH_SIZE` records of one source per MQTT message, with
+  QoS 1. It releases the records only after the broker acknowledged them, retries
+  a failed batch with the DUP flag up to `logPublishMaxAttempts` times, and
+  halves the batch while its JSON does not fit. Records refused by a full buffer
+  are reported by one `Warn` record "N log events dropped". A log message
+  expires on the broker after `logMessageExpiryInterval` (24 h), so the gateway
+  may be offline that long without losing the logs queued for its session.
+- **Connection.** `MqttCommunication` is the only caller of `connectionFactory`.
+  After a connection error it disables the client, which resets it, and connects
+  again after `mqttReconnectDelay`. Live parameter writes are processed before
+  the log batches in every cycle.
+- **Payload.** One message is the map of events read by `moqui-device-gateway`;
+  the keys have a fixed width so that a reader that sorts keys keeps the order:
+
+  ```json
+  {"001":{"logEventId":"HVAC_DEMO_PLC-1798402291","logEventDate":"DT#2026-11-13-10:15:02",
+          "loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","level":2,"marker":0,
+          "type":1,"repeatCount":1,"sequence":42,"numericValue":23.5}}
+  ```
+
+  `sequence` numbers the records of one buffer, so a reader can detect gaps.
+
+Diagnostics: `LogSource.publishedCount`, `discardedCount` and
+`reportedDropCount` in `ec.logSourceList`, `LogRingBuffer.droppedCount`,
+`LogDispatcher.errorId` and `MqttCommunication.connectionErrorCount`.
+`LogTestSuite` (task `LogTestSuiteTask`, without `MqttCommunicationTask`) checks
+the buffer, the registration, the threshold and the repetition summary.
 
 ## Recipe Storage Path
 
@@ -278,15 +335,16 @@ To open the CODESYS project for testing, you need to download the CODESYS IDE fr
 
 ## Demo Project Archive
 
-Use `codesys/moqui.projectarchive` to open the full demo project directly in CODESYS.
+Use `codesys-v3/moqui.projectarchive` to open the full demo project directly in CODESYS.
 This archive is the recommended starting point when you want to explore the
 framework behavior, run the included test suites, or prepare a local demo
 environment without importing the source tree manually.
 
 ## End-to-End HVAC demo
 
-This walkthrough starts the complete local HVAC data path on one Windows
-workstation. It is deliberately detailed so that a first-time user can verify
+This walkthrough starts the local HVAC data path with CODESYS on Windows.
+MR-Moqui framework commands use Bash on Linux/macOS or a suitable WSL environment;
+configure database/broker addresses for the actual host network. It is deliberately detailed so that a first-time user can verify
 the architecture without configuring physical I/O or a real PLC.
 
 For an interactive version, invoke
@@ -342,7 +400,8 @@ The normal thermostat uses `tempSetpoint +/- tempHysteresis`. `tempMin` and
 Install the following software:
 
 - Docker Desktop;
-- Java 21;
+- Rust/Cargo for MR-Moqui and its moqui-device-gateway component (Rust 1.99+);
+- Java 21 only when using the Java Moqui framework or Java gateway;
 - CODESYS Development System and `CODESYS Control Win V3 - x64`;
 - Mosquitto command-line clients (`mosquitto_sub` and `mosquitto_pub`).
 
@@ -350,7 +409,8 @@ This guide assumes that the repositories are sibling directories:
 
 ```text
 github-moqui/
-  moqui-framework/
+  mr-moqui/             # Rust framework, master branch
+  moqui-framework/      # optional Java framework
   moqui-device/
   moqui-math/
   moqui-device-gateway/
@@ -358,7 +418,14 @@ github-moqui/
   moqui-plc/
 ```
 
-Install or copy `moqui-device` and `moqui-math` under
+For MR-Moqui, install `moqui-math`, `moqui-device` and `moqui-device-gateway`
+under `mr-moqui/runtime/component`, all on their `mr-moqui` branch. The gateway
+is a component of MR-Moqui there: it runs in the Moqui process, not as a
+separate program.
+`mantle-udm` is needed only for moqui-device's optional WorkEffort/Measurement
+telemetry test fixture; the base suite needs no Mantle. Follow that component's
+test README for the explicit fixture load and temporary test dependency.
+For the Java alternative, install the corresponding Java components under
 `moqui-framework/runtime/component` before loading Moqui data. The component
 directories must contain their complete source trees, not only their `data`
 directories.
@@ -376,7 +443,24 @@ docker compose -f .\moqui-deploy\industrial\moqui-postgres-compose.yml -p moqui 
 docker ps --filter "name=moqui-database"
 ```
 
-Wait until the container is running, then prepare and load the Moqui database:
+Wait until the container is running, then choose the framework runtime.
+For **MR-Moqui master**, from its repository root in Bash:
+
+```bash
+export entity_ds_db_conf=postgres entity_ds_host=127.0.0.1 entity_ds_port=5432
+export entity_ds_database=moqui entity_ds_user=moqui entity_ds_password=moqui
+export entity_ds_sslmode=disable  # local demo only
+./moq build --debug
+./moq load --debug seed-initial
+./moq load --debug seed
+./moq load --debug -l runtime/component/moqui-device/data/HVACDemoGatewayData.xml
+```
+
+`HVACDemoGatewayData.xml` is demo data, not seed: it adds the broker connection
+`HVAC_DEMO_MQTT` and the PLC log subscription `HVAC_DEMO_PlcLogSubscribe` used
+in steps 5 to 9.
+
+For the **Java framework alternative**, use PowerShell:
 
 ```powershell
 Set-Location .\moqui-framework
@@ -438,55 +522,44 @@ direction each message belongs to:
 - `moqui/hvac-demo/parameters/live`: gateway-to-PLC live parameters;
 - `moqui-plc`: PLC logs and periodic parameter snapshots.
 
-### 5. Start moqui-device-gateway
+### 5. Start the gateway
 
-The quick demo runs Quarkus directly on the host and uses the already loaded
-Moqui PostgreSQL database. It deliberately points both the transactional and
-log datasources at `moqui`; a production deployment may use a separate
-`moqui-log`/TimescaleDB database.
+For **MR-Moqui**, the gateway starts with Moqui. The broker credentials come
+from the environment of the Moqui process (the `HVAC_DEMO_MQTT` connection reads
+`MQTT_USERNAME` and `MQTT_PASSWORD`), so the model holds no password. From the
+MR-Moqui root, in another terminal:
 
-Open another PowerShell terminal:
-
-```powershell
-Set-Location .\moqui-device-gateway
-$env:QUARKUS_PROFILE="local"
-$env:QUARKUS_DATASOURCE_JDBC_URL="jdbc:postgresql://localhost:5432/moqui"
-$env:QUARKUS_DATASOURCE_USERNAME="moqui"
-$env:QUARKUS_DATASOURCE_PASSWORD="moqui"
-$env:QUARKUS_DATASOURCE_LOG_JDBC_URL="jdbc:postgresql://localhost:5432/moqui"
-$env:QUARKUS_DATASOURCE_LOG_USERNAME="moqui"
-$env:QUARKUS_DATASOURCE_LOG_PASSWORD="moqui"
-$env:MQTT_BROKER_URL="tcp://localhost:1883"
-$env:GATEWAY_DEVICE_ID="HVAC_DEMO_GATEWAY"
-$env:MQTT_WRITE_AFTERPUBLISH_ENABLED="false"
-.\gradlew.bat quarkusDev
+```bash
+export entity_ds_db_conf=postgres entity_ds_host=127.0.0.1 entity_ds_port=5432
+export entity_ds_database=moqui entity_ds_user=moqui entity_ds_password=moqui
+export entity_ds_sslmode=disable  # local demo only
+export MQTT_USERNAME=artemis MQTT_PASSWORD=artemis
+export device_gateway_device_id=HVAC_DEMO_GATEWAY
+./moq run --debug
 ```
 
-The gateway listens on port `8081`. In a separate terminal, verify its health:
+`device_gateway_device_id` is the gateway this Moqui instance is: `HVAC_DEMO_GATEWAY`,
+the `DgmpEdgeGateway` member of the `HVAC_DEMO` group. Within a minute of the
+start, the service job `start_DeviceGatewaySubscriptions` starts the active
+subscriptions of the controllers in its scope, here `HVAC_DEMO_PlcLogSubscribe`
+on the `moqui-plc` topic. Requests for devices outside that scope are refused. The Moqui log reports `Device gateway subscriptions started:
+1, failed: 0`; `moqui.device.gateway.SubscriptionServices.get#SubscriptionState`
+(Tools app, Service Run) lists it in `activeRequestNames`. Request an initial
+full live snapshot in this local demo:
 
 ```powershell
-Invoke-RestMethod http://localhost:8081/q/health
+docker exec moqui-database psql -U moqui -d moqui -c "UPDATE device_request SET only_changed_parameters='N' WHERE request_name='HVAC_DEMO_LiveParametersWrite';"
 ```
 
-The status must be `UP`. `MQTT_WRITE_AFTERPUBLISH_ENABLED=false` is appropriate
-only for this reduced demo, where the Moqui web runtime on port 8080 is not
-running. It prevents the optional post-publish callback from failing after the
-MQTT message has already been delivered.
-
-The official seed deliberately contains no MQTT password. Until deployment-side
-credential injection is configured, apply this local, test-only override and
-request an initial full snapshot:
-
-```powershell
-docker exec moqui-database psql -U moqui -d moqui -c "UPDATE device_request SET broker_uri='paho-mqtt5:?brokerUrl=tcp://localhost:1883&qos=1&userName=artemis&password=artemis', only_changed_parameters='N' WHERE request_name='HVAC_DEMO_LiveParametersWrite';"
-```
-
-Never copy that secret-bearing URI into official seed data or a production
-database.
+For the **Java framework alternative**, the gateway is a separate
+Java/Quarkus/Apache Camel process on the `main` branch of moqui-device-gateway:
+follow the [Java gateway README](https://github.com/moqui/moqui-device-gateway/blob/main/README.md)
+and the moqui-plc `master` branch, with the `HVAC_DEMO_GATEWAY` identity, the
+`moqui` database, the broker above and the `moqui-plc` PLC-log topic.
 
 ### 6. Configure and run CODESYS
 
-Open `moqui-plc/codesys/moqui.projectarchive`. For MQTT testing, use the local
+Open `moqui-plc/codesys-v3/moqui.projectarchive`. For MQTT testing, use the local
 `CODESYS Control Win V3 - x64` runtime rather than IDE Simulation: Simulation
 may execute the PLC logic without creating the external MQTT socket.
 
@@ -515,15 +588,17 @@ In CODESYS:
    | Task | Type / interval | Priority | Program call |
    | --- | --- | --- | --- |
    | `StartTask` | Cyclic, 10 ms | 1 | `MoquiStart` |
-   | `MqttParameterSubTask` | Cyclic, 1000 ms | 1 | `MqttParameterSub` |
-   | `LogDispatcherTask` | Cyclic, 1000 ms | 3 | `LogDispatcher` |
+   | `MqttCommunicationTask` | Cyclic, 100 ms | 3 | `MqttCommunication` |
 
    `MoquiStart` initializes the framework, loads recipes and invokes the HVAC
-   `Main` FSM. `MqttParameterSub` receives and validates the approved live
-   parameter keys. `LogDispatcher` sends the registered `LoggerFacade` buffers,
-   including the `ParameterLogger` called by `Main` after `DeviceManager`.
-   `MqttParameterPub` is not required: it is reserved for an explicitly designed
-   peer-PLC parameter-replication strategy, not telemetry.
+   `Main` FSM. `MqttCommunication` owns the broker connection and calls, in this
+   order, `MqttParameterSub` (receives and validates the approved live parameter
+   keys), `MqttParameterPub` and `LogDispatcher` (sends the registered
+   `LoggerFacade` buffers, including the `ParameterLogger` called by `Main` after
+   `DeviceManager`). These three programs must not have tasks of their own.
+   `MqttParameterPub` stays disabled (`paramsPubEnable = FALSE`): it is reserved
+   for an explicitly designed peer-PLC parameter-replication strategy, not
+   telemetry.
 6. Disable unrelated test-suite tasks so they cannot write to the same global
    `DeviceFacade` during this demo.
 7. Build the Application, choose **Online -> Login**, accept the download, and
@@ -532,7 +607,7 @@ In CODESYS:
 The bottom status bar must show `RUN`, not `SIMULAT`. Useful online values are:
 
 ```text
-MqttParameterSub.connectionFactory.connected = TRUE
+connectionFactory.connected = TRUE
 MqttParameterSub.lastSubMessage
 MqttParameterSub.parser.done / busy / error
 dev.status
@@ -567,19 +642,17 @@ only the 20 keys modeled by `DeviceRequestItem`.
 
 ### 8. Verify gateway-to-CODESYS delivery
 
-Set the persistent Moqui value to another recognizable number, then invoke the
-modeled request through the gateway:
+Set the persistent Moqui value to another recognizable number, then run the
+modeled request:
 
 ```powershell
 docker exec moqui-database psql -U moqui -d moqui -c "UPDATE parameter SET numeric_value=23.50 WHERE parameter_id='HvacTempSetpoint';"
-Invoke-RestMethod -Method Post -Uri http://localhost:8081/api/device-request/run/HVAC_DEMO_LiveParametersWrite
 ```
 
-The response should contain:
-
-```json
-{"routeId":"mqtt-write-device-request","status":"completed","rowCount":20}
-```
+Run `moqui.device.DeviceServices.run#DeviceRequest` with
+`requestName = HVAC_DEMO_LiveParametersWrite` (Tools app, Service Run). The
+result has `status = completed` and 20 `itemResults`, and the user gets a
+"Sync Parameters completed" notification.
 
 The observer should show 20 messages on the live-parameter topic and CODESYS
 should show `dev.tempSetpoint=23.5`. This proves that the gateway resolved the
@@ -594,14 +667,23 @@ shape:
 
 ```json
 {
-  "loggerName":"HVAC_DEMO_PLC",
-  "source":"HvacTempSetpoint",
-  "type":1,
-  "numericValue":23.5
+  "001":{
+    "loggerName":"HVAC_DEMO_PLC",
+    "source":"HvacTempSetpoint",
+    "level":2,
+    "type":1,
+    "repeatCount":1,
+    "sequence":42,
+    "numericValue":23.5
+  }
 }
 ```
 
-The gateway applies this identity contract:
+A message carries up to `LOG_APPENDER_BATCH_SIZE` such entries, keyed `001`,
+`002`, ...; the entries also carry `logEventId`, `logEventDate` and `marker`.
+
+`HVAC_DEMO_PlcLogSubscribe` stores these events through
+`moqui.device.gateway.InboundServices.store#PlcLog` with this identity contract:
 
 - empty `source` -> `DEVICE_LOG`, with `loggerName` as exact `Device.deviceId`;
 - non-empty `source` -> `PARAMETER_LOG`, with `source` as exact
@@ -622,24 +704,32 @@ The first query should contain the value most recently observed by
 - **No MQTT traffic:** check that `moqui-broker1` is healthy, port 1883 is not
   occupied, credentials are `artemis/artemis`, and `mosquitto_sub` was started
   before publishing.
-- **Gateway health is DOWN:** verify both datasource URLs, PostgreSQL port 5432,
-  `GATEWAY_DEVICE_ID=HVAC_DEMO_GATEWAY`, and that the HVAC seed was loaded.
-- **REST returns zero rows:** for this isolated first-snapshot test verify that
-  `only_changed_parameters='N'`. Normal production operation should update
+- **No subscription started:** check the Moqui log for `Device gateway
+  subscription ... did not start` or `subscriptions are not restored`: usually
+  `device_gateway_device_id=HVAC_DEMO_GATEWAY` or `MQTT_USERNAME`/`MQTT_PASSWORD`
+  are missing from the Moqui environment, or `HVACDemoGatewayData.xml` was not
+  loaded. `start#Subscriptions` retries a lost subscription every minute.
+- **The write publishes nothing:** for this isolated first-snapshot test verify
+  that `only_changed_parameters='N'`. Normal production operation should update
   parameters through Moqui services and may use `onlyChangedParameters=Y`.
-- **REST publishes but then fails:** the Moqui callback is probably enabled
-  while the Moqui web runtime is absent; restart with
-  `MQTT_WRITE_AFTERPUBLISH_ENABLED=false` for this demo only.
 - **CODESYS receives nothing:** use Control Win rather than Simulation, confirm
-  `brokerUrl`, `liveParamsSubTopic`, the `MqttParameterSubTask` program call and
-  `connectionFactory.connected=TRUE`.
+  `brokerUrl`, `liveParamsSubTopic`, the `MqttCommunicationTask` program call and
+  `connectionFactory.connected=TRUE`. `MqttCommunication.connectionErrorCount`
+  growing means the broker refuses the connection; it is retried every
+  `mqttReconnectDelay`.
 - **FSM remains in Standby:** verify that the project contains the current
   `MainRuleEngine` and that the recipe feedback is outside the thermostat band.
 - **No periodic parameter rows:** `StartTask` must run every 10 ms because the
   derived clocks are based on that cycle; inspect `clks.clock1minute`, then
-  `ParameterLogger.logger.error` and the `LogDispatcher` state.
-- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo.
-  `ParameterLogger` entries are distinguished by a non-empty `source`.
+  `ParameterLogger.logger.error` and `logger.dropped`, then `LogDispatcher.errorId`
+  and the `publishedCount`/`discardedCount` of the sources in `ec.logSourceList`.
+- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo
+  (`logMinLevel = Debug`); equal consecutive messages of one block are written
+  once every 10 s with their `repeatCount`. Set `logMinLevel := LogLevel.Info`
+  to keep only Info and above. `ParameterLogger` entries are distinguished by a
+  non-empty `source`.
+- **"N log events dropped" records:** a block logs faster than the
+  dispatcher publishes; raise the level threshold or `LOG_MAX_SIZE`.
 
 To stop only the demo infrastructure:
 
@@ -674,7 +764,8 @@ To run the **robot arm with 6 DOF** test suite, you need to link:
 
 - **[moqui-device](https://github.com/moqui/moqui-device)** — the device data model and status flows this framework generates from.
 - **[moqui-math](https://github.com/moqui/moqui-math)** — the dual math model: trajectories, controllers, model lifecycle.
-- **[moqui-device-gateway](https://github.com/moqui/moqui-device-gateway)** — projects the same model into Apache Camel edge routes.
+- **[moqui-device-gateway](https://github.com/moqui/moqui-device-gateway)** — projects the same model into field communication: Apache Camel routes in the
+  Java gateway (`main`), or a Rust/Tokio component that runs inside MR-Moqui (`mr-moqui`).
 
 ## License
 

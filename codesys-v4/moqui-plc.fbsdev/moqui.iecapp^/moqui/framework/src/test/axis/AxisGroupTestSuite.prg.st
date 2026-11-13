@@ -1,0 +1,1025 @@
+PROGRAM AxisGroupTestSuite
+	
+	VAR CONSTANT
+	    (* A step that does not complete within TIMEOUT cycles is flagged as failed. *)
+	    TIMEOUT : UINT := 50000;
+	END_VAR
+	VAR
+	    grp : AxisGroup;
+	    grpEnable : BOOL;
+	    step : UINT := 0;
+	    testDone : BOOL;
+	    testFailed : BOOL;
+	    failStep : UINT;
+	    cycles : UINT; (* Per-step cycle counter, reset on each step transition *)
+	    (*
+	     * testReset - write TRUE in the online monitor to restart the test from scratch.
+	     * Clears all persistent state (testFailed, cpRetried, pass flags, step) that
+	     * would otherwise survive a warm PLC download and block the next run.
+	     * The flag self-clears after one cycle.
+	     *)
+	    testReset : BOOL;
+	    (*
+	     * Per-step pass flags.
+	     * Inspect this array in the CODESYS online monitor to see which steps passed.
+	     * pass[N] = TRUE means step N completed successfully.
+	     * Steps 1-4 : joint-space (ACS) moves - MoveDirectAbsolute / MoveDirectRelative
+	     * Steps 5-6 : Cartesian (MCS) IK moves - MoveDirectAbsolute / MoveDirectRelative
+	     * Steps 7-8 : Cartesian (MCS) CP moves - MoveLinearAbsolute / MoveLinearRelative
+	     * Steps 9-10 : Cartesian (MCS) CP moves - MoveCircularAbsolute / MoveCircularRelative
+	     * Step 11 : GroupHalt (abortable deceleration to standstill)
+	     * Steps 12-13 : GroupStop (level-driven emergency stop) + return to Standby
+	     * Step 14 : Buffered CP moves - MoveLinearAbsolute chained with MoveLinearRelative
+	     * Step 15 : Override - velFactor = 0.5 active during MoveLinearAbsolute
+	     * Step 16 : Error recovery - velocity = 0 fault injected; MC_GroupReset restores Standby
+	     * Step 17 : Trajectory following - 4-point Cartesian trajectory (blending + one break point)
+	     *)
+	    pass : ARRAY[1..19] OF BOOL;
+	    (* Diagnostics - inspect in online monitor to identify failures *)
+	    grpStatus : AxisGroupStatus;
+	    grpError : BOOL;
+	    grpErrorId : DWORD;
+	    grpNotInit : BOOL;
+	    (*
+	     * Diagnostic: actual TCP position captured at step 5 entry (robot at posHome).
+	     * Inspect in online monitor after testFailed - shows the real MCS coordinates
+	     * to use as posCartA. Persists after testFailed since it is not cleared.
+	     *)
+	    posActualAtHome : SM3_Robotics.SMC_POS_REF;
+	    (*
+	     * cpRetried - Continuous path movements retried: set TRUE after the first SMC_CP_CONFIGS_DIFFER (12125) auto-reset.
+	     * Guards against infinite retry loops and is used by the watchdog to stay
+	     * suppressed while MC_GroupReset completes in step 51.
+	     *)
+	    cpRetried : BOOL;
+	    (*
+	     * errorTestActive - set TRUE during the deliberate fault injection test (step 75).
+	     * Suppresses the groupError watchdog so testFailed is not set during the intentional
+	     * fault.  Cleared in step 76 once error recovery is confirmed (grp.ready = TRUE).
+	     *)
+	    errorTestActive : BOOL;
+	    (*
+	     * Per-axis power FBs.
+	     * Axes must be powered by the caller before AxisGroup.groupEnable is asserted.
+	     * MC_Power is called every cycle; Status goes TRUE once the drive is ready.
+	     *)
+	    pwJ1 : SM3_Basic.MC_Power;
+	    pwJ2 : SM3_Basic.MC_Power;
+	    pwJ3 : SM3_Basic.MC_Power;
+	    pwJ4 : SM3_Basic.MC_Power;
+	    pwJ5 : SM3_Basic.MC_Power;
+	    pwJ6 : SM3_Basic.MC_Power;
+	    allAxesPowered : BOOL; (* TRUE when all six drives report Status = TRUE *)
+	    (*
+	     * SMC_GroupPower - MUST be called from the bus task (AxisGroupTestSuiteTask).
+	     * Beyond powering axes, it initialises the CP context (continuous path movements context) required by
+	     * MC_MoveLinearAbsolute / MC_MoveLinearRelative / MC_MoveCircularAbsolute.
+	     * Without it, those FBs fail with SMC_CP_CONFIGS_DIFFER (error 12125).
+	     *)
+	    powerGroup : SM3_Robotics.SMC_GroupPower;
+	    groupCpReady : BOOL; (* TRUE when SMC_GroupPower.Status = TRUE *)
+	    (*
+	     * Target positions.
+	     *
+	     * posHome / posA - joint-space (ACS). Set .v[0..5] in degrees for A0..A5.
+	     * posDelta - joint-space relative increment (ACS).
+	     * negDelta - negative of posDelta (pre-computed below; used for step 4).
+	     * posCartA - Cartesian absolute target (MCS). Set .v[0..5] as X,Y,Z,A,B,C.
+	     * cartDelta - Cartesian relative increment (MCS).
+	     *
+	     * SMC_POS_REF is a union; .v[] is the generic ARRAY[0..MAX_KIN_AXES-1] OF LREAL
+	     * member and maps to axis / Cartesian values according to the CoordSystem used.
+	     *)
+	    posHome : SM3_Robotics.SMC_POS_REF;
+	    posA : SM3_Robotics.SMC_POS_REF;
+	    posDelta : SM3_Robotics.SMC_POS_REF;
+	    negDelta : SM3_Robotics.SMC_POS_REF;
+	    posCartA : SM3_Robotics.SMC_POS_REF;
+	    cartDelta : SM3_Robotics.SMC_POS_REF;
+	    (*
+	     * posNonSingular - joint-space pose used as a stepping stone before CP moves.
+	     * All joints = 0° puts the wrist at B = 180° (Euler singularity); the CP
+	     * planner then hangs without completing or erroring.  Setting A4 = 90° shifts
+	     * B to ~90°, giving a well-conditioned TCP orientation for linear moves.
+	     *)
+	    posNonSingular : SM3_Robotics.SMC_POS_REF;
+	    (*
+	     * CP (linear / circular) move targets - computed dynamically at step entry.
+	     *
+	     * posCpBase - MCS TCP captured when robot is at posNonSingular.
+	     *             Used as origin for all CP move targets below.
+	     * posLinTarget - linear absolute target = posCpBase + 50 mm X.
+	     * posCircEnd - circular absolute endpoint = posCpBase + 50 mm Y.
+	     * posCircVia - via-point for the absolute arc (BORDER mode):
+	     *              posCpBase + 35 mm X + 25 mm Y  ~= quarter-circle midpoint.
+	     * posCircRelEnd - circular relative endpoint: (0, -50, 0) returns to posCpBase Y.
+	     * posCircRelVia - via-point for the return arc: (-35, -25, 0).
+	     *)
+	    posCpBase : SM3_Robotics.SMC_POS_REF;
+	    posLinTarget : SM3_Robotics.SMC_POS_REF;
+	    posCircEnd : SM3_Robotics.SMC_POS_REF;
+	    posCircVia : SM3_Robotics.SMC_POS_REF;
+	    posCircRelEnd : SM3_Robotics.SMC_POS_REF;
+	    posCircRelVia : SM3_Robotics.SMC_POS_REF;
+	    (*
+	     * Trajectory following test (steps 80-82).
+	     * trj is populated inline in step 81 from posCpBase (actual TCP at posNonSingular).
+	     * trjIdx tracks which waypoint is being dispatched; reset to 0 in step 81.
+	     *)
+	    trj : Trajectory;
+	    trjIdx : DINT;
+	    (* Abort-test state: trjAbortArmed arms the trigger after waypoint 1; trjCompletionStep routes step 82 exit. *)
+	    trjAbortArmed : BOOL;
+	    trjCompletionStep : UINT;
+	END_VAR
+
+	(* 
+	 * Joint-space targets (ACS)
+	 * Adjust .v[0..5] to valid joint angles (degrees) for your robot configuration.
+	 * A0..A5 correspond to joints j1..j6.
+	 *)
+	posHome.v[0] := 0.0; posHome.v[1] := 0.0;
+	posHome.v[2] := 0.0; posHome.v[3] := 0.0;
+	posHome.v[4] := 0.0; posHome.v[5] := 0.0;
+
+	posA.v[0] := 30.0; posA.v[1] := 20.0;
+	posA.v[2] := 0.0; posA.v[3] := 0.0;
+	posA.v[4] := 0.0; posA.v[5] := 0.0;
+
+	posDelta.v[0] := 10.0; posDelta.v[1] := 5.0;
+	posDelta.v[2] := 0.0; posDelta.v[3] := 0.0;
+	posDelta.v[4] := 0.0; posDelta.v[5] := 0.0;
+
+	negDelta.v[0] := -10.0; negDelta.v[1] := -5.0;
+	negDelta.v[2] := 0.0; negDelta.v[3] := 0.0;
+	negDelta.v[4] := 0.0; negDelta.v[5] := 0.0;
+
+	(* 
+	 * Cartesian targets (MCS)
+	 * Computed from TestRobotArm DH parameters at zero position (all joints = 0°):
+	 *   X = a1 + d4 + d6  = 150 + 600 + 100 = 850 mm
+	 *   Y = -d3           =   0             =   0 mm
+	 *   Z = d1 + a2 + a3  = 400 + 600 + 150 = 1150 mm
+	 * posCartA is offset slightly from home to force a real trajectory.
+	 * cartDelta moves +50 mm along X (forward).
+	 * If IK still fails, read grp.actualPosition after step 1 and use those exact values.
+	 * .v[0..5] = X [mm], Y [mm], Z [mm], A [deg], B [deg], C [deg].
+	 *)
+	(*
+	 * At physical home (all joints = 0°), TCP is at:
+	 *   X = a1+d4+d6 = 150+600+100 = 850 mm  (forward)
+	 *   Y = -d3      = 0 mm
+	 *   Z = d1+a2+a3 = 400+600+150 = 1150 mm (up)
+	 * Orientation: TCS X along MCS Z+ -> B = -90° (pitch -90° about Y)
+	 * posCartA is slightly offset from home so a real trajectory is executed.
+	 *)
+	(*
+	 * Actual TCP position at posA (j1=30°, j2=20°, rest=0°) read from grp.actualPosition:
+	 *   X=303.5  Y=53.5  Z=313.5  A=10°  B=175°  C=90°
+	 * posCartA adds +50 mm on Z so a real trajectory is executed.
+	 * cartDelta adds +50 mm on X (relative).
+	 *)
+	(*
+	 * Target = exact posA MCS position + 50 mm in X.
+	 * Orientation kept identical to posA (A=10, B=175, C=90).
+	 * If IK still fails here, the issue is the Planning Task, not the coordinates.
+	 *)
+	posCartA.v[0] := 353.46; posCartA.v[1] := 53.51;
+	posCartA.v[2] := 313.45; posCartA.v[3] := 10.0;
+	posCartA.v[4] := 175.0; posCartA.v[5] := 90.0;
+
+	cartDelta.v[0] := 0.0; cartDelta.v[1] := 50.0;
+	cartDelta.v[2] := 0.0; cartDelta.v[3] := 0.0;
+	cartDelta.v[4] := 0.0; cartDelta.v[5] := 0.0;
+
+	(*
+	 * Non-singular wrist pose (ACS)
+	 * A4 = 90° moves the wrist out of the B=180° Euler singularity that all-zero joints would produce.
+	 * Used as a stepping stone before any CP move (continuous path linear/circular movements)
+	 * so the CP planner never starts from a degenerate configuration.
+	 *)
+	posNonSingular.v[0] := 0.0; posNonSingular.v[1] := 0.0;
+	posNonSingular.v[2] := 0.0; posNonSingular.v[3] := 0.0;
+	posNonSingular.v[4] := 90.0; posNonSingular.v[5] := 0.0;
+
+	(* 
+	 * Static relative deltas for the circular return arc (step 65).
+	 * The absolute arc (step 64) moves +50 mm Y; the return arc moves -50 mm Y.
+	 * Via-points place the arc midpoint at ~35 mm offset, forming a ~37 mm radius
+	 * quarter-circle in the XY plane. These are constant across all test runs.
+	 *)
+	posCircRelEnd.v[0] := 0.0; posCircRelEnd.v[1] := -50.0;
+	posCircRelEnd.v[2] := 0.0; posCircRelEnd.v[3] := 0.0;
+	posCircRelEnd.v[4] := 0.0; posCircRelEnd.v[5] := 0.0;
+
+	posCircRelVia.v[0] := -35.0; posCircRelVia.v[1] := -25.0;
+	posCircRelVia.v[2] := 0.0; posCircRelVia.v[3] := 0.0;
+	posCircRelVia.v[4] := 0.0; posCircRelVia.v[5] := 0.0;
+
+	(* Default dynamics (used by linear moves; ignored by direct moves). *)
+	grp.velocity := 30.0;
+	grp.acceleration := 100.0;
+	grp.deceleration := 100.0;
+	grp.jerk := 1000.0;
+
+	(*
+	 * Manual reset - set testReset := TRUE in the online monitor to restart the test.
+	 * Clears all state that persists across warm PLC downloads: testFailed, cpRetried,
+	 * step, pass flags, etc. The flag self-clears so a single write is enough.
+	 * Also useful after a timeout to re-run without a cold PLC reset.
+	 *)
+	IF testReset THEN
+	    testReset := FALSE;
+	    step := 0; cycles := 0;
+	    testFailed := FALSE; testDone := FALSE;
+	    failStep := 0; cpRetried := FALSE;
+	    pass[1] := FALSE; pass[2] := FALSE; pass[3] := FALSE;
+	    pass[4] := FALSE; pass[5] := FALSE; pass[6] := FALSE;
+	    pass[7] := FALSE; pass[8] := FALSE; pass[9] := FALSE;
+	    pass[10] := FALSE; pass[11] := FALSE; pass[12] := FALSE; pass[13] := FALSE;
+	    pass[14] := FALSE; pass[15] := FALSE; pass[16] := FALSE; pass[17] := FALSE;
+	    trjIdx := 0;
+	    errorTestActive := FALSE;
+	END_IF;
+
+	(*
+	 * Keep the group powered while the test is running.
+	 * groupCpReady (SMC_GroupPower.Status) gates grpEnable so that the CP context is
+	 * fully initialised before any MoveLinear / MoveCircular command is dispatched.
+	 * SMC_GroupPower MUST run in the same task as the AxisGroup bus task
+	 * (AxisGroupTestSuiteTask) - confirmed by TestRobotArm > Tasks > Bus Task setting.
+	 *)
+	grpEnable := allAxesPowered AND groupCpReady AND NOT testDone AND NOT testFailed;
+
+	(*
+	 * Test sequence
+	 *)
+	CASE step OF
+	    (* 
+	     * 0 : Enable group, wait for Ready (NotPowered -> Enabling -> Standby).
+	     *     grpEnable is gated on allAxesPowered, so the FSM only advances once all drives are ready.
+	     *)
+	    0 :
+	        (* Reset variables that persist across warm PLC restarts / online downloads. *)
+	        cpRetried := FALSE; failStep := 0;
+	        grp.cmd := AxisGroupCmd.Idle;
+	        IF grp.ready THEN
+	            step := 1; cycles := 0;
+	        END_IF;
+
+	    (* 1 : MoveDirectAbsolute to home position (joint space; no vel/acc inputs). *)
+	    1 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posHome;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF grp.commandExecuted THEN
+	            pass[1] := TRUE; step := 2; cycles := 0;
+	        END_IF;
+
+	    (* 2 : MoveDirectAbsolute to posA *)
+	    2 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posA;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[2] := TRUE; step := 3; cycles := 0;
+	        END_IF;
+
+	    (* 3 : MoveDirectRelative +posDelta *)
+	    3 :
+	        grp.cmd := AxisGroupCmd.MoveDirectRelative;
+	        grp.endPoint := posDelta;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[3] := TRUE; step := 4; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 4 : MoveDirectRelative -posDelta (back)
+	     * Tests CheckDirectRelativeState re-trigger: same cmd, different distance.
+	     * cycles > 1 guard prevents reading the stale commandExecuted=TRUE from step 3.
+	     *)
+	    4 :
+	        grp.cmd := AxisGroupCmd.MoveDirectRelative;
+	        grp.endPoint := negDelta;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[4] := TRUE; step := 45; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 45 (internal): Return to posHome before MCS moves.
+	     * After step 4, the robot is at posA (j1=30°, j2=20°).
+		 * Returning to posHome ensures a known, repeatable starting configuration before the Cartesian steps.
+	     *)
+	    45 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posHome;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 46; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 46 (internal): Move to non-singular wrist pose before CP (continuous path) moves.
+	     * posHome leaves A4 = 0° -> TCP B = 180° (wrist singularity).
+		 * The CP (continuous path) planner then hangs at the very first MoveLinearAbsolute without completing or faulting.
+	     * Moving A4 to 90° shifts B to ~90° so the CP planner always has a
+	     * well-conditioned starting configuration.
+	     *)
+	    46 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 5; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 51 (internal): CP (continuous path) context recovery after SMC_CP_CONFIGS_DIFFER (error 12125).
+	     *
+	     * MC_GroupReset alone does NOT flush the stale CP session stored in the AxisGroup object.
+	     * The only reliable way to re-initialise the CP context is to cycle SMC_GroupPower (Enable FALSE -> TRUE).
+	     * This is done in the powerGroup call below:
+	     * Enable is forced FALSE for the first 5 cycles of this step, which causes
+	     * groupCpReady -> FALSE -> grpEnable -> FALSE -> MC_GroupDisable, bringing the group
+	     * from GroupErrorStop through WaitReset to Disabled.
+		 * After cycle 5, Enable goes TRUE, SMC_GroupPower re-initialises, groupCpReady -> TRUE, grpEnable -> TRUE,
+	     * and the group re-enables (Disabled -> Enabling -> Standby).
+	     *
+	     * The exit condition waits for both the CP context (groupCpReady) and the group
+	     * ready flag (grp.ready), with a minimum of 20 cycles to let both settle.
+	     *)
+	    51 :
+	        IF cycles = 1 THEN
+	            grp.reset := FALSE; (* MC_GroupReset pulse delivered in step 5 - clear now *)
+	        END_IF;
+	        grp.cmd := AxisGroupCmd.Idle;
+	        IF cycles > 20 AND groupCpReady AND grp.ready THEN
+	            step := 5; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 5 : MoveDirectAbsolute to Cartesian target (MCS).
+	     * MoveDirectAbsolute uses point-to-point IK - NO CP interpolator required.
+	     * This avoids SMC_CP_CONFIGS_DIFFER (error 12125) which is CP-specific.
+	     * On first cycle (cycles=1): capture the actual MCS TCP position (returned
+	     * by AxisGroup.actualPosition in MCS) and compute posCartA as current + 50 mm in X.
+	     *)
+	    5 :
+	        IF cycles = 1 THEN
+	            posActualAtHome := grp.actualPosition;
+	            posCartA := grp.actualPosition;
+	            posCartA.v[0] := posCartA.v[0] + 50.0;
+	        END_IF;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posCartA;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[5] := TRUE; step := 6; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 6 : MoveDirectRelative +cartDelta (MCS).
+	     * Point-to-point relative move in Cartesian space via IK - no CP required.
+	     *)
+	    6 :
+	        grp.cmd := AxisGroupCmd.MoveDirectRelative;
+	        grp.endPoint := cartDelta;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[6] := TRUE; step := 60; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * CP (Continuous Path) moves - steps 60-65.
+	     * These use the SoftMotion CP interpolator which guarantees the exact geometric path
+	     * in Cartesian space (unlike MoveDirectAbsolute which uses per-axis PTP interpolation).
+	     * SMC_GroupPower must be active and groupCpReady=TRUE before these steps are reached;
+	     * the grpEnable guard above ensures this.
+	     * The robot is returned to posNonSingular (ACS) before each category of
+	     * CP move so the CP planner always starts from a well-conditioned pose
+	     * (B ~= 90°, away from the wrist singularity at B = 180°).
+	     *)
+
+	    (*
+	     * 60 (internal): Return to posNonSingular before CP linear moves.
+	     *)
+	    60 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 61; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 61 : MoveLinearAbsolute (CP) - guaranteed straight-line path in MCS.
+	     * Target = TCP at posNonSingular + 50 mm in X, captured on first cycle.
+	     *)
+	    61 :
+	        IF cycles = 1 THEN
+	            posCpBase := grp.actualPosition;
+	            posLinTarget := grp.actualPosition;
+	            posLinTarget.v[0] := posLinTarget.v[0] + 50.0;
+	        END_IF;
+	        grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	        grp.endPoint := posLinTarget;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[7] := TRUE; step := 62; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 62 : MoveLinearRelative (CP) - straight-line relative move, +cartDelta in Y.
+	     *)
+	    62 :
+	        grp.cmd := AxisGroupCmd.MoveLinearRelative;
+	        grp.endPoint := cartDelta;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[8] := TRUE; step := 63; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 63 (internal): Return to posNonSingular before CP circular moves.
+	     *)
+	    63 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 64; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 64 : MoveCircularAbsolute (CP) - arc in MCS, BORDER mode.
+	     * On first cycle: capture TCP at posNonSingular, then compute:
+	     *   posCircEnd = posCpBase + 50 mm Y  (quarter-circle endpoint)
+	     *   posCircVia = posCpBase + 35 mm X + 25 mm Y  (arc via-point ~= midpoint)
+	     * This defines a ~37 mm radius quarter-circle in the XY plane.
+	     *)
+	    64 :
+	        IF cycles = 1 THEN
+	            posCpBase := grp.actualPosition;
+	            posCircEnd := grp.actualPosition;
+	            posCircEnd.v[1] := posCircEnd.v[1] + 50.0;
+	            posCircVia := grp.actualPosition;
+	            posCircVia.v[0] := posCircVia.v[0] + 35.0;
+	            posCircVia.v[1] := posCircVia.v[1] + 25.0;
+	        END_IF;
+	        grp.cmd := AxisGroupCmd.MoveCircularAbsolute;
+	        grp.endPoint := posCircEnd;
+	        grp.auxPoint := posCircVia;
+	        grp.circMode := SM3_Robotics.SMC_CIRC_MODE.BORDER;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[9] := TRUE; step := 65; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 65 : MoveCircularRelative (CP) - return arc, BORDER mode.
+	     * Relative deltas (posCircRelEnd, posCircRelVia) are constant and set in
+	     * the initialisation section above. They close the quarter-circle back to
+	     * the original Y coordinate (posCpBase Y).
+	     *)
+	    65 :
+	        grp.cmd := AxisGroupCmd.MoveCircularRelative;
+	        grp.endPoint := posCircRelEnd;
+	        grp.auxPoint := posCircRelVia;
+	        grp.circMode := SM3_Robotics.SMC_CIRC_MODE.BORDER;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[10] := TRUE; step := 70; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * Buffered move, override and error-recovery tests - steps 70-76.
+	     * All three require a known, non-singular starting pose; step 70 ensures this.
+	     *)
+
+	    (*
+	     * 70 (internal): Return to posNonSingular (ACS) before buffered / override / error tests.
+	     * Also resets bufferMode to aborting so each test starts from a known state.
+	     *)
+	    70 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 71; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 71 : Buffered CP move - MoveLinearAbsolute chained with MoveLinearRelative.
+	     *
+	     * With bufferMode = Buffered, issuing a second command while the first is still
+	     * running stores it in the one-slot pending queue instead of aborting the active move.
+	     * The pending command starts immediately when the first move's Done fires, without
+	     * returning to Standby.  commandExecuted is set only after the SECOND move finishes.
+	     * commandAborted must remain FALSE throughout to confirm no abort occurred.
+	     *
+	     * Timing: cycles < 5 -> MoveLinearAbsolute active (dispatched on cycle 1).
+	     *         cycle  >= 5 -> cmd changes to MoveLinearRelative -> pending registered.
+	     *         (At 30 mm/s the 50 mm first move takes ~417 cycles; cycle 5 is safely mid-move.)
+	     *)
+	    71 :
+	        IF cycles = 1 THEN
+	            posLinTarget := grp.actualPosition;
+	            posLinTarget.v[0] := posLinTarget.v[0] + 50.0;
+	        END_IF;
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.Buffered;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles < 5 THEN
+	            grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	            grp.endPoint := posLinTarget;
+	        ELSE
+	            (* cycles >= 5: switch cmd -> AxisGroup buffers this as the pending move *)
+	            grp.cmd := AxisGroupCmd.MoveLinearRelative;
+	            grp.endPoint := cartDelta; (* +50 mm Y *)
+	        END_IF;
+	        IF cycles > 5 AND grp.commandExecuted AND NOT grp.commandAborted THEN
+	            pass[14] := TRUE; step := 72; cycles := 0;
+	        END_IF;
+
+	    (* 72 (internal): Reset bufferMode to aborting; return to posNonSingular before override test. *)
+	    72 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 73; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 73 : Override test - MC_GroupSetOverride active during a CP move.
+	     * velFactor = 0.5 halves the programmed velocity; accFactor and jerkFactor remain 1.0.
+	     * The move must complete successfully (commandExecuted = TRUE, no error) to confirm
+	     * that MC_GroupSetOverride does not block or fault CP interpolation.
+	     * Override is disabled immediately after commandExecuted is observed.
+	     *)
+	    73 :
+	        IF cycles = 1 THEN
+	            posLinTarget := grp.actualPosition;
+	            posLinTarget.v[0] := posLinTarget.v[0] + 50.0;
+	        END_IF;
+	        grp.overrideEnable := TRUE;
+	        grp.velFactor := 0.5;
+	        grp.accFactor := 1.0;
+	        grp.jerkFactor := 1.0;
+	        grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	        grp.endPoint := posLinTarget;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            grp.overrideEnable := FALSE;
+	            pass[15] := TRUE; step := 74; cycles := 0;
+	        END_IF;
+
+	    (* 74 (internal): Ensure override is disabled; return to posNonSingular before error-recovery test. *)
+	    74 :
+	        grp.overrideEnable := FALSE;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 75; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 75 : Deliberate fault injection - velocity = 0 for a CP move.
+	     * MC_MoveLinearAbsolute rejects zero velocity and sets its Error output immediately.
+	     * The AxisGroup FSM detects moveLinearAbsolute.Error -> transitions to Error state -> groupError = TRUE.
+	     * errorTestActive suppresses the groupError watchdog so testFailed is not triggered.
+	     * grp.velocity := 0.0 overrides the default 30.0 set before the CASE block.
+	     *)
+	    75 :
+	        IF cycles = 1 THEN
+	            errorTestActive := TRUE;
+	            posLinTarget := grp.actualPosition;
+	            posLinTarget.v[0] := posLinTarget.v[0] + 50.0;
+	        END_IF;
+	        grp.velocity := 0.0; (* Override default 30.0 - zero velocity is an invalid parameter *)
+	        grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	        grp.endPoint := posLinTarget;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        IF grp.groupError THEN
+	            step := 76; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 76 : Error recovery - MC_GroupReset restores the group to Standby.
+	     * grp.reset rising edge (cycle 1: FALSE -> TRUE) triggers the AxisGroup FSM:
+	     *   Error -> WaitReset  (MC_GroupReset.Execute asserted)
+	     *   WaitReset -> Standby  (MC_GroupReset.Done)
+	     * grp.ready = TRUE confirms the FSM has reached Standby and is ready for new commands.
+	     * errorTestActive is cleared here; grp.reset is held TRUE until grp.ready to avoid
+	     * a timing gap between the edge detection and MC_GroupReset.Done.
+	     *)
+	    76 :
+	        grp.cmd := AxisGroupCmd.Idle;
+	        grp.reset := TRUE;
+	        IF cycles > 1 AND grp.ready THEN
+	            grp.reset := FALSE;
+	            errorTestActive := FALSE;
+	            pass[16] := TRUE; step := 80; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * Trajectory following test - steps 80-82.
+	     *
+	     * Verifies that the AxisGroup can follow a multi-point Trajectory struct:
+	     *   - Cartesian CP moves (MoveLinearAbsolute) between waypoints
+	     *   - Shared blending defaults (bufferMode + transitionMode + blendingMode)
+	     *   - Per-point exact stop when isBreakPoint = TRUE
+	     *   - Per-point blending override when hasBlendingOverride = TRUE
+	     *
+	     * 4-waypoint open square around posCpBase (captured at posNonSingular):
+	     *   pt[0] : +50 mm X             -- blendingPrevious + TMCornerDistance(10 mm)
+	     *   pt[1] : +50 mm X, +50 mm Y   -- blendingPrevious + TMCornerDistance(10 mm)
+	     *   pt[2] : +50 mm Y             -- isBreakPoint = TRUE (exact stop, aborting+TMNone)
+	     *   pt[3] : posCpBase (return)   -- hasBlendingOverride, larger 20 mm corner
+	     *
+	     * Blending priority per point (mirrors the TrajectoryPoint.st rules):
+	     *   1. isBreakPoint = TRUE -> aborting + TMNone  (always wins)
+	     *   2. hasBlendingOverride = TRUE -> point.bufferMode + transitionMode + blendingMode
+	     *   3. Otherwise -> trj.bufferMode + transitionMode + blendingMode
+	     *
+	     * After all waypoints pass[17] = TRUE; control continues to step 7 (GroupHalt test).
+	     *)
+
+	    (*
+	     * 80 (internal): Restore default dynamics and bufferMode; return to posNonSingular.
+	     *)
+	    80 :
+	        grp.velocity := 30.0;
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posNonSingular;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            step := 81; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 81 (internal): Build trajectory inline; capture posCpBase from actual TCP.
+	     * Executes in a single cycle and advances immediately to step 82.
+	     *)
+	    81 :
+	        posCpBase := grp.actualPosition;
+
+	        trj.trajectoryId := 'TEST_TRJ_01';
+	        trj.pointCount := 4;
+	        trj.coordSystem := SM3_Robotics.SMC_COORD_SYSTEM.MCS;
+	        trj.velocity := 30.0;
+	        trj.acceleration := 100.0;
+	        trj.deceleration := 100.0;
+	        trj.jerk := 1000.0;
+	        trj.bufferMode := SM3_Basic.MC_BUFFER_MODE.blendingPrevious;
+	        trj.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+	        trj.blendingMode := 10.0; (* 10 mm corner radius *)
+
+	        (* pt[0]: +50 mm X *)
+	        trj.points[0].sequenceNum := 1; trj.points[0].timeOffsetMs := 0;
+	        trj.points[0].isBreakPoint := FALSE; trj.points[0].hasBlendingOverride := FALSE;
+	        trj.points[0].blendingMode := 0.0;
+	        trj.points[0].pos := posCpBase;
+	        trj.points[0].pos.v[0] := trj.points[0].pos.v[0] + 50.0;
+
+	        (* pt[1]: +50 mm X, +50 mm Y *)
+	        trj.points[1].sequenceNum := 2; trj.points[1].timeOffsetMs := 0;
+	        trj.points[1].isBreakPoint := FALSE; trj.points[1].hasBlendingOverride := FALSE;
+	        trj.points[1].blendingMode := 0.0;
+	        trj.points[1].pos := posCpBase;
+	        trj.points[1].pos.v[0] := trj.points[1].pos.v[0] + 50.0;
+	        trj.points[1].pos.v[1] := trj.points[1].pos.v[1] + 50.0;
+
+	        (* pt[2]: +50 mm Y -- BREAK POINT: exact stop *)
+	        trj.points[2].sequenceNum := 3; trj.points[2].timeOffsetMs := 0;
+	        trj.points[2].isBreakPoint := TRUE; trj.points[2].hasBlendingOverride := FALSE;
+	        trj.points[2].blendingMode := 0.0;
+	        trj.points[2].pos := posCpBase;
+	        trj.points[2].pos.v[1] := trj.points[2].pos.v[1] + 50.0;
+
+	        (* pt[3]: return to posCpBase -- per-point override: 20 mm corner *)
+	        trj.points[3].sequenceNum := 4;  trj.points[3].timeOffsetMs := 0;
+	        trj.points[3].isBreakPoint := FALSE; trj.points[3].hasBlendingOverride := TRUE;
+	        trj.points[3].blendingMode := 20.0;
+	        trj.points[3].bufferMode := SM3_Basic.MC_BUFFER_MODE.blendingPrevious;
+	        trj.points[3].transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMCornerDistance;
+	        trj.points[3].pos := posCpBase;
+
+	        trjIdx := 0;
+	        step := 82; cycles := 0;
+
+	    (*
+	     * 82 : Trajectory following loop.
+	     *
+	     * On entry (cycles = 1): blending params are applied and the move is dispatched.
+	     * On commandExecuted: grp.cmd := Idle triggers cmd <> oldCmd in AxisGroup FSM
+	     *   (CheckLinearAbsoluteState → Standby), which clears commandExecuted.
+	     *   step := 82 + cycles := 0 re-enters the loop for the next waypoint.
+	     * When trjIdx >= trj.pointCount: all waypoints visited, advance to GroupHalt test.
+	     *)
+	    82 :
+	        (* Abort: highest priority — clear override, halt, clear trajectory queue. *)
+	        IF ec.abortCurrentTrajectory THEN
+	            ec.trjDynamicSlowdownEnable := FALSE;
+	            grp.overrideEnable := FALSE;
+	            trjIdx := 0;
+	            grp.cmd := AxisGroupCmd.GroupHalt;
+	            step := 84; cycles := 0;
+	        ELSIF trjIdx >= trj.pointCount THEN
+	            pass[17] := TRUE;
+	            IF trjCompletionStep <> 0 THEN
+	                step := trjCompletionStep; trjCompletionStep := 0;
+	            ELSE
+	                step := 83;
+	            END_IF;
+	            cycles := 0;
+	        ELSIF cycles = 1 THEN
+	            IF trj.points[trjIdx].isBreakPoint THEN
+	                grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	                grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	                grp.transitionParameter := 0.0;
+	            ELSIF trj.points[trjIdx].hasBlendingOverride THEN
+	                grp.bufferMode := trj.points[trjIdx].bufferMode;
+	                grp.transitionMode := trj.points[trjIdx].transitionMode;
+	                grp.transitionParameter := trj.points[trjIdx].blendingMode;
+	            ELSE
+	                grp.bufferMode := trj.bufferMode;
+	                grp.transitionMode := trj.transitionMode;
+	                grp.transitionParameter := trj.blendingMode;
+	            END_IF;
+	            grp.velocity := trj.velocity;
+	            grp.acceleration := trj.acceleration;
+	            grp.deceleration := trj.deceleration;
+	            grp.jerk := trj.jerk;
+	            grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	            grp.endPoint := trj.points[trjIdx].pos;
+	            grp.coordinateSystem := trj.coordSystem;
+	        ELSIF grp.commandExecuted THEN
+	            trjIdx := trjIdx + 1;
+	            IF trjAbortArmed AND trjIdx = 1 THEN
+	                ec.abortCurrentTrajectory := TRUE;
+	            END_IF;
+	            grp.cmd := AxisGroupCmd.Idle; (* change cmd → AxisGroup FSM exits CheckLinearAbsoluteState *)
+	            step := 82; cycles := 0;
+	        END_IF;
+
+	        (* Dynamic slowdown driven by Moqui: evaluated every cycle while in step 82. *)
+	        IF ec.trjDynamicSlowdownEnable THEN
+	            grp.overrideEnable := TRUE;
+	            grp.velFactor := ec.trjDynamicSlowdownFactor;
+	            grp.accFactor := 1.0;
+	            grp.jerkFactor := 1.0;
+	        ELSE
+	            grp.overrideEnable := FALSE;
+	        END_IF;
+
+	    (*
+	     * 83 : Dynamic-slowdown test -- simulates Moqui activating the override via the
+	     *      trjDynamicSlowdownEnable / trjDynamicSlowdownFactor live parameters.
+	     * Dispatches a CP move to the first trajectory waypoint (posCpBase + 50 mm Y).
+	     * After 3 cycles the slowdown globals are set (enable=TRUE, factor=0.5);
+	     * the per-cycle override block applies MC_GroupSetOverride without interrupting the move.
+	     * The globals are cleared on commandExecuted and pass[18] is set.
+	     *)
+	    83 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
+	        IF cycles = 1 THEN
+	            grp.velocity := trj.velocity;
+	            grp.acceleration := trj.acceleration;
+	            grp.deceleration := trj.deceleration;
+	            grp.jerk := trj.jerk;
+	            grp.cmd := AxisGroupCmd.MoveLinearAbsolute;
+	            grp.endPoint := trj.points[0].pos;
+	            grp.coordinateSystem := trj.coordSystem;
+	        ELSIF cycles = 3 THEN
+	            ec.trjDynamicSlowdownEnable := TRUE;
+	            ec.trjDynamicSlowdownFactor := 0.5;
+	        ELSIF grp.commandExecuted THEN
+	            ec.trjDynamicSlowdownEnable := FALSE;
+	            pass[18] := TRUE; step := 86; cycles := 0;
+	        END_IF;
+
+	        (* Same per-cycle override block as step 82. *)
+	        IF ec.trjDynamicSlowdownEnable THEN
+	            grp.overrideEnable := TRUE;
+	            grp.velFactor := ec.trjDynamicSlowdownFactor;
+	            grp.accFactor := 1.0;
+	            grp.jerkFactor := 1.0;
+	        ELSE
+	            grp.overrideEnable := FALSE;
+	        END_IF;
+
+	    (*
+	     * 84 : Abort halt — decelerates to standstill then clears trajectory state.
+	     * Entered from step 82 when abortCurrentTrajectory = TRUE.
+	     * In production Moqui clears the flag and pushes the escape trajectory; the test
+	     * simulates this inside step 85 after 10 cycles (trjAbortArmed guards the block).
+	     *)
+	    84 :
+	        grp.cmd := AxisGroupCmd.GroupHalt;
+	        IF grp.commandExecuted THEN
+	            grp.cmd := AxisGroupCmd.Idle;
+	            trj.pointCount := 0;
+	            step := 85; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 85 : Wait for new trajectory from Moqui.
+	     * Production: blocked until Moqui sets abortCurrentTrajectory = FALSE and
+	     *             pushes a non-empty trajectory. Step 82 then re-executes it.
+	     * Test simulation (guarded by trjAbortArmed so it never fires in production):
+	     *   after 10 cycles, reload the original 4-point trj and clear the abort flag.
+	     *)
+	    85 :
+	        IF trjAbortArmed AND cycles = 10 THEN
+	            ec.abortCurrentTrajectory := FALSE;
+	            trjAbortArmed := FALSE;
+	            trj.pointCount := 4;
+	        END_IF;
+	        IF NOT ec.abortCurrentTrajectory AND trj.pointCount > 0 THEN
+	            trjIdx := 0;
+	            step := 82; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 86 : Abort test setup.
+	     * Arms trjAbortArmed so that step 82 triggers abortCurrentTrajectory := TRUE
+	     * after the first waypoint completes (trjIdx = 1). Sets trjCompletionStep := 87
+	     * so that step 82 exits to step 87 after the abort recovery re-execution.
+	     *)
+	    86 :
+	        trjAbortArmed := TRUE;
+	        trj.pointCount := 4;
+	        trjIdx := 0;
+	        trjCompletionStep := 87;
+	        step := 82; cycles := 0;
+
+	    (*
+	     * 87 : Abort test pass.
+	     * Reached via trjCompletionStep = 87 when the recovery trajectory completes
+	     * in step 82. Sets pass[19] and continues to the GroupHalt sequence.
+	     *)
+	    87 :
+	        pass[19] := TRUE; step := 7; cycles := 0;
+	    (*
+	     * 7/8 : MoveDirectAbsolute then GroupHalt.
+	     * Step 7 resets bufferMode to aborting before dispatching: the trajectory test
+	     * (step 82) leaves bufferMode = blendingPrevious on the last waypoint, which would
+	     * cause MC_MoveDirectAbsolute to error if not cleared here.
+	     * Step 7 starts a move toward posHome; after 2+ cycles step 8 issues GroupHalt.
+	     * With bufferMode = aborting, the active move is aborted; the FSM returns to Standby
+	     * and then dispatches GroupHalt, which decelerates to standstill.
+	     * commandExecuted fires when MC_GroupHalt.Done is received.
+	     *)
+	    7 :
+	        grp.bufferMode := SM3_Basic.MC_BUFFER_MODE.aborting;
+	        grp.transitionMode := SM3_Robotics.MC_TRANSITION_MODE.TMNone;
+	        grp.transitionParameter := 0.0;
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posHome;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 THEN
+	            step := 8; cycles := 0;
+	        END_IF;
+
+	    8 :
+	        grp.cmd := AxisGroupCmd.GroupHalt;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[11] := TRUE; step := 9; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 9/10 : GroupStop (level-driven; NOT abortable).
+	     * Step 9 starts a move; step 10 changes cmd to GroupStop and holds it there
+	     * until commandExecuted fires (MC_GroupStop is level-driven: Execute must
+	     * remain TRUE throughout the deceleration). FSM returns to Standby when done.
+	     *)
+	    9 :
+	        grp.cmd := AxisGroupCmd.MoveDirectAbsolute;
+	        grp.endPoint := posA;
+	        grp.coordinateSystem := SM3_Robotics.SMC_COORD_SYSTEM.ACS;
+	        IF cycles > 1 THEN
+	            step := 10; cycles := 0;
+	        END_IF;
+
+	    10 :
+	        grp.cmd := AxisGroupCmd.GroupStop;
+	        IF cycles > 1 AND grp.commandExecuted THEN
+	            pass[12] := TRUE; step := 11; cycles := 0;
+	        END_IF;
+
+	    (*
+	     * 11 : Return to Idle.
+	     * GroupStop left the FSM in Standby; ready should be TRUE immediately.
+	     * Changing cmd to Idle prevents the GroupStop cross-cutting check from
+	     * re-triggering on the next cycle.
+	     *)
+	    11 :
+	        grp.cmd := AxisGroupCmd.Idle;
+	        IF grp.ready THEN
+	            pass[13] := TRUE; step := 12; cycles := 0;
+	        END_IF;
+
+	    (* 12 : Done *)
+	    12 :
+	        grp.cmd := AxisGroupCmd.Idle;
+	        testDone := TRUE;
+	END_CASE;
+
+	(*
+	 * Watchdog: fail on group error or step timeout.
+	 *
+	 * The groupError check is suppressed while BOTH conditions hold:
+	 *   step = 51 - we are in the MC_GroupReset recovery window
+	 *   cpRetried = TRUE - the auto-reset was intentionally triggered
+	 * grpErrorId is NOT checked here because MC_GroupReset clears the error code
+	 * (grpErrorId -> 0) one cycle BEFORE groupError goes FALSE.
+	 * Adding the grpErrorId = 12125 guard would let the watchdog fire in that one-cycle gap.
+	 * Suppression ends as soon as we leave step 51 or cpRetried is FALSE.
+	 *)
+	cycles := cycles + 1;
+	IF NOT testDone AND NOT testFailed THEN
+	    IF grp.groupError AND NOT (step = 51 AND cpRetried) AND NOT errorTestActive THEN
+	        testFailed := TRUE;
+	        failStep := step;
+	    ELSIF cycles > TIMEOUT THEN
+	        testFailed := TRUE;
+	        failStep := step;
+	    END_IF;
+	END_IF;
+
+	(*
+	 * Post-failure GroupErrorStop cleanup.
+	 * When testFailed=TRUE the group may be stuck in GroupErrorStop (TestRobotArm RED)
+	 * because grpEnable=FALSE alone is not enough to exit that state - the AxisGroup FSM
+	 * requires MC_GroupReset first. Pulsing grp.reset here (after the CASE block) drives
+	 * the FSM through WaitReset -> Standby. grpEnable=FALSE (gated on NOT testFailed) then
+	 * immediately issues MC_GroupDisable, leaving the group in Disabled (grey - not red).
+	 * grp.reset is written AFTER the CASE statement so it always overrides any FALSE
+	 * that the CASE may have assigned this cycle.
+	 *)
+	IF testFailed AND grp.groupError THEN
+	    grp.reset := TRUE;
+	END_IF;
+
+	(*
+	 * Per-axis MC_Power calls - must run before grp() so allAxesPowered is valid this cycle.
+	 * Enable follows the same guard as grpEnable: stop powering axes once the test is over.
+	 *)
+	pwJ1(Axis := deviceTree.j1, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	pwJ2(Axis := deviceTree.j2, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	pwJ3(Axis := deviceTree.j3, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	pwJ4(Axis := deviceTree.j4, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	pwJ5(Axis := deviceTree.j5, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	pwJ6(Axis := deviceTree.j6, Enable := NOT testDone AND NOT testFailed, bRegulatorOn := TRUE, bDriveStart := TRUE);
+	allAxesPowered := pwJ1.Status AND pwJ2.Status AND pwJ3.Status
+		AND pwJ4.Status AND pwJ5.Status AND pwJ6.Status;
+
+	(* 
+	 * SMC_GroupPower initialises the CP context (required for MoveLinear/Circular).
+	 * Must be called from the bus task - AxisGroupTestSuiteTask is the configured bus task.
+	 * During the first 5 cycles of step 51 (CP recovery window), Enable is forced FALSE
+	 * to flush the stale CP session; after cycle 5 it returns to TRUE so the context
+	 * re-initialises before the retry. See step 51 comment for the full sequence.
+	 *)
+	powerGroup(
+	    AxisGroup := deviceTree.TestRobotArm,
+	    Enable := allAxesPowered AND NOT testDone AND NOT testFailed
+			AND NOT (step = 51 AND cpRetried AND cycles <= 5),
+	    bRegulatorOn := allAxesPowered AND NOT testDone AND NOT testFailed
+	    	AND NOT (step = 51 AND cpRetried AND cycles <= 5),
+	    bDriveStart  := allAxesPowered AND NOT testDone AND NOT testFailed
+	    	AND NOT (step = 51 AND cpRetried AND cycles <= 5)
+	);
+	groupCpReady := powerGroup.Status;
+
+	(*
+	 * AxisGroup FB call - must be the last statement.
+	 * All inputs must be set before this line.
+	 *
+	 * CODESYS setup required:
+	 *   group = TestRobotArm(AXIS_GROUP_REF_SM3 from the robot kinematics object)
+	 *   Axes j1..j6 must be mapped in the TestRobotArm kinematics configuration.
+	 *   j1..j6 must be declared as AXIS_REF and mapped to the drive axes.
+	 *)
+	grp(
+	    axisGroupId := 'TestRobotArm',
+	    axisGroupName := 'TestRobotArm',
+	    group := deviceTree.TestRobotArm,
+	    groupEnable := grpEnable
+	);
+	grpStatus := grp.status;
+	grpError := grp.groupError;
+	grpErrorId := grp.groupErrorId;
+	grpNotInit := grp.groupNotInitialized;
+
+END_PROGRAM

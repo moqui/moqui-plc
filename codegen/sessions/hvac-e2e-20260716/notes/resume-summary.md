@@ -25,10 +25,15 @@ implemented nor committed.
 
 ## Immediate next action
 
-Inbound transport and deserialization have passed. Update the CODESYS
-projectarchive with the corrected executable HVAC `JsonToParametersMapper`,
-reload the Application and keep it in `RUN` against broker `127.0.0.1:1883`.
-Set one target DeviceFacade value to a distinguishable value, then invoke:
+Run the live verification of the logging pipeline and MQTT ownership redesign
+(conversation-history section 16) with `notes/logging-live-test-runbook.md`:
+Artemis, Mosquitto and CODESYS 3.5.21 Control Win on the developer's Windows PC,
+after the developer has ported the changed objects into
+`codesys-v3/moqui.projectarchive`. The earlier HVAC live-write check below is
+part of that runbook (T3).
+
+Previous action, still valid as T3: reload the Application against broker
+`127.0.0.1:1883`, then invoke
 
 ```text
 POST http://localhost:8081/api/device-request/run/HVAC_DEMO_LiveParametersWrite

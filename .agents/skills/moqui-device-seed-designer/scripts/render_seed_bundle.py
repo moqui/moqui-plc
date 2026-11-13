@@ -64,7 +64,7 @@ TEMPLATE_MAP = {
     "signal_mgmt_config": "signal-mgmt-device-config-template.xml",
     "mqtt": "mqtt-device-request-seed-template.xml",
     "opcua": "opcua-device-request-seed-template.xml",
-    "gateway_wrapper": "gateway-wrapper-request-seed-template.xml",
+    "recipe_export": "recipe-export-request-seed-template.xml",
     "framework_ec": "framework-ec-seed-template.xml",
 }
 

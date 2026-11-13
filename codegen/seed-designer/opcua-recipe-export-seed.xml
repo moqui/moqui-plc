@@ -121,6 +121,7 @@ along with this software (see the LICENSE.md file). If not, see
             requestTypeEnumId="DrtCyclic"
             purposeEnumId="DrpControl"
             routerEnumId="DrrDirect"
+            runServiceName="moqui.device.gateway.OpcUaServices.run#DeviceRequest"
             connectionName="VPL_OPCUA_CONN_S001"
             pollingInterval="100"/>
 
@@ -147,6 +148,7 @@ along with this software (see the LICENSE.md file). If not, see
             requestTypeEnumId="DrtUnsubscribe"
             purposeEnumId="DrpControl"
             routerEnumId="DrrDirect"
+            runServiceName="moqui.device.gateway.OpcUaServices.run#DeviceRequest"
             connectionName="VPL_OPCUA_CONN_S001"/>
 
     <moqui.device.DeviceRequest
@@ -155,6 +157,7 @@ along with this software (see the LICENSE.md file). If not, see
             requestTypeEnumId="DrtWrite"
             purposeEnumId="DrpControl"
             routerEnumId="DrrDirect"
+            runServiceName="moqui.device.gateway.OpcUaServices.run#DeviceRequest"
             connectionName="VPL_OPCUA_CONN_S001"
             onlyChangedParameters="N"/>
 
@@ -180,25 +183,21 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 
-    <!-- Standard recipe export wrapper for moqui-device-gateway. -->
-
-    <moqui.device.Device
-            deviceId="MOQUI_DEVICE_GATEWAY_1"
-            deviceTypeEnumId="DtIoTGateway"/>
-
-    <moqui.device.PhysicalDevice
-            deviceId="MOQUI_DEVICE_GATEWAY_1"
-            deviceName="Moqui Device Gateway 1"/>
+    <!-- Standard recipe export: a DrtConfigWrite to a file or SFTP endpoint, run by moqui-device-gateway.
+         moqui.device.DeviceConfigServices.export#DeviceConfig renders the DeviceRuleSet in query as
+         name:=value files; running the request alone exports that rule set too. The name follows the
+         {deviceId}_ExportProcess convention of the device screens. -->
 
     <moqui.device.DeviceRequest
-            requestName="MOQUI_DEVICE_GATEWAY_1_ExportRecipe"
-            deviceId="MOQUI_DEVICE_GATEWAY_1"
+            requestName="VIRTUAL_PLC_OPCUA_S001_ExportProcess"
+            deviceId="VIRTUAL_PLC_OPCUA_S001"
             requestTypeEnumId="DrtConfigWrite"
             purposeEnumId="DrpCommissioning"
-            routerEnumId="DrrMoquiDeviceGateway"
-            runServiceName="moqui.device.DeviceGatewayServices.export#DeviceConfig"
-            brokerUri="http://localhost:8081"
-            timeout="30"
+            routerEnumId="DrrDirect"
+            runServiceName="moqui.device.gateway.FileServices.run#DeviceRequest"
+            brokerUri="file:/var/lib/moqui/recipes/VIRTUAL_PLC_OPCUA_S001"
+            query="VPL_OPCUA_RULE_SET_S001"
+            timeout="30000"
             onlyChangedParameters="N"/>
 
 </entity-facade-xml>

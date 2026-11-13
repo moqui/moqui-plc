@@ -15,9 +15,10 @@ Operate only a local developer demonstration composed of:
 
 - Moqui-managed PostgreSQL data loaded from `moqui-device/data/HVACDemoData.xml`
 - ActiveMQ Artemis as the MQTT v5 broker
-- `moqui-device-gateway` running locally
+- `moqui-device-gateway` running inside MR-Moqui (a separate Quarkus process
+  only on the Java line, moqui-plc `master`)
 - Mosquitto command-line clients as observers or test publishers
-- `codesys/moqui.projectarchive` running on CODESYS Control Win
+- `codesys-v3/moqui.projectarchive` running on CODESYS Control Win
 
 Do not present this workflow as a production deployment. Do not design or
 configure Kubernetes, Swarm, TLS, secret management, backups, network
@@ -53,7 +54,7 @@ between documentation and the current source before continuing.
    - PostgreSQL and reviewed HVAC seed
    - Artemis MQTT broker
    - Mosquitto observer
-   - `moqui-device-gateway` and health
+   - MR-Moqui with `moqui-device-gateway` and its PLC log subscription
    - CODESYS Control Win, task calls, login, and Run
    - direct MQTT live-parameter update
    - modeled gateway-to-PLC request
@@ -85,7 +86,8 @@ between documentation and the current source before continuing.
 
 Declare the complete demo passed only when all of these are observed:
 
-- gateway health is `UP`
+- Moqui runs and `HVAC_DEMO_PlcLogSubscribe` is in the `activeRequestNames` of
+  `moqui.device.gateway.SubscriptionServices.get#SubscriptionState`
 - CODESYS `MqttParameterSub` is connected
 - a whitelisted MQTT update changes the expected `DeviceFacade` parameter
 - the modeled gateway request publishes its HVAC parameter set

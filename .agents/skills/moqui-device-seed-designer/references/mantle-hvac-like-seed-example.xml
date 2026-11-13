@@ -265,39 +265,38 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.math.Parameter parameterId="P_AHU_FAN_GAIN" parameterDefId="PD_PID_GAIN" deviceId="HVAC_AHU_FAN" numericValue="1.0"/>
     <moqui.math.Parameter parameterId="P_AHU_FAN_OUTPUT_MAX" parameterDefId="PD_PID_OUTPUT_MAX" deviceId="HVAC_AHU_FAN" numericValue="100.0"/>
 
-    <!-- ========== Example framework/gateway request ========== -->
+    <!-- ========== Example request run by moqui-device-gateway ========== -->
+    <!-- An MQTT write: each item is published on the request topic with its requestItemName as JSON key. -->
 
     <moqui.device.DeviceRequest
-            requestName="run#HvacGatewayRequest"
+            requestName="HVAC_CELL_01_SyncParameters"
             deviceId="HVAC_CELL_01"
             requestTypeEnumId="DrtWrite"
             purposeEnumId="DrpControl"
-            routerEnumId="DrrMoquiDeviceGateway"
-            runServiceName="moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
+            routerEnumId="DrrMQTTBroker"
+            runServiceName="moqui.device.gateway.MqttServices.run#DeviceRequest"
+            brokerUri="mqtt://localhost:1883"
             onlyChangedParameters="N"
-            query="HvacGatewayWrite"/>
+            query="moqui/hvac-cell-01/parameters/live"/>
 
     <moqui.device.DeviceRequestItem
-            requestName="run#HvacGatewayRequest"
+            requestName="HVAC_CELL_01_SyncParameters"
             parameterId="P_COLD_GROUP_ENABLE_REQUEST"
             sequenceNum="1"
             requestItemName="coldGroupEnableRequest"
-            itemTypeEnumId="DritBool"
-            query="coldGroupEnableRequest"/>
+            itemTypeEnumId="DritBool"/>
     <moqui.device.DeviceRequestItem
-            requestName="run#HvacGatewayRequest"
+            requestName="HVAC_CELL_01_SyncParameters"
             parameterId="P_HOT_GROUP_ENABLE_REQUEST"
             sequenceNum="2"
             requestItemName="hotGroupEnableRequest"
-            itemTypeEnumId="DritBool"
-            query="hotGroupEnableRequest"/>
+            itemTypeEnumId="DritBool"/>
     <moqui.device.DeviceRequestItem
-            requestName="run#HvacGatewayRequest"
+            requestName="HVAC_CELL_01_SyncParameters"
             parameterId="P_AHU_FAN_SPEED_SETPOINT"
             sequenceNum="3"
             requestItemName="ahuFanSpeedSetpoint"
-            itemTypeEnumId="DritReal"
-            query="ahuFanSpeedSetpoint"/>
+            itemTypeEnumId="DritReal"/>
 
     <!-- ========== Example DeviceConfig / recipe ========== -->
 

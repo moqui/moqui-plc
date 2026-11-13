@@ -3,7 +3,8 @@
 Load this reference for device topology, configuration, StatusFlow projection,
 seed generation or Moqui service work. Verify exact contracts in
 `../moqui-device/entity/DeviceEntities.xml`, `DeviceViewEntities.xml`,
-`service/moqui/device/DeviceServices.xml` and `DeviceGatewayServices.xml`.
+`service/moqui/device/DeviceServices.xml`, `DeviceConfigServices.xml` and
+`TrajectoryPlannerServices.xml`.
 
 ## Role and identity
 
@@ -36,21 +37,20 @@ All protocol implementations follow the `run#DeviceRequest` interface pattern.
 `moqui-device-gateway`, `moqui-plc4j` and `moqui-genicam` are symmetric
 implementations selected through routing/service data.
 
-For the gateway there are two request layers:
+On MR-Moqui the gateway is a component inside Moqui, so a gateway request is a
+single request: it belongs to the field Device, stores the MQTT/OPC UA/Modbus or
+file transport details, and names the protocol service in `runServiceName`
+(`moqui.device.gateway.MqttServices.run#DeviceRequest` with `DrrMQTTBroker`;
+`OpcUaServices`, `ModbusServices`, `FileServices` with `DrrDirect`;
+`PlcLogServices` for PLC logs). There is no wrapper request and no gateway REST
+URL.
 
-1. The Moqui-side wrapper belongs to the gateway Device, uses
-   `DrrMoquiDeviceGateway`, calls
-   `moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest`, stores the
-   gateway REST base URL in `brokerUri`, and names the gateway-side request in
-   `query`.
-2. The gateway-side request belongs to the field Device and stores MQTT/OPC UA
-   transport details. The gateway re-queries request items from the shared
-   Moqui database; item lists are not forwarded through the wrapper REST call.
-
-`export#DeviceConfig` traverses RuleSet -> Rule -> Config -> Parameter and adds
-the IEC `dev.` namespace only at projection time. Persistent trajectories use
-the configuration/recipe route; ephemeral trajectories use the dedicated
-trajectory export service.
+`moqui.device.DeviceConfigServices.export#DeviceConfig` traverses RuleSet ->
+Rule -> Config -> Parameter, adds the IEC `dev.` namespace only at projection
+time, and sends the `name:=value` files with a `DrtConfigWrite` request run by
+`FileServices`. Persistent trajectories use this recipe route; ephemeral
+trajectories use `moqui.device.TrajectoryPlannerServices.export#Trajectory`,
+one JSON message published by an MQTT write request.
 
 ## FSM and naming rules
 

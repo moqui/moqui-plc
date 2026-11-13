@@ -1,0 +1,52 @@
+NAMESPACE ec
+(* Execution Context *)
+VAR_GLOBAL
+    (* Timing generation *)
+    clks : Clocks;
+
+	(* 
+	 * Framework args.
+	 * External framework commands and configurations set by Moqui or supervision.
+     *)
+	enable : BOOL := TRUE;
+	init : BOOL := TRUE; (* It could be the powerOn signal*)
+	fault, error, commError, reset, autoReset : BOOL;
+	(* All device configs loaded *)
+	allConfigLoaded : BOOL;
+	retryCount, retryTime : UINT;
+	isPrimary : BOOL;
+	heartbeat : ULINT;
+
+	(* Logger *)
+	
+    (* Array of reference to local logs used by the log appender *)
+    logSourceList : ARRAY[1..MoquiConf.LOG_SOURCE_LIST_MAX_SIZE] OF LogSource;
+    (* Registered LoggerFacade buffers; incremented atomically, may exceed LOG_SOURCE_LIST_MAX_SIZE when the list is full *)
+    logSourceListSize : DINT := 0;
+    (*
+     * Lowest level written by every LoggerFacade (Trace, Debug, Info, Warn, Error, Fatal; All = Trace; Off = none).
+     * Debug keeps the per-cycle FSM and device messages of the demo; Info is advisable in production.
+     *)
+    logMinLevel : LogLevel := LogLevel.Debug;
+
+	(* Facade for managing devices and logical parameters. *)
+	dev : DeviceFacade;
+
+	(* Facade for managing physical devices and input/output signals *)
+	io : IOFacade;
+
+	(* Optional: Moqui WorkEffort entity used for tracking information related to the execution of a production run. *)
+	workEffort : WorkEffort;
+
+	(* MQTT pub/sub commands: MqttCommunication is the only caller of connectionFactory *)
+	connectionFactory : MqttConnectionFactory;
+	logAppenderEnable : BOOL := TRUE;
+	paramsPubEnable : BOOL := FALSE;
+	paramsSubEnable : BOOL := TRUE;
+
+	(* Motion override — written by Moqui via liveParamsSub *)
+	trjDynamicSlowdownEnable : BOOL := FALSE;
+	trjDynamicSlowdownFactor : LREAL := 1.0;
+	abortCurrentTrajectory : BOOL := FALSE;
+END_VAR
+END_NAMESPACE

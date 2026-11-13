@@ -281,6 +281,7 @@ def build_process_only_globals(globals_body: str) -> str:
                 "allConfigLoaded :",
                 "logSourceList :",
                 "logSourceListSize :",
+                "logMinLevel :",
                 "retryCount, retryTime :",
                 "isPrimary :",
                 "heartbeat :",
@@ -318,8 +319,8 @@ def write_ax_configuration(source_root: Path, target_root: Path) -> None:
         "    PROGRAM HvacTestSuiteInstance WITH TestTask : HvacTestSuite;\n"
         "END_CONFIGURATION\n"
     )
-    configuration_text = re.sub(r"(:\s*UINT\s*:=\s*)(\d+)(\s*;)", r"\1UINT#\2\3", configuration_text)
-    configuration_text = configuration_text.replace("LogLevel.Debug", "LogLevel#Debug")
+    configuration_text = re.sub(r"(:\s*(UINT|DINT|UDINT)\s*:=\s*)(\d+)(\s*;)", r"\1\2#\3\4", configuration_text)
+    configuration_text = re.sub(r"\bLogLevel\.([A-Za-z_][A-Za-z0-9_]*)", r"LogLevel#\1", configuration_text)
     configuration_path.write_text(configuration_text, encoding="utf-8", newline="\n")
 
 

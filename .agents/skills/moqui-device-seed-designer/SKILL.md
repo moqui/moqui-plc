@@ -56,13 +56,13 @@ The skill should normalize the data internally and detect what is still missing.
 Useful helper scripts:
 
 - `scripts/render_seed_bundle.py`
-  - composes a final seed XML from reusable fragments such as `base`, `mqtt`, `gateway_wrapper`, and `framework_ec`
+  - composes a final seed XML from reusable fragments such as `base`, `mqtt`, `recipe_export`, and `framework_ec`
   - also supports `opcua` as an auxiliary direct-transport reference fragment when needed
   - in a session workflow, prefer `--session-dir` so the seed is written under the session workspace and `session.json` is updated
 - `scripts/render_seed_from_surveys.py`
   - validates multi-FSM surveys and materializes StatusType/StatusItem/StatusFlow topology
   - assigns each FSM to its owning subsystem Device and preserves the physical device parent tree
-  - generates executable gateway-side MQTT/OPC UA requests plus their Moqui-side REST dispatch wrappers
+  - generates executable MQTT/OPC UA requests that name their `moqui.device.gateway` protocol service
   - emits one `PhysicalDevice` per hardware CPU or CODESYS Application
   - requires explicit DeviceGroup membership and final approval gates (or `--draft`)
   - composes atomic `DeviceConfig` records through ordered `DeviceRuleSet`/`DeviceRule` rows
@@ -78,9 +78,9 @@ The skill should verify:
 - enumerations and purpose fields are coherent
 - request items point to existing parameters
 - each gateway sampling domain resolves to exactly one declared gateway transport
-- MQTT requests define a Camel `paho-mqtt5:` base URI and explicit topics
+- MQTT requests define a `paho-mqtt5:` base URI (also accepted by the Rust gateway) and explicit topics
 - OPC UA requests reference a generated `DeviceConnection` and explicit node IDs
-- each Moqui-side dispatch wrapper targets a gateway Device and references its field-side request by `query`
+- each request run by the gateway names the protocol service of its endpoint in `runServiceName` (MQTT: `MqttServices` with `DrrMQTTBroker`; OPC UA: `OpcUaServices` with `DrrDirect`; PLC logs: `PlcLogServices`)
 - status flows contain ordered states and valid transitions
 - every system/subsystem owns at most one directly visible FSM Device projection
 - flat FSMs remain independent; nested transitions use `toStatusFlowId` only when explicitly requested
@@ -118,13 +118,15 @@ which parameters may be changed and their JSON keys; do not create duplicate
 Parameter/ParameterDef rows. The PLC designer generates the corresponding
 Application-specific mapper.
 
-For each gateway-executed family, keep the two model rows distinct:
-
-- the field-side request targets the PLC and contains MQTT/OPC UA transport data;
-- the Moqui-side wrapper targets the gateway, uses
-  `moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest`, stores the
-  gateway REST base URL in `brokerUri`, and names the field-side request in
-  `query`.
+Each gateway-executed family is one request: it targets the PLC, holds the
+MQTT/OPC UA transport data, and names the protocol service of
+`moqui-device-gateway` in `runServiceName`
+(`moqui.device.gateway.MqttServices.run#DeviceRequest`,
+`OpcUaServices`, `ModbusServices`, `FileServices` or `PlcLogServices`). The
+gateway runs inside Moqui, so there is no Moqui-side wrapper request and no
+gateway REST URL. The recipe export request is a `DrtConfigWrite` with
+`FileServices`, a `file:` or `sftp://` endpoint and the `DeviceRuleSet` in
+`query`.
 
 Do not put API keys, broker passwords, or OPC UA credentials in generated seed
 files. Supply credentials through deployment configuration or referenced user
@@ -235,7 +237,7 @@ to what's being modeled right now.
   component whose recipe is being written.
 - `references/mqtt-device-request-seed-template.xml`,
   `references/opcua-device-request-seed-template.xml`,
-  `references/gateway-wrapper-request-seed-template.xml`,
+  `references/recipe-export-request-seed-template.xml`,
   `references/framework-ec-seed-template.xml` — load the one matching the
   transport family actually being modeled for the current `DeviceRequest`.
 - `references/framework-ec-requests.md` — load when modeling the standard

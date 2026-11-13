@@ -1,5 +1,13 @@
 # Open-source ST compilers: RuSTy and IronPLC
 
+This is an experimental opening for simple programs and compiler exploration.
+RuSTy and IronPLC do not currently provide the complete PLC platform and libraries
+required to run moqui-plc. Neither compiling the complete framework nor running
+its CODESYS applications is a supported outcome today. Compiler diagnostics below
+record the gaps; they are not a claim of a working platform port. The Rust device
+gateway (moqui-device-gateway, branch `mr-moqui`) is a component of MR-Moqui that runs
+inside the Moqui process; it does not depend on either compiler.
+
 This directory opens the canonical `iec61131/` tree to PLC runtimes built on
 open-source compilers, with a Rust runtime as the main target. It contains no
 runtime. It contains the **interface declarations** of every external block,
@@ -13,6 +21,10 @@ type-check the code with:
 
 IronPLC does not use RuSTy: they are two separate compilers, both written in Rust.
 
+[PLAN.md](PLAN.md) is the complete plan for building a Rust PLC runtime for this code on Linux PREEMPT_RT, on
+Intel's Edge Control Libraries (IgH EtherCAT, RTmotion) and moqui-device-gateway. It is a plan only: nothing in it is
+implemented yet.
+
 ## What compiles and what does not
 
 The moqui-plc code compiles only when every dependency is satisfied.
@@ -24,7 +36,7 @@ other platform they have to be provided by **whoever writes the runtime**:
 | PLCopen Motion Control Part 1 and Part 4 | `interfaces/plcopen-motion/` | `MC_*` function blocks on real axes (for example EtherCAT + CiA 402) |
 | CODESYS SoftMotion extensions | `interfaces/codesys-softmotion/` | `SMC_*` types and blocks, kinematics, moving coordinate systems |
 | MQTT, JSON, TLS (CODESYS IIoT) | `interfaces/codesys-iiot/` | MQTT 5 client, JSON builder/reader, TLS context |
-| Device diagnosis, Ethernet driver, RTC, recipes | `interfaces/codesys-system/` | device-tree walk, system clock, recipe file storage |
+| Device diagnosis, Ethernet driver, RTC, recipes, atomic add | `interfaces/codesys-system/` | device-tree walk, system clock, recipe file storage, `__XADD` (written `MOQUI_XADD`) for the log buffer counters |
 | CODESYS Util | `interfaces/codesys-util/` | `PID`, `RAMP_REAL`, `GEN` |
 | Device tree | `interfaces/device-tree/` | the I/O-configuration objects referenced by name (Ethernet adapter, drives, kinematic groups, cam tables) |
 

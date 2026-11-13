@@ -49,8 +49,16 @@ redundancy mechanisms are outside the framework.
 
 ## MQTT programs and mappings
 
+- `MqttCommunication` (task `MqttCommunicationTask`) is the only owner of the
+  broker connection; it calls `MqttParameterSub`, `MqttParameterPub` and
+  `LogDispatcher` in this order. Never give these three programs a task of
+  their own.
 - `LogDispatcher` publishes numeric/text logger batches and is the operational
-  telemetry path.
+  telemetry path. Each `LoggerFacade` buffer has one producer and one consumer;
+  a full buffer refuses new records (reported as "N log events dropped"),
+  batches are released only after the broker acknowledges them (QoS 1), and
+  equal consecutive events are written once with `repeatCount`. Events below
+  the global `logMinLevel` are ignored.
 - `MqttParameterSub` receives approved live parameter updates.
 - `MqttParameterPub` is an optional peer-PLC/Application parameter exchange for
   a developer-defined redundancy strategy; it is not the telemetry path.

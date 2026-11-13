@@ -14,7 +14,8 @@ VAR_GLOBAL CONSTANT
 	(* Logger facade configurations *)
 	LOG_MAX_SIZE : UINT := 100;
 	defaultLogLevel : LogLevel := LogLevel.Debug;
-	defaultLogSuppressDuration : TIME := T#0S; (* T#10s; *)
+	(* Window in which equal consecutive events are only counted (T#0S disables suppression) *)
+	defaultLogSuppressDuration : TIME := T#10S;
 	defaultLogSuppressDuplicates : BOOL := TRUE;
 	(* Log appender configurations *)
 	LOG_SOURCE_LIST_MAX_SIZE : UINT := 50;
@@ -24,9 +25,15 @@ VAR_GLOBAL CONSTANT
 	JSON_PAYLOAD_MAX_SIZE : UINT := 8192;
 	JSON_LINE_BREAK : WSTRING(2) := "$R$N";
 	JSON_ELEMENT_LIST_MAX_SIZE : UINT := 100;
-	LOG_APPENDER_BATCH_SIZE : UINT := 4;
+	(* Maximum records in one log MQTT message; LogDispatcher halves it while the JSON does not fit *)
+	LOG_APPENDER_BATCH_SIZE : UINT := 10;
 	logTopic : WSTRING(1024) := "moqui-plc";
-	logAppenderTimeout : UINT := 50000;
+	(* Longest wait for one log publish, in microseconds (QoS 1 includes the broker acknowledgement) *)
+	logAppenderTimeout : UDINT := 5000000;
+	(* Publish attempts of one log batch before it is discarded and counted in LogSource.discardedCount *)
+	logPublishMaxAttempts : UINT := 3;
+	(* Pause after a broker connection error before MqttCommunication connects again *)
+	mqttReconnectDelay : TIME := T#5S;
 	(* Topic for receiving commands from Moqui *)
 	moquiCmdsTopic : WSTRING(1024) := "moquiCmds";
 	(* Topics for live parameters pub/sub *)
@@ -132,7 +139,7 @@ VAR_GLOBAL CONSTANT
 	(* Publisher expiry interval of the message in seconds*)
 	pubMessageExpiryInterval : UDINT := 60;
 	(* Publisher MIME style content type of the payload *)
-	pubContentType : WSTRING(32) := "text/plain";
+	pubContentType : WSTRING(32) := "application/json";
 	(* Publisher user defined properties *)
 	(* pubUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
 	(* Example:
@@ -148,16 +155,20 @@ VAR_GLOBAL CONSTANT
 	paramsPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
 	(* TRUE: Stores the message on broker *)
 	paramsPubRetain : BOOL := TRUE;
-	(* When packet got already send and now should got resend, FALSE: First time *)
-	paramsReDelivery : BOOL := TRUE;
+	(* MQTT DUP flag: TRUE only for a resend of a QoS 1/2 message, never for a first send nor for QoS 0 *)
+	paramsReDelivery : BOOL := FALSE;
 
 	(* Log publisher configurations *)
-	(* QoS-Level for publish *)
-	logPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
-	(* TRUE: Stores the message on broker *)
+	(* QoS-Level for publish: QoS1 lets LogDispatcher release a batch only after the broker acknowledged it *)
+	logPubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS1;
+	(* Log events are not state: never retained on the broker *)
 	logPubRetain : BOOL := FALSE;
-	(* When packet got already send and now should got resend, FALSE: First time *)
-	logReDelivery : BOOL := TRUE;
+	(*
+	 * Expiry of a log message on the broker, in seconds: how long the gateway may stay offline without losing the
+	 * logs queued for its persistent session (pubMessageExpiryInterval applies to the other publishers)
+	 *)
+	logMessageExpiryInterval : UDINT := 86400;
+	(* The DUP flag of a log publish is set by MqttLogAppender, only when it resends a QoS 1/2 batch *)
 
 	(* Subscribe properties v5 *)
 	(* The subscription identifier will be returned on the message when it is delivered. This allows the Client to determine which subscription or subscriptions caused the message to be delivered. Setting the identifier accelerates the filtering of the telegrams in the subscriber function block *)	
