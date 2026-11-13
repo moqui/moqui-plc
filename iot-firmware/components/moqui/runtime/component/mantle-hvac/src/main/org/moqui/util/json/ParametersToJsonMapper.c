@@ -218,9 +218,9 @@ bool serialize_log_event(const LogEvent *ev, char *out, size_t max) {
     }
     int n = snprintf(out, max,
         "{\"logEventId\":\"%s\",\"loggerName\":\"%s\",\"source\":\"%s\","
-        "\"level\":%d,\"marker\":%d,\"uptimeMs\":%llu,\"type\":%d,\"repeatCount\":%u,\"%s\":%s}",
+        "\"level\":%d,\"marker\":%d,\"uptimeMs\":%llu,\"type\":%d,\"repeatCount\":%u,\"sequence\":%lu,\"%s\":%s}",
         id, logger, source, (int)ev->level, (int)ev->marker,
         (unsigned long long)ev->logEventDate, (int)ev->payloadType,
-        (unsigned)ev->repeatCount, field, payload);
+        (unsigned)ev->repeatCount, (unsigned long)ev->sequence, field, payload);
     return n > 0 && (size_t)n < max;
 }

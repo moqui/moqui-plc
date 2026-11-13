@@ -316,9 +316,11 @@ class SkillRegressionTest(unittest.TestCase):
         logger_facade = (
             iot_root / "components/moqui/framework/src/main/org/moqui/context/LoggerFacade.c"
         ).read_text(encoding="utf-8")
-        self.assertIn("ev->source[0] = '\\0';", logger_facade)
-        self.assertIn("strncpy(ev->source, source", logger_facade)
+        # Text events are device-scoped (empty source), numeric events carry the exact Parameter.parameterId.
+        self.assertIn('fill_identity(&ev, tag, "", level);', logger_facade)
+        self.assertIn("fill_identity(&ev, logger->loggerName, source, level);", logger_facade)
         self.assertIn("#define LOG_RING_CAPACITY (LOG_MAX_SIZE)", logger_facade)
+        # Releasing a batch keeps the records not included in it.
         self.assertIn("s_ring_count = (uint16_t)(s_ring_count - n);", logger_facade)
         configuration = (
             iot_root / "components/moqui/framework/src/main/resources/MoquiConf.h"

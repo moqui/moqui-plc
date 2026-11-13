@@ -17,16 +17,20 @@ Key constants:
 
 Key constants:
 
-- `LOG_MAX_SIZE`
+- `LOG_MAX_SIZE` (records of each LoggerFacade buffer; a full buffer refuses new records)
 - `defaultLogLevel`
+- `defaultLogSuppressDuration` (window of the repetition summary; `T#0S` disables it)
+- `defaultLogSuppressDuplicates`
 - `LOG_SOURCE_LIST_MAX_SIZE`
 - `LOG_JSON_PAYLOAD_MAX_SIZE`
 - `JSON_PAYLOAD_MAX_SIZE`
 - `JSON_LINE_BREAK`
 - `JSON_ELEMENT_LIST_MAX_SIZE`
-- `LOG_APPENDER_BATCH_SIZE`
+- `LOG_APPENDER_BATCH_SIZE` (records per log MQTT message)
 - `logTopic`
-- `logAppenderTimeout`
+- `logAppenderTimeout` (UDINT, microseconds; QoS 1 includes the broker acknowledgement)
+- `logPublishMaxAttempts`
+- `mqttReconnectDelay`
 - `moquiCmdsTopic`
 - `liveParamsSubTopic`
 - `liveParamsSubTimeout`
@@ -84,13 +88,16 @@ Live params publish:
 
 - `paramsPubQoS`
 - `paramsPubRetain`
-- `paramsReDelivery`
+- `paramsReDelivery` (MQTT DUP flag: `FALSE`; never `TRUE` on a first send or with QoS 0)
 
 Log publish:
 
-- `logPubQoS`
-- `logPubRetain`
-- `logReDelivery`
+- `logPubQoS` (`QoS1`: a batch is released only after the broker acknowledged it)
+- `logPubRetain` (`FALSE`: log events are not state)
+- `logMessageExpiryInterval` (seconds a log message waits on the broker for an offline gateway; 86400)
+
+The minimum log level is not a constant: it is the global `logMinLevel` of `ec`
+(default `Debug`; `Info` is advisable in production), changeable online.
 
 Subscribe:
 

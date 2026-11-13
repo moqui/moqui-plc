@@ -81,7 +81,12 @@ these active:
 The other tasks are commented out (CODESYS 4 accepts comments in its JSON
 files). To run one, add it to `CODESYS4_ENABLED_TASKS` in
 `scripts/moqui_plc_config.py` and regenerate. If `StartTask` runs, it starts
-the framework (`MoquiStart`).
+the framework (`MoquiStart`); `MqttCommunicationTask` runs the MQTT programs
+(`MqttParameterSub`, `MqttParameterPub`, `LogDispatcher`).
+
+CODESYS compiles only the POUs reachable from an active task. To check every
+POU, regenerate with all tasks of `configuration.st` in `CODESYS4_ENABLED_TASKS`
+and compile, then regenerate with the default list.
 
 Intervals are written in microseconds. For example, `T#10ms` becomes `10000`.
 This unit is assumed from the `dwInterval` of the CODESYS task configuration.

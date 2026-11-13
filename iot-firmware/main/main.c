@@ -31,15 +31,11 @@ static MqttParameterSub s_sub;
 static MqttParameterPub s_pub;
 #endif
 static MqttLogAppender s_appender;
-static LogEvent s_drain[LOG_APPENDER_BATCH_SIZE];
 
+/* Queue at most one log batch per cycle; while the broker is not connected the
+ * records wait in the logger ring. */
 static void drain_logs(void) {
-    uint16_t count = 0U;
-    LoggerFacade_DrainBuffer(s_drain, LOG_APPENDER_BATCH_SIZE, &count);
-    s_appender.logBuffer = s_drain;
-    s_appender.logBufferSize = count;
-    s_appender.execute = count > 0U;
-    MqttLogAppender_Update(&s_appender);
+    MqttLogAppender_Update(&s_appender, pal_mqtt_is_connected());
 }
 
 #ifndef CONFIG_MOQUI_ENABLE_TEST_SUITE

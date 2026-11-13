@@ -36,7 +36,7 @@ other platform they have to be provided by **whoever writes the runtime**:
 | PLCopen Motion Control Part 1 and Part 4 | `interfaces/plcopen-motion/` | `MC_*` function blocks on real axes (for example EtherCAT + CiA 402) |
 | CODESYS SoftMotion extensions | `interfaces/codesys-softmotion/` | `SMC_*` types and blocks, kinematics, moving coordinate systems |
 | MQTT, JSON, TLS (CODESYS IIoT) | `interfaces/codesys-iiot/` | MQTT 5 client, JSON builder/reader, TLS context |
-| Device diagnosis, Ethernet driver, RTC, recipes | `interfaces/codesys-system/` | device-tree walk, system clock, recipe file storage |
+| Device diagnosis, Ethernet driver, RTC, recipes, atomic add | `interfaces/codesys-system/` | device-tree walk, system clock, recipe file storage, `__XADD` (written `MOQUI_XADD`) for the log buffer counters |
 | CODESYS Util | `interfaces/codesys-util/` | `PID`, `RAMP_REAL`, `GEN` |
 | Device tree | `interfaces/device-tree/` | the I/O-configuration objects referenced by name (Ethernet adapter, drives, kinematic groups, cam tables) |
 

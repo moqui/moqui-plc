@@ -2,6 +2,7 @@
  * Optional publisher for parameter replication between peer PLCs/Applications,
  * typically for a developer-defined redundancy strategy. Operational numeric
  * and textual telemetry is published by LogDispatcher instead.
+ * Called by MqttCommunication, which owns the broker connection.
  *)
 PROGRAM MqttParameterPub
 	
@@ -27,15 +28,6 @@ PROGRAM MqttParameterPub
 	(* Publishing disabled *)
 	IF NOT ec.paramsPubEnable THEN
 		done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
-		RETURN;
-	END_IF;
-
-	(* Connect to the broker *)
-	ec.connectionFactory(connect := TRUE, error => error, errorId => errorId);
-	(* Reset and retry on next cycle *)
-	IF ec.connectionFactory.connection.xError THEN
-		ec.connectionFactory(connect := FALSE, error => error, errorId => errorId);
-		done := FALSE; busy := FALSE;
 		RETURN;
 	END_IF;
 

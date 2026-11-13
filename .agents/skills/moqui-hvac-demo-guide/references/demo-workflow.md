@@ -67,12 +67,15 @@ Ask the user to:
 1. open `codesys-v3/moqui.projectarchive`
 2. connect the IDE to CODESYS Control Win
 3. verify `MoquiConf` broker/topic values
-4. configure `MoquiStart`, `MqttParameterSub`, and `LogDispatcher` task calls
+4. configure the `MoquiStart` (StartTask) and `MqttCommunication`
+   (MqttCommunicationTask) task calls; `MqttCommunication` calls
+   `MqttParameterSub`, `MqttParameterPub` and `LogDispatcher`, which have no
+   task of their own
 5. disable unrelated test tasks
 6. login, download, and enter Run
 
 Evidence: the status is `RUN`, not `SIMULAT`, and
-`MqttParameterSub.connectionFactory.connected` is `TRUE`.
+`connectionFactory.connected` is `TRUE`.
 
 ### F. Direct inbound smoke test
 

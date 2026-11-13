@@ -43,7 +43,11 @@ Load this reference only after a checkpoint fails. Use the root
 
 ## No PLC logs return
 
-- Check `LogDispatcher` task execution and connection state.
+- Check that `MqttCommunicationTask` runs `MqttCommunication`, and
+  `connectionFactory.connected`.
+- Check `LogDispatcher.errorId` and, in `ec.logSourceList`, the
+  `publishedCount`/`discardedCount` of the sources; "N log events dropped"
+  records mean a buffer was full (raise `logMinLevel` or `LOG_MAX_SIZE`).
 - Check `clks.clock1minute` and the `ParameterLogger` call after
   `DeviceManager`.
 - Distinguish device events from parameter events using the `source` contract.

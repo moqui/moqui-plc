@@ -1,16 +1,25 @@
+(*
+ * Publishes one batch of log records as one MQTT message on logTopic.
+ *
+ * The broker connection belongs to MqttCommunication: this block only uses connectionFactory.connection.
+ * A rising execute serializes the batch and publishes it; several steps run in the same call when they can.
+ * done or error stay set until execute goes FALSE; then call the block until busy is FALSE before the next batch,
+ * because the publisher and the JSON writer may still use the payload memory.
+ *
+ * errorId: 200 not connected to the broker; 100-113 serialization (SerializeLogToJson, serializeError = TRUE);
+ * otherwise the MQTT error of the publisher (201 when the publisher reports an error without a code).
+ *)
 FUNCTION_BLOCK MqttLogAppender
 	VAR_EXTERNAL CONSTANT
-	    LOG_MAX_SIZE : UINT;
-		LOG_JSON_PAYLOAD_MAX_SIZE : UINT;
+	    LOG_APPENDER_BATCH_SIZE : UINT;
 		pubPayloadFormatIndicator : BYTE;
-		pubMessageExpiryInterval : UDINT;
+		logMessageExpiryInterval : UDINT;
 		pubContentType : WSTRING(32);
 		(* pubUserProperties : ARRAY [0..(MQTT.MQTTParam.g_udiMaxUserProperties - 1)] OF MQTT.MQTTStringPair; *)
 		logPubQoS : MQTT.MQTT_QOS;
 		logPubRetain : BOOL;
-		logReDelivery : BOOL;
 		logTopic : WSTRING(1024);
-		logAppenderTimeout : UINT;
+		logAppenderTimeout : UDINT;
 	END_VAR
 	VAR_EXTERNAL
 		connectionFactory : MqttConnectionFactory;
@@ -18,14 +27,20 @@ FUNCTION_BLOCK MqttLogAppender
 	VAR_INPUT
 	    execute : BOOL;
 	    (* Data sources *)
-	    logBuffer : REFERENCE TO ARRAY[1..LOG_MAX_SIZE] OF LogEvent;
+	    logBuffer : REFERENCE TO ARRAY[1..LOG_APPENDER_BATCH_SIZE] OF LogEvent;
 	    logBufferSize : UINT;
+	    (* The same batch was already sent once: set the DUP flag (QoS 1/2 only) *)
+	    redelivery : BOOL;
 	END_VAR
 	VAR_OUTPUT
 		done, busy, error : BOOL;
-	    errorId : INT; (* 100 : ArgsErr *)
+	    errorId : INT;
+	    (* The error comes from the JSON serialization: a smaller batch may fit *)
+	    serializeError : BOOL;
 	END_VAR
 	VAR
+		state : MqttLogAppenderStatus := MqttLogAppenderStatus.Idle;
+		finished : BOOL;
 		pubTopic : WSTRING(1024) := logTopic;
 		(* Publisher *)
 		publisher : MQTT.MQTTPublish;
@@ -33,7 +48,7 @@ FUNCTION_BLOCK MqttLogAppender
 		mqttPublishProperties : MQTT.MQTTPublishProperties := (
 			bPayloadFormatIndicator := pubPayloadFormatIndicator,
 			wsContentType := pubContentType,
-			udiMessageExpiryInterval := pubMessageExpiryInterval
+			udiMessageExpiryInterval := logMessageExpiryInterval
 			(* userProperties := pubUserProperties *)
 		);
 	    (* JSON serializer *)
@@ -41,45 +56,57 @@ FUNCTION_BLOCK MqttLogAppender
 	END_VAR
 
 	IF NOT execute THEN
-		logMapper(execute := FALSE, done => done, busy => busy,
-			error => error, errorId => errorId);
-	    publisher(xExecute := FALSE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
-			xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+		(* Release the JSON writer and the publisher; the payload stays untouched while either is busy *)
+		logMapper(execute := FALSE);
+		publisher(xExecute := FALSE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic);
+		busy := logMapper.busy OR publisher.xBusy;
+		done := FALSE;
+		IF NOT busy THEN
+			error := FALSE; errorId := 0; serializeError := FALSE;
+			finished := FALSE;
+			state := MqttLogAppenderStatus.Idle;
+		END_IF;
 		RETURN;
 	END_IF;
 
-	(* Connect to the broker *)
-	connectionFactory(connect := TRUE, error => error, errorId => errorId);
-	(* Reset and retry on next cycle *)
-	IF connectionFactory.error THEN
-		connectionFactory(connect := FALSE, error => error, errorId => errorId);
-		done := FALSE; busy := FALSE;
-		RETURN;
-	END_IF;
+	(* Outputs of the finished batch stay until execute goes FALSE *)
+	IF finished THEN RETURN; END_IF;
+	busy := TRUE;
 
-	(* Waiting for connection to broker *)
-	IF NOT connectionFactory.connected THEN RETURN; END_IF;
-
-	IF NOT publisher.xBusy THEN
-		(* JSON mapping *)
-		logMapper(execute := TRUE, logBuffer := logBuffer, logBufferSize := logBufferSize,
-			lineBreak := "", (* compact output: avoid WSTRING line-break embedding null bytes in byte array *)
-			busy => busy, error => error, errorId => errorId);
-		IF logMapper.error THEN
-			(* Reset JSON writer *)
-			logMapper(execute := FALSE, busy => busy,
-				error => error, errorId => errorId);
-			done := FALSE; busy := FALSE;
+	IF state = MqttLogAppenderStatus.Idle THEN
+		IF NOT connectionFactory.connected THEN
+			error := TRUE; errorId := 200;
+			busy := FALSE; finished := TRUE;
 			RETURN;
+		END_IF;
+		state := MqttLogAppenderStatus.Serialize;
+	END_IF;
+
+	IF state = MqttLogAppenderStatus.Serialize THEN
+		(* Compact output: no line breaks in the payload *)
+		logMapper(execute := TRUE, logBuffer := logBuffer, logBufferSize := logBufferSize, lineBreak := "");
+		IF logMapper.error THEN
+			error := TRUE; errorId := logMapper.errorId; serializeError := TRUE;
+			busy := FALSE; finished := TRUE;
+			RETURN;
+		ELSIF logMapper.done THEN
+			state := MqttLogAppenderStatus.Publish;
 		END_IF;
 	END_IF;
 
-	IF logMapper.done THEN
-		(* Publish the payload *)
+	IF state = MqttLogAppenderStatus.Publish THEN
 		publisher(xExecute := TRUE, mqttClient := connectionFactory.connection, wsTopicName := pubTopic,
 			pbPayload := ADR(logMapper.jsonPayload), udiPayloadSize := logMapper.payloadSize,
-			eQoS := logPubQoS, xReDelivery := logReDelivery, xRetain := logPubRetain,
-			udiTimeOut := UINT_TO_UDINT(logAppenderTimeout), mQTTPublishProperties := mqttPublishProperties,
-			xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
+			eQoS := logPubQoS, xReDelivery := redelivery AND (logPubQoS <> MQTT.MQTT_QOS.QoS0),
+			xRetain := logPubRetain, udiTimeOut := logAppenderTimeout,
+			mQTTPublishProperties := mqttPublishProperties);
+		IF publisher.xError THEN
+			error := TRUE; errorId := TO_INT(publisher.eMQTTError);
+			IF errorId = 0 THEN errorId := 201; END_IF;
+			busy := FALSE; finished := TRUE;
+		ELSIF publisher.xDone THEN
+			done := TRUE;
+			busy := FALSE; finished := TRUE;
+		END_IF;
 	END_IF;
 	END_FUNCTION_BLOCK

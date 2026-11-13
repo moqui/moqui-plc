@@ -47,6 +47,22 @@ pre-existing `Parameter.parameterId`. The HVAC `ParameterLogger` runs after
 `DeviceManager` and samples the 29 modeled numeric parameters on
 `clks.clock1minute`.
 
+The manual overrides `LoggerFacade`, `LogRingBuffer` and `LogSource` follow the
+canonical logging design:
+
+- each facade owns a buffer with one producer and one consumer; a full buffer
+  refuses new records and counts them in `droppedCount`, never overwriting
+  records not yet released;
+- events below the global `logMinLevel` (default `Debug`) are ignored, and an
+  event equal to the previous one within `defaultLogSuppressDuration` (10 s) is
+  written once more as a summary with `repeatCount` = repetitions.
+
+The S7-1500 runs the user program on one core, so the counters need no atomic
+operation (the CODESYS source uses `__XADD` for multicore targets). Without a
+consumer the buffers fill up and then refuse new records: a future OPC UA
+adapter reads them as `LogDispatcher` does in the canonical source, from
+`LogSource.readSlot`, and releases them by incrementing `readCount`.
+
 ## Directory layout
 
 ```text

@@ -249,6 +249,57 @@ cleanup.
 logging, input/output processing, configuration loading, and then dispatches the
 application `Main` POU.
 
+## Logging and MQTT communication
+
+The logging follows the log4j model: each block has a `LoggerFacade` (the
+logger), events go to a buffer, and one appender publishes them.
+
+```text
+LoggerFacade (control tasks)            MqttCommunication (MqttCommunicationTask, 100 ms)
+  level threshold, duplicate summary       connectionFactory: connect, reconnect after mqttReconnectDelay
+  -> own LogRingBuffer  ---------------->  MqttParameterSub   live parameter writes, first
+     (one producer, one consumer)          MqttParameterPub   optional peer-PLC replication
+                                           LogDispatcher      log batches -> MqttLogAppender -> logTopic
+```
+
+- **Buffers.** Each `LoggerFacade` owns a `LogRingBuffer` of `LOG_MAX_SIZE`
+  records with one producer (the facade's task) and one consumer
+  (`LogDispatcher`). Each counter has a single writer and is exchanged with the
+  atomic `__XADD`, so no lock is needed and no task ever waits. A full buffer
+  refuses new records and counts them; published records are never overwritten.
+- **Level and repetitions.** Events below the global `logMinLevel` (`ec`,
+  default `Debug`; `Info` is advisable in production) are ignored. An event equal
+  to the previous one of the same facade within `defaultLogSuppressDuration`
+  (10 s) is only counted and later written once with `repeatCount` = repetitions.
+- **Dispatching.** `LogDispatcher` visits the sources in turn and publishes at
+  most `LOG_APPENDER_BATCH_SIZE` records of one source per MQTT message, with
+  QoS 1. It releases the records only after the broker acknowledged them, retries
+  a failed batch with the DUP flag up to `logPublishMaxAttempts` times, and
+  halves the batch while its JSON does not fit. Records refused by a full buffer
+  are reported by one `Warn` record "N log events dropped". A log message
+  expires on the broker after `logMessageExpiryInterval` (24 h), so the gateway
+  may be offline that long without losing the logs queued for its session.
+- **Connection.** `MqttCommunication` is the only caller of `connectionFactory`.
+  After a connection error it disables the client, which resets it, and connects
+  again after `mqttReconnectDelay`. Live parameter writes are processed before
+  the log batches in every cycle.
+- **Payload.** One message is the map of events read by `moqui-device-gateway`;
+  the keys have a fixed width so that a reader that sorts keys keeps the order:
+
+  ```json
+  {"001":{"logEventId":"HVAC_DEMO_PLC-1798402291","logEventDate":"DT#2026-11-13-10:15:02",
+          "loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","level":2,"marker":0,
+          "type":1,"repeatCount":1,"sequence":42,"numericValue":23.5}}
+  ```
+
+  `sequence` numbers the records of one buffer, so a reader can detect gaps.
+
+Diagnostics: `LogSource.publishedCount`, `discardedCount` and
+`reportedDropCount` in `ec.logSourceList`, `LogRingBuffer.droppedCount`,
+`LogDispatcher.errorId` and `MqttCommunication.connectionErrorCount`.
+`LogTestSuite` (task `LogTestSuiteTask`, without `MqttCommunicationTask`) checks
+the buffer, the registration, the threshold and the repetition summary.
+
 ## Recipe Storage Path
 
 `DeviceConfigMgmt` uses `Recipe_Management.RecipeManCommands` to load device
@@ -537,15 +588,17 @@ In CODESYS:
    | Task | Type / interval | Priority | Program call |
    | --- | --- | --- | --- |
    | `StartTask` | Cyclic, 10 ms | 1 | `MoquiStart` |
-   | `MqttParameterSubTask` | Cyclic, 1000 ms | 1 | `MqttParameterSub` |
-   | `LogDispatcherTask` | Cyclic, 1000 ms | 3 | `LogDispatcher` |
+   | `MqttCommunicationTask` | Cyclic, 100 ms | 3 | `MqttCommunication` |
 
    `MoquiStart` initializes the framework, loads recipes and invokes the HVAC
-   `Main` FSM. `MqttParameterSub` receives and validates the approved live
-   parameter keys. `LogDispatcher` sends the registered `LoggerFacade` buffers,
-   including the `ParameterLogger` called by `Main` after `DeviceManager`.
-   `MqttParameterPub` is not required: it is reserved for an explicitly designed
-   peer-PLC parameter-replication strategy, not telemetry.
+   `Main` FSM. `MqttCommunication` owns the broker connection and calls, in this
+   order, `MqttParameterSub` (receives and validates the approved live parameter
+   keys), `MqttParameterPub` and `LogDispatcher` (sends the registered
+   `LoggerFacade` buffers, including the `ParameterLogger` called by `Main` after
+   `DeviceManager`). These three programs must not have tasks of their own.
+   `MqttParameterPub` stays disabled (`paramsPubEnable = FALSE`): it is reserved
+   for an explicitly designed peer-PLC parameter-replication strategy, not
+   telemetry.
 6. Disable unrelated test-suite tasks so they cannot write to the same global
    `DeviceFacade` during this demo.
 7. Build the Application, choose **Online -> Login**, accept the download, and
@@ -554,7 +607,7 @@ In CODESYS:
 The bottom status bar must show `RUN`, not `SIMULAT`. Useful online values are:
 
 ```text
-MqttParameterSub.connectionFactory.connected = TRUE
+connectionFactory.connected = TRUE
 MqttParameterSub.lastSubMessage
 MqttParameterSub.parser.done / busy / error
 dev.status
@@ -614,12 +667,20 @@ shape:
 
 ```json
 {
-  "loggerName":"HVAC_DEMO_PLC",
-  "source":"HvacTempSetpoint",
-  "type":1,
-  "numericValue":23.5
+  "001":{
+    "loggerName":"HVAC_DEMO_PLC",
+    "source":"HvacTempSetpoint",
+    "level":2,
+    "type":1,
+    "repeatCount":1,
+    "sequence":42,
+    "numericValue":23.5
+  }
 }
 ```
+
+A message carries up to `LOG_APPENDER_BATCH_SIZE` such entries, keyed `001`,
+`002`, ...; the entries also carry `logEventId`, `logEventDate` and `marker`.
 
 `HVAC_DEMO_PlcLogSubscribe` stores these events through
 `moqui.device.gateway.InboundServices.store#PlcLog` with this identity contract:
@@ -652,15 +713,23 @@ The first query should contain the value most recently observed by
   that `only_changed_parameters='N'`. Normal production operation should update
   parameters through Moqui services and may use `onlyChangedParameters=Y`.
 - **CODESYS receives nothing:** use Control Win rather than Simulation, confirm
-  `brokerUrl`, `liveParamsSubTopic`, the `MqttParameterSubTask` program call and
-  `connectionFactory.connected=TRUE`.
+  `brokerUrl`, `liveParamsSubTopic`, the `MqttCommunicationTask` program call and
+  `connectionFactory.connected=TRUE`. `MqttCommunication.connectionErrorCount`
+  growing means the broker refuses the connection; it is retried every
+  `mqttReconnectDelay`.
 - **FSM remains in Standby:** verify that the project contains the current
   `MainRuleEngine` and that the recipe feedback is outside the thermostat band.
 - **No periodic parameter rows:** `StartTask` must run every 10 ms because the
   derived clocks are based on that cycle; inspect `clks.clock1minute`, then
-  `ParameterLogger.logger.error` and the `LogDispatcher` state.
-- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo.
-  `ParameterLogger` entries are distinguished by a non-empty `source`.
+  `ParameterLogger.logger.error` and `logger.dropped`, then `LogDispatcher.errorId`
+  and the `publishedCount`/`discardedCount` of the sources in `ec.logSourceList`.
+- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo
+  (`logMinLevel = Debug`); equal consecutive messages of one block are written
+  once every 10 s with their `repeatCount`. Set `logMinLevel := LogLevel.Info`
+  to keep only Info and above. `ParameterLogger` entries are distinguished by a
+  non-empty `source`.
+- **"N log events dropped" records:** a block logs faster than the
+  dispatcher publishes; raise the level threshold or `LOG_MAX_SIZE`.
 
 To stop only the demo infrastructure:
 
