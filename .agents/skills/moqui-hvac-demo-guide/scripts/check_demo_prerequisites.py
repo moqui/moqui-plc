@@ -85,7 +85,7 @@ def main() -> int:
     required_files = {
         "codesys-project": workspace / "moqui-plc" / "codesys-v3" / "moqui.projectarchive",
         "hvac-seed": workspace / "moqui-device" / "data" / "HVACDemoData.xml",
-        "hvac-gateway-demo-data": workspace / "moqui-device" / "data" / "HVACDemoGatewayData.xml",
+        "hvac-gateway-demo-data": workspace / "moqui-device-gateway" / "data" / "DeviceGatewayDemoData.xml",
         "artemis-compose": workspace / "moqui-deploy" / "industrial" / "activemq-compose.yml",
         "postgres-compose": workspace / "moqui-deploy" / "industrial" / "moqui-postgres-compose.yml",
     }

@@ -38,6 +38,9 @@ PROGRAM MqttParameterSub
 		parserActive : BOOL; (* TRUE while parser is running across multiple cycles *)
 		subTopicFilter : WSTRING(1024) := liveParamsSubTopic;
 		(* Last incoming message *)
+		rxBuffer : STRING(JSON_PAYLOAD_MAX_SIZE);
+		pRxBytes : POINTER TO ARRAY[0..JSON_PAYLOAD_MAX_SIZE] OF BYTE;
+		clearIdx : UINT;
 		lastSubMessage : STRING(JSON_PAYLOAD_MAX_SIZE);
 	    receivedPayload : WSTRING(JSON_PAYLOAD_MAX_SIZE);
 		subscriberEnable : BOOL;
@@ -45,6 +48,9 @@ PROGRAM MqttParameterSub
 
 	(* Subscription disabled *)
 	IF NOT paramsSubEnable THEN
+		subscriber(xEnable := FALSE, mqttClient := connectionFactory.connection, wsTopicFilter := subTopicFilter);
+		parser(execute := FALSE);
+		parserActive := FALSE;
 		done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
 	    RETURN;
 	END_IF;
@@ -59,15 +65,27 @@ PROGRAM MqttParameterSub
 	(* Drive subscriber continuously; xDone = subscription confirmed (sub ack), not end of session *)
 	subscriber(xEnable := subscriberEnable, mqttClient := connectionFactory.connection,
 		eFilterMode := paramsSubFilterMode, wsTopicFilter := subTopicFilter, eSubscribeQoS := paramsSubQoS,
-		udiTimeout := liveParamsSubTimeout, pbPayload := ADR(lastSubMessage),
-		udiMaxPayloadSize := SIZEOF(lastSubMessage), mQTTSubscribeProperties := mqttSubscribeProperties,
+		udiTimeout := liveParamsSubTimeout, pbPayload := ADR(rxBuffer),
+		udiMaxPayloadSize := SIZEOF(rxBuffer) - 1, mQTTSubscribeProperties := mqttSubscribeProperties,
 		xDone => done, xBusy => busy, xError => error, eMQTTError => errorId);
 
-	(* xReceived pulses TRUE for one cycle only: latch parserActive to keep parser running *)
-	IF subscriber.xSubscribeActive AND subscriber.xReceived
-			AND subscriber.wsLastTopic = subTopicFilter THEN
-		receivedPayload := TO_WSTRING(lastSubMessage);
-		parserActive := TRUE;
+	(* xReceived pulses TRUE for one cycle only: copy NUL-terminated buffer, clear rxBuffer, and latch parserActive *)
+	IF subscriber.xReceived THEN
+		IF subscriber.xSubscribeActive AND subscriber.wsLastTopic = subTopicFilter THEN
+			lastSubMessage := rxBuffer;
+			receivedPayload := TO_WSTRING(lastSubMessage);
+			IF parserActive THEN
+				parser(execute := FALSE);
+			END_IF;
+			parserActive := TRUE;
+		END_IF;
+		pRxBytes := ADR(rxBuffer);
+		FOR clearIdx := 0 TO JSON_PAYLOAD_MAX_SIZE DO
+			IF pRxBytes^[clearIdx] = 0 THEN
+				EXIT;
+			END_IF;
+			pRxBytes^[clearIdx] := 0;
+		END_FOR;
 	END_IF;
 
 	(* Drive parser every cycle until done/error, regardless of xReceived *)

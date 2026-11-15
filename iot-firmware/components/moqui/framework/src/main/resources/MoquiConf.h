@@ -30,6 +30,7 @@
 #define LOG_MIN_LEVEL_DEFAULT      LOG_LEVEL_DEBUG
 /* QoS of the log messages: 1 keeps them in the MQTT client's outbox until the broker acknowledges them. */
 #define LOG_PUB_QOS                (1)
+#define PARAMS_SUB_QOS             (1)
 
 /* ========== MQTT topics (structural names, not runtime addresses) ========== */
 #define MOQUI_LOG_TOPIC            "moqui-log"

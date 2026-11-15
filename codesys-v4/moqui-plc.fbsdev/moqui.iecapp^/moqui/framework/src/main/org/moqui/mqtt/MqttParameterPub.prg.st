@@ -27,6 +27,8 @@ PROGRAM MqttParameterPub
 
 	(* Publishing disabled *)
 	IF NOT ec.paramsPubEnable THEN
+		parameterMapper(execute := FALSE);
+		publisher(xExecute := FALSE, mqttClient := ec.connectionFactory.connection, wsTopicName := pubTopic);
 		done := FALSE; busy := FALSE; error := FALSE; errorId := 0;
 		RETURN;
 	END_IF;

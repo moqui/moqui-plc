@@ -451,13 +451,11 @@ export entity_ds_db_conf=postgres entity_ds_host=127.0.0.1 entity_ds_port=5432
 export entity_ds_database=moqui entity_ds_user=moqui entity_ds_password=moqui
 export entity_ds_sslmode=disable  # local demo only
 ./moq build --debug
-./moq load --debug seed-initial
-./moq load --debug seed
-./moq load --debug -l runtime/component/moqui-device/data/HVACDemoGatewayData.xml
+./moq load --debug
 ```
 
-`HVACDemoGatewayData.xml` is demo data, not seed: it adds the broker connection
-`HVAC_DEMO_MQTT` and the PLC log subscription `HVAC_DEMO_PlcLogSubscribe` used
+`HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`, loaded by `./moq load`) add the broker connection
+`HVAC_DEMO_MQTT`, the live-parameter write request `HVAC_DEMO_LiveParametersWrite`, and the PLC log subscription `HVAC_DEMO_PlcLogSubscribe` used
 in steps 5 to 9.
 
 For the **Java framework alternative**, use PowerShell:
@@ -542,10 +540,11 @@ export device_gateway_device_id=HVAC_DEMO_GATEWAY
 the `DgmpEdgeGateway` member of the `HVAC_DEMO` group. Within a minute of the
 start, the service job `start_DeviceGatewaySubscriptions` starts the active
 subscriptions of the controllers in its scope, here `HVAC_DEMO_PlcLogSubscribe`
-on the `moqui-plc` topic. Requests for devices outside that scope are refused. The Moqui log reports `Device gateway subscriptions started:
-1, failed: 0`; `moqui.device.gateway.SubscriptionServices.get#SubscriptionState`
-(Tools app, Service Run) lists it in `activeRequestNames`. Request an initial
-full live snapshot in this local demo:
+on the `moqui-plc` topic. Requests for devices outside that scope are refused.
+`moqui.device.DeviceAcquisitionServices.get#StartupSubscriptions` (Tools app,
+Service Run) lists `HVAC_DEMO_PlcLogSubscribe` in `requestNames`, and
+`moqui.device.DeviceAcquisitionServices.start#Subscriptions` keeps it running.
+Request an initial full live snapshot in this local demo:
 
 ```powershell
 docker exec moqui-database psql -U moqui -d moqui -c "UPDATE device_request SET only_changed_parameters='N' WHERE request_name='HVAC_DEMO_LiveParametersWrite';"
@@ -654,10 +653,11 @@ Run `moqui.device.DeviceServices.run#DeviceRequest` with
 result has `status = completed` and 20 `itemResults`, and the user gets a
 "Sync Parameters completed" notification.
 
-The observer should show 20 messages on the live-parameter topic and CODESYS
-should show `dev.tempSetpoint=23.5`. This proves that the gateway resolved the
+The observer should show a combined JSON message on the live-parameter topic
+containing all 20 whitelisted keys, and CODESYS should show
+`dev.tempSetpoint=23.5`. This proves that the gateway resolved the
 `DeviceRequest` and `DeviceRequestItem` rows, read the Moqui parameters and
-published the generated MQTT payloads.
+published the generated MQTT payload.
 
 ### 9. Verify CODESYS-to-gateway logging
 
@@ -683,7 +683,7 @@ A message carries up to `LOG_APPENDER_BATCH_SIZE` such entries, keyed `001`,
 `002`, ...; the entries also carry `logEventId`, `logEventDate` and `marker`.
 
 `HVAC_DEMO_PlcLogSubscribe` stores these events through
-`moqui.device.gateway.InboundServices.store#PlcLog` with this identity contract:
+`moqui.device.DeviceAcquisitionServices.store#LogSamples` with this identity contract:
 
 - empty `source` -> `DEVICE_LOG`, with `loggerName` as exact `Device.deviceId`;
 - non-empty `source` -> `PARAMETER_LOG`, with `source` as exact
@@ -704,11 +704,12 @@ The first query should contain the value most recently observed by
 - **No MQTT traffic:** check that `moqui-broker1` is healthy, port 1883 is not
   occupied, credentials are `artemis/artemis`, and `mosquitto_sub` was started
   before publishing.
-- **No subscription started:** check the Moqui log for `Device gateway
-  subscription ... did not start` or `subscriptions are not restored`: usually
+- **No subscription started:** check the Moqui log for `Subscription start
+  failed` or `Subscription discovery failed`: usually
   `device_gateway_device_id=HVAC_DEMO_GATEWAY` or `MQTT_USERNAME`/`MQTT_PASSWORD`
-  are missing from the Moqui environment, or `HVACDemoGatewayData.xml` was not
-  loaded. `start#Subscriptions` retries a lost subscription every minute.
+  are missing from the Moqui environment, or `HVACDemoData.xml` and
+  `DeviceGatewayDemoData.xml` (`type="demo"`) were not loaded.
+  `start#Subscriptions` retries a lost subscription every minute.
 - **The write publishes nothing:** for this isolated first-snapshot test verify
   that `only_changed_parameters='N'`. Normal production operation should update
   parameters through Moqui services and may use `onlyChangedParameters=Y`.

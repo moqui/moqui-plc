@@ -66,7 +66,7 @@ void MqttParameterSub_Update(MqttParameterSub *sub, bool paramsSubEnable) {
         sub->busy = true;
         if (++sub->generation == 0U) { ++sub->generation; }
         atomic_store(&s_generation, sub->generation);
-        int mid = pal_mqtt_subscribe(MOQUI_LIVE_PARAMS_SUB_TOPIC, 0);
+        int mid = pal_mqtt_subscribe(MOQUI_LIVE_PARAMS_SUB_TOPIC, PARAMS_SUB_QOS);
         sub->subscribed = mid >= 0;
         sub->done = sub->subscribed;
         sub->error = !sub->subscribed;

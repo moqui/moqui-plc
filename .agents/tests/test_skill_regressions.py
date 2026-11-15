@@ -832,6 +832,8 @@ plc4j_projection:
 
     def test_transport_projection_accepts_real_plc4j_seed(self) -> None:
         plc4j_seed = REPO_ROOT.parents[1] / "moqui-plc4j" / "data" / "Plc4jTestData.xml"
+        if not plc4j_seed.is_file():
+            self.skipTest("moqui-plc4j repository is not checked out alongside moqui-plc")
         output = run_ok(
             PYTHON,
             "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",

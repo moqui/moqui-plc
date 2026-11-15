@@ -12,10 +12,10 @@ Load this reference only after a checkpoint fails. Use the root
 
 ## Subscription not started
 
-- Read the Moqui log for `Device gateway subscription ... did not start`.
+- Read the Moqui log for `Subscription start failed` or `Subscription discovery failed`.
 - Verify `device_gateway_device_id=HVAC_DEMO_GATEWAY`, `MQTT_USERNAME` and
   `MQTT_PASSWORD` in the environment of the Moqui process, and that
-  `HVACDemoGatewayData.xml` was loaded.
+  `HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`) were loaded.
 - Verify the HVAC seed exists in the database and the broker is reachable.
 - `start#Subscriptions` retries a lost subscription every minute.
 

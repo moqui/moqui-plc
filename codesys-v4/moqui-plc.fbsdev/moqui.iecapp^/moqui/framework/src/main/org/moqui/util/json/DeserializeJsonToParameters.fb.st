@@ -23,6 +23,14 @@ FUNCTION_BLOCK DeserializeJsonToParameters
 	    i : UDINT;
 	END_VAR
 
+	IF NOT execute THEN
+		jsonReader(xExecute := FALSE, jsonData := jsonData, xBusy => busy);
+		done := FALSE;
+		error := FALSE;
+		errorId := 0;
+		RETURN;
+	END_IF;
+
 	(* Args validation *)
 	IF jsonPayload = "" THEN
 		done := FALSE;

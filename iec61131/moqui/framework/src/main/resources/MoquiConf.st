@@ -183,7 +183,7 @@ VAR_GLOBAL CONSTANT
 	subRetainHandling : MQTT.MQTT_RETAIN_HANDLING := MQTT.MQTT_RETAIN_HANDLING.Not_Exists;
 
 	(* QoS-Level for subscribe *)
-	paramsSubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS0;
+	paramsSubQoS : MQTT.MQTT_QOS := MQTT.MQTT_QOS.QoS1;
 	(* 
      * FILTER_ON = Filters the telegrams by topics
      * FILTER_OFF = Turns the filter off and receives ALL subscribed telegrams

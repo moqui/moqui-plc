@@ -31,9 +31,9 @@ Evidence: all required command-line and repository checks pass.
 ### B. Database and model
 
 - Start the documented PostgreSQL service.
-- Load `seed-initial` before regular `seed` if the database is new, then
-  `moqui-device/data/HVACDemoGatewayData.xml` (demo data: broker connection and
-  PLC log subscription).
+- Load `seed-initial`, `seed`, and `demo` data (`./moq load --debug`), which includes
+  `moqui-device/data/HVACDemoData.xml` and `moqui-device-gateway/data/DeviceGatewayDemoData.xml`
+  (broker connection, live parameter write, and PLC log subscription).
 - Verify the HVAC device and live request-item counts with the README queries.
 - Explain any local SQL credential/request override before applying it.
 
@@ -56,9 +56,9 @@ both the PLC-log and HVAC live-parameter topics.
   in its environment, as documented.
 - Wait for the service job `start_DeviceGatewaySubscriptions` (one minute).
 
-Evidence: the Moqui log reports the started subscriptions and
-`get#SubscriptionState` lists `HVAC_DEMO_PlcLogSubscribe`; the subscriptions come
-from the modeled requests, without a hidden route list.
+Evidence: `get#StartupSubscriptions` lists `HVAC_DEMO_PlcLogSubscribe` and
+`start#Subscriptions` starts it; the subscriptions come from the modeled
+requests, without a hidden route list.
 
 ### E. CODESYS
 

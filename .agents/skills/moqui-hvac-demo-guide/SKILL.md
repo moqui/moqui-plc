@@ -86,8 +86,8 @@ between documentation and the current source before continuing.
 
 Declare the complete demo passed only when all of these are observed:
 
-- Moqui runs and `HVAC_DEMO_PlcLogSubscribe` is in the `activeRequestNames` of
-  `moqui.device.gateway.SubscriptionServices.get#SubscriptionState`
+- Moqui runs and `HVAC_DEMO_PlcLogSubscribe` is started or kept running by
+  `moqui.device.DeviceAcquisitionServices.start#Subscriptions`
 - CODESYS `MqttParameterSub` is connected
 - a whitelisted MQTT update changes the expected `DeviceFacade` parameter
 - the modeled gateway request publishes its HVAC parameter set
