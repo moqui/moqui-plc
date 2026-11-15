@@ -43,6 +43,7 @@ void DeviceConfigMgmt_Update(DeviceConfigMgmt *self)
 
         case DEVICE_CONFIG_MGMT_LOAD:
             if (self->currentConfigIndex >= self->configCmds.configNameListSize) {
+                self->busy   = true;
                 self->status = DEVICE_CONFIG_MGMT_COMPLETED;
             } else {
                 self->configCmds.configName =
@@ -67,7 +68,6 @@ void DeviceConfigMgmt_Update(DeviceConfigMgmt *self)
             if (configCompletedEdge) {
                 self->done = false;
                 LOGGER_LOG(&self->logger, LOG_LEVEL_INFO, "Device config completed.");
-                self->busy = true;
                 self->currentConfigIndex++;
                 self->status = DEVICE_CONFIG_MGMT_LOAD;
             }

@@ -54,6 +54,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 
 	    DeviceConfigMgmtStatus.Load :
 	        IF (currentConfigIndex >= configCmds.configNameListSize) THEN
+	            busy := TRUE;
 	            status := DeviceConfigMgmtStatus.Completed;
 	        ELSE
 	            configCmds.configName := configCmds.configNameList[currentConfigIndex];
