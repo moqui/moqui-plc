@@ -36,6 +36,8 @@ PRESERVE_C_STEMS: frozenset[Path] = frozenset({
     Path("framework/src/main/org/moqui/context/LoggerFacade"),
     Path("framework/src/main/org/moqui/util/MeanFilter"),
     Path("framework/src/main/org/moqui/mqtt/MqttLogAppender"),
+    Path("framework/src/main/org/moqui/mqtt/MqttParameterPub"),
+    Path("framework/src/main/org/moqui/mqtt/MqttParameterSub"),
     Path("framework/src/main/org/moqui/diagnostics/NetworkDiagnostics"),
     Path("runtime/component/mantle-hvac/src/main/org/moqui/device/InputSignalUpdate"),
     Path("runtime/component/mantle-hvac/src/main/org/moqui/device/OutputSignalUpdate"),
