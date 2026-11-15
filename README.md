@@ -454,9 +454,10 @@ export entity_ds_sslmode=disable  # local demo only
 ./moq load --debug
 ```
 
-`HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`, loaded by `./moq load`) add the broker connection
-`HVAC_DEMO_MQTT`, the live-parameter write request `HVAC_DEMO_LiveParametersWrite`, and the PLC log subscription `HVAC_DEMO_PlcLogSubscribe` used
-in steps 5 to 9.
+`HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`, loaded by `./moq load`) add
+the live-parameter write request `HVAC_DEMO_LiveParametersWrite` and the PLC log subscription
+`HVAC_DEMO_PlcLogSubscribe` used in steps 5 to 9. The broker endpoint defaults to
+`device_mqtt_broker_uri` from `MoquiConf.xml`.
 
 For the **Java framework alternative**, use PowerShell:
 
@@ -523,7 +524,7 @@ direction each message belongs to:
 ### 5. Start the gateway
 
 For **MR-Moqui**, the gateway starts with Moqui. The broker credentials come
-from the environment of the Moqui process (the `HVAC_DEMO_MQTT` connection reads
+from the environment of the Moqui process (the MQTT client reads
 `MQTT_USERNAME` and `MQTT_PASSWORD`), so the model holds no password. From the
 MR-Moqui root, in another terminal:
 
