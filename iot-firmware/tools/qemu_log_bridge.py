@@ -32,7 +32,8 @@ def encode(line, sequence):
              'logEventDate': datetime.now().strftime('DT#%Y-%m-%d-%H:%M:%S')}
     if uptime is not None:
         event['uptimeMs'] = int(uptime)
-    return json.dumps({'1': event}, ensure_ascii=False)
+    # Same fixed-width key as the firmware batches (MqttLogAppender).
+    return json.dumps({'001': event}, ensure_ascii=False)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

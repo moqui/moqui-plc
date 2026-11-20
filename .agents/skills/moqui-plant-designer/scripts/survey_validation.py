@@ -443,8 +443,6 @@ def load_upstream_survey_model(session_dir: Path) -> dict:
                 "gateway_name": _as_str(block.get("gateway_name")),
                 "gateway_device_type_enum_id": _as_str(block.get("gateway_device_type_enum_id")),
                 "gateway_member_purpose_enum_id": _as_str(block.get("gateway_member_purpose_enum_id")),
-                "rest_base_uri": _as_str(block.get("rest_base_uri")),
-                "rest_timeout_seconds": _as_str(block.get("rest_timeout_seconds")) or "30",
                 "scoped_subsystem_ids": _as_list_of_strings(
                     block.get("scoped_subsystem_ids"),
                     "gateway-topology-survey.yaml",
@@ -1118,13 +1116,6 @@ def validate_upstream_surveys(session_dir: Path) -> dict[str, list[str]]:
         errors.append("Gateway projection is required, but gateway-topology-survey.yaml does not define any gateway.")
 
     gateway_ids = {row["gateway_device_id"] for row in meaningful_gateways}
-    for gateway in meaningful_gateways:
-        if not gateway["rest_base_uri"]:
-            errors.append(f"Gateway topology {gateway['gateway_device_id']} must define rest_base_uri.")
-        if not gateway["rest_timeout_seconds"].isdigit() or int(gateway["rest_timeout_seconds"]) <= 0:
-            errors.append(
-                f"Gateway topology {gateway['gateway_device_id']} rest_timeout_seconds must be a positive integer."
-            )
 
     meaningful_gateway_transports = [
         row for row in model["gateway_transports"] if _gateway_transport_row_is_meaningful(row)

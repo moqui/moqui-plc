@@ -21,6 +21,7 @@ typedef struct {
     bool enable;
     bool continueAfterError;
     bool configCompleted; /* Rising-edge acknowledgment from the consumer */
+    bool reset;           /* Rising edge: leave Error and start again */
 
     /* VAR_OUTPUT */
     bool     done;
@@ -35,6 +36,7 @@ typedef struct {
     uint16_t               currentConfigIndex;
     bool                   init;
     bool                   configCompletedPrev; /* R_TRIG: previous cycle value */
+    bool                   resetPrev;           /* R_TRIG on reset: previous cycle value */
 
     LoggerFacade logger;
 

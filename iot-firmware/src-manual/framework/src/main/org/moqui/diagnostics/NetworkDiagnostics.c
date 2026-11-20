@@ -10,12 +10,13 @@ void NetworkDiagnostics_Update(NetworkDiagnostics *net, FieldbusProtocol fieldbu
         net->init = true;
     }
 
-    LOGGER_LOG(&net->logger, LOG_LEVEL_DEBUG, "Network diagnostics");
-
-    if (!pal_net_is_connected()) {
+    net->error = !pal_net_is_connected();
+    /* Log the network state on change only */
+    if (net->error && !net->errorOld) {
         LOGGER_LOG(&net->logger, LOG_LEVEL_WARN, "No active network interface");
-        net->error = true;
-        return; /* MISRA C:2012 Rule 15.5 deviation: guard clause early return. */
     }
-    net->error = false;
+    if (net->errorOld && !net->error) {
+        LOGGER_LOG(&net->logger, LOG_LEVEL_INFO, "Network diagnostics: no errors.");
+    }
+    net->errorOld = net->error;
 }

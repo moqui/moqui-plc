@@ -80,6 +80,9 @@ FUNCTION_BLOCK Actuator
 		(* Output signals *)
 		enable : BOOL;
 	    disable : BOOL;
+		(* Stable states, for callers that depend on this actuator (e.g. a valve that follows its pump) *)
+		isEnabled : BOOL;
+		isDisabled : BOOL;
 	END_VAR
 	VAR
 	    status : ActuatorStatus;
@@ -90,6 +93,10 @@ FUNCTION_BLOCK Actuator
 		disabled : BOOL;
 		(* Logger facade *)
 		logger : LoggerFacade;
+		(* Previous values, so that states and faults are logged on change only *)
+		statusOld : ActuatorStatus;
+		notInitializedOld : BOOL;
+		faultOld, disabledSensorFaultOld, enabledSensorFaultOld, actuatorFaultOld, externalFaultOld : BOOL;
 	END_VAR
 
 	(* Initialization handler *)
@@ -156,9 +163,8 @@ FUNCTION_BLOCK Actuator
 		END_IF;
 	END_IF;
 
-	IF notInitialized THEN logger(message := 'Actuator not initialized.', level := LogLevel#ERROR); END_IF;
-
-	logger(message := 'Running actuator.', level := LogLevel#DEBUG);
+	IF notInitialized AND NOT notInitializedOld THEN logger(message := 'Actuator not initialized.', level := LogLevel#ERROR); END_IF;
+	notInitializedOld := notInitialized;
 
 	(* Clock handler for diagnosis oriented timing *)
 	IF clock AND (timer > UINT#0) THEN
@@ -192,7 +198,6 @@ FUNCTION_BLOCK Actuator
 	(* Generic actuator FSM implementation. *)
 	CASE status OF
 		ActuatorStatus#Disabled :
-			logger(message := 'Actuator disabled.', level := LogLevel#DEBUG);
 			disableRequest := FALSE;
 		
 			IF enableRequest THEN		
@@ -203,8 +208,6 @@ FUNCTION_BLOCK Actuator
 			END_IF;
 
 		ActuatorStatus#EnablePhase :
-			logger(message := 'Actuator in the enabling phase.', level := LogLevel#DEBUG);
-
 			(* Admissible transition: EnablePhase --> DisablePhase *)
 			IF disableRequest THEN
 				logger(message := 'The actuator received a disable request.', level := LogLevel#DEBUG);
@@ -220,7 +223,6 @@ FUNCTION_BLOCK Actuator
 			END_IF;
 		
 		ActuatorStatus#Enabled :
-			logger(message := 'Actuator enabled.', level := LogLevel#DEBUG);
 			enableRequest := FALSE;
 
 			IF disableRequest THEN
@@ -231,8 +233,6 @@ FUNCTION_BLOCK Actuator
 			END_IF;
 		
 		ActuatorStatus#DisablePhase :
-			logger(message := 'Actuator in the disabling phase.', level := LogLevel#DEBUG);
-
 			(* Admissible transition: DisablePhase --> EnablePhase *)
 			IF enableRequest THEN
 					logger(message := 'The actuator received an enable request.', level := LogLevel#DEBUG);
@@ -248,6 +248,19 @@ FUNCTION_BLOCK Actuator
 			END_IF;
 	END_CASE;
 
+	(* Log the state on change only: a message every scan would fill the log buffer. *)
+	IF status <> statusOld THEN
+		CASE status OF
+			ActuatorStatus#Disabled : logger(message := 'Actuator disabled.', level := LogLevel#DEBUG);
+			ActuatorStatus#EnablePhase : logger(message := 'Actuator in the enabling phase.', level := LogLevel#DEBUG);
+			ActuatorStatus#Enabled : logger(message := 'Actuator enabled.', level := LogLevel#DEBUG);
+			ActuatorStatus#DisablePhase : logger(message := 'Actuator in the disabling phase.', level := LogLevel#DEBUG);
+		END_CASE;
+		statusOld := status;
+	END_IF;
+	isEnabled := (status = ActuatorStatus#Enabled);
+	isDisabled := (status = ActuatorStatus#Disabled);
+
 	(* 
 	 * Diagnostics handler.
 	 * Generation of diagnosis information and fault signals: Detectable faults in dynamic and static conditions.
@@ -262,12 +275,18 @@ FUNCTION_BLOCK Actuator
 	    (NOT enable AND NOT disabled AND enabled
 		OR enable AND disabled AND NOT enabled) AND timeout);
 	fault := disabledSensorFault OR enabledSensorFault OR actuatorFault OR externalFault;
-	(* Log faults *)
-	IF fault THEN logger(message := 'Fault diagnostics:', level := LogLevel#ERROR); END_IF;
-	IF disabledSensorFault THEN logger(message := 'Disabled sensor fault.', level := LogLevel#ERROR); END_IF;
-	IF enabledSensorFault THEN logger(message := 'Enabled sensor fault.', level := LogLevel#ERROR); END_IF;
-	IF actuatorFault THEN logger(message := 'Actuator fault.', level := LogLevel#ERROR); END_IF;
-	IF externalFault THEN logger(message := 'External fault (e.g: Motor branch-circuit protection).', level := LogLevel#ERROR); END_IF;
+	(* Log faults on their rising edge, and the end of a fault condition *)
+	IF fault AND NOT faultOld THEN logger(message := 'Fault diagnostics:', level := LogLevel#ERROR); END_IF;
+	IF disabledSensorFault AND NOT disabledSensorFaultOld THEN logger(message := 'Disabled sensor fault.', level := LogLevel#ERROR); END_IF;
+	IF enabledSensorFault AND NOT enabledSensorFaultOld THEN logger(message := 'Enabled sensor fault.', level := LogLevel#ERROR); END_IF;
+	IF actuatorFault AND NOT actuatorFaultOld THEN logger(message := 'Actuator fault.', level := LogLevel#ERROR); END_IF;
+	IF externalFault AND NOT externalFaultOld THEN logger(message := 'External fault (e.g: Motor branch-circuit protection).', level := LogLevel#ERROR); END_IF;
+	IF faultOld AND NOT fault THEN logger(message := 'Fault cleared.', level := LogLevel#INFO); END_IF;
+	faultOld := fault;
+	disabledSensorFaultOld := disabledSensorFault;
+	enabledSensorFaultOld := enabledSensorFault;
+	actuatorFaultOld := actuatorFault;
+	externalFaultOld := externalFault;
 
 	(* Post-elaborations for actuation polymorphism. *)
 	CASE actuationType OF

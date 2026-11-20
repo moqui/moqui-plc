@@ -1,4 +1,8 @@
-(* Mean / Moving Average Filter: SMA, WMA_Ramp, WMA_Triangular(+OddOnly), TRI_SMA2, EMA *)
+(*
+ * Mean / Moving Average Filter: SMA, WMA_Ramp, WMA_Triangular(+OddOnly), TRI_SMA2, EMA.
+ * The running sums are updated incrementally and recomputed from the buffer once per window,
+ * so REAL rounding errors do not accumulate during continuous operation.
+ *)
 FUNCTION_BLOCK MeanFilter
 	VAR_INPUT
 	    execute : BOOL; (* Enable filter *)
@@ -150,7 +154,12 @@ FUNCTION_BLOCK MeanFilter
 	                    sum := sum - xOld + input;
 
 	                    idx := idx + 1;
-	                    IF idx > windowSize THEN idx := 1; END_IF;
+	                    IF idx > windowSize THEN
+	                        idx := 1;
+	                        (* Once per window: exact sum, against REAL drift *)
+	                        sum := 0.0;
+	                        FOR i := 1 TO windowSize DO sum := sum + buffer[i]; END_FOR;
+	                    END_IF;
 
 	                    output := sum / TO_REAL(windowSize);
 	                END_IF;
@@ -185,7 +194,17 @@ FUNCTION_BLOCK MeanFilter
 	                    wsumRamp := wsumRamp - sumOld + (TO_REAL(windowSize) * xNew);
 
 	                    idx := idx + 1;
-	                    IF idx > windowSize THEN idx := 1; END_IF;
+	                    IF idx > windowSize THEN
+	                        idx := 1;
+	                        (* Once per window: exact sums, against REAL drift. Oldest sample (weight 1) is at idx. *)
+	                        sum := 0.0; wsumRamp := 0.0;
+	                        FOR i := 0 TO windowSize - 1 DO
+	                            pos := idx + i;
+	                            IF pos > windowSize THEN pos := pos - windowSize; END_IF;
+	                            sum := sum + buffer[pos];
+	                            wsumRamp := wsumRamp + TO_REAL(i + 1) * buffer[pos];
+	                        END_FOR;
+	                    END_IF;
 
 	                    output := wsumRamp / denomRamp;
 	                END_IF;
@@ -270,7 +289,11 @@ FUNCTION_BLOCK MeanFilter
 	                    sma2_sum1 := sma2_sum1 - xOld + input;
 
 	                    sma2_idx1 := sma2_idx1 + 1;
-	                    IF sma2_idx1 > windowSize THEN sma2_idx1 := 1; END_IF;
+	                    IF sma2_idx1 > windowSize THEN
+	                        sma2_idx1 := 1;
+	                        sma2_sum1 := 0.0;
+	                        FOR i := 1 TO windowSize DO sma2_sum1 := sma2_sum1 + sma2_buf1[i]; END_FOR;
+	                    END_IF;
 
 	                    sma2_y1 := sma2_sum1 / TO_REAL(windowSize);
 
@@ -280,7 +303,11 @@ FUNCTION_BLOCK MeanFilter
 	                    sma2_sum2 := sma2_sum2 - xOld + sma2_y1;
 
 	                    sma2_idx2 := sma2_idx2 + 1;
-	                    IF sma2_idx2 > windowSize THEN sma2_idx2 := 1; END_IF;
+	                    IF sma2_idx2 > windowSize THEN
+	                        sma2_idx2 := 1;
+	                        sma2_sum2 := 0.0;
+	                        FOR i := 1 TO windowSize DO sma2_sum2 := sma2_sum2 + sma2_buf2[i]; END_FOR;
+	                    END_IF;
 
 	                    sma2_y2 := sma2_sum2 / TO_REAL(windowSize);
 

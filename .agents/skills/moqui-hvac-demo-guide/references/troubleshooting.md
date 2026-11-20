@@ -10,12 +10,14 @@ Load this reference only after a checkpoint fails. Use the root
 - On Windows, inspect mounted Artemis shell/config files for CRLF problems.
 - Confirm the development credentials only in local configuration.
 
-## Gateway health down
+## Subscription not started
 
-- Verify both datasource URLs and PostgreSQL availability.
-- Verify `GATEWAY_DEVICE_ID=HVAC_DEMO_GATEWAY`.
-- Verify the HVAC seed exists in the database.
-- Read the actual Quarkus port from startup output.
+- Read the Moqui log for `Subscription start failed` or `Subscription discovery failed`.
+- Verify `device_gateway_device_id=HVAC_DEMO_GATEWAY`, `MQTT_USERNAME` and
+  `MQTT_PASSWORD` in the environment of the Moqui process, and that
+  `HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`) were loaded.
+- Verify the HVAC seed exists in the database and the broker is reachable.
+- `start#Subscriptions` retries a lost subscription every minute.
 
 ## Gateway request publishes zero rows
 
@@ -41,7 +43,13 @@ Load this reference only after a checkpoint fails. Use the root
 
 ## No PLC logs return
 
-- Check `LogDispatcher` task execution and connection state.
+- Check that `MqttCommunicationTask` runs `MqttCommunication`, and
+  `connectionFactory.connected`.
+- Check `LogDispatcher.errorId` and, in `ec.logSourceList`, the
+  `publishedCount`/`discardedCount` of the sources; "N log events dropped"
+  records mean a buffer was full (raise `logMinLevel` or `LOG_MAX_SIZE`);
+  "N log events suppressed: logger too verbose" records name a block that
+  writes a message at every cycle.
 - Check `clks.clock1minute` and the `ParameterLogger` call after
   `DeviceManager`.
 - Distinguish device events from parameter events using the `source` contract.

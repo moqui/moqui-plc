@@ -25,8 +25,8 @@ typedef struct {
     uint16_t maxRunning;
 
     float demandSetpoint;
-    float startPoints[8];
-    float stopPoints[8];
+    float startPoints[ACTUATOR_GROUP_MAX_SIZE];
+    float stopPoints[ACTUATOR_GROUP_MAX_SIZE];
 
     uint32_t startDelay; /* in ticks/ms depending on clock */
     uint32_t stopDelay;  /* in ticks/ms depending on clock */

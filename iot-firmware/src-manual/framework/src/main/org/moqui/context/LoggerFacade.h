@@ -12,17 +12,41 @@
  * Faithful port of LoggerFacade.st.
  *
  * Divergence from ST (intentional):
- *   The ST LoggerFacade uses a LogRingBuffer and a VAR_EXTERNAL log source list
- *   to feed a central LogAppender. On IoT targets we map directly to the
- *   platform logging backend (e.g. ESP-IDF esp_log, Zephyr LOG_*) via the
- *   LOGGER_LOG macro. The ring-buffer / appender pipeline is replaced by the
- *   RTOS logging subsystem which already provides buffering and transport.
+ *   Every LoggerFacade writes one ring buffer of LOG_MAX_SIZE records, owned by
+ *   the control task, instead of one LogRingBuffer per facade. MqttLogAppender,
+ *   called by the same task, is its only consumer: it reads records with
+ *   LoggerFacade_PeekBuffer and releases them with LoggerFacade_ReleaseBuffer
+ *   once they are queued for publishing. Events are also printed on the
+ *   platform console. Duplicate suppression compares an event with the last
+ *   stored one of any facade ("last message repeated N times").
  *
+ * As in ST:
+ *   - events below the minimum level (LoggerFacade_SetMinLevel, default
+ *     LOG_MIN_LEVEL_DEFAULT) are ignored;
+ *   - when the ring is full a new record is refused and counted
+ *     (LoggerFacade_DroppedCount); stored records are never overwritten;
+ *   - an event equal to the last stored one within LOG_SUPPRESS_DURATION_MS is
+ *     only counted, and later written as one summary record with
+ *     repeatCount = repetitions;
+ *   - rate limit: a logger stores at most LOG_MAX_EVENTS_PER_WINDOW new events in
+ *     one LOG_SUPPRESS_DURATION_MS window; further events are only counted, and at
+ *     its first call after the window one Warn event reports how many were
+ *     suppressed. Repetitions do not count against the limit.
+ *
+ * Thread safety: none needed — every function is called by the control task.
  * LoggerFacade_Init MUST be called before the first LOGGER_LOG invocation.
  */
 typedef struct {
     bool        enable;
     const char *loggerName;
+    /* true: not subject to the rate limit (a bounded burst, e.g. a periodic parameter snapshot) */
+    bool        rateLimitDisabled;
+    /* Rate limit window, owned by the facade */
+    bool        windowOpen;
+    uint64_t    windowStartMs;
+    uint16_t    windowEventCount;
+    uint32_t    windowSuppressed;
+    bool        rateLimited; /* the last event was not stored: the limit of the window was reached */
 } LoggerFacade;
 
 /*
@@ -31,17 +55,21 @@ typedef struct {
  */
 void LoggerFacade_Init(LoggerFacade *logger, const char *loggerName);
 
+/* Lowest level stored and printed (LOG_LEVEL_ALL = TRACE, LOG_LEVEL_OFF = none). */
+void LoggerFacade_SetMinLevel(LogLevel level);
+LogLevel LoggerFacade_GetMinLevel(void);
+
 /*
  * Platform logging back-end — defined in LoggerFacade.c so that
  * headers remain free of platform-specific includes.
  */
-void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level, const char *message);
+void LoggerFacade_Log(LoggerFacade *logger, LogLevel level, const char *message);
 
 /*
  * Append a parameter-scoped numeric event. loggerName is the exact owning
  * Device.deviceId and source is the exact pre-existing Parameter.parameterId.
  */
-void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogNumeric(LoggerFacade *logger, LogLevel level,
                              const char *source, double numericValue);
 
 /*
@@ -58,14 +86,26 @@ void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
         }                                                              \
     } while (0)
 
-void LoggerFacade_LogFmt(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogFmt(LoggerFacade *logger, LogLevel level,
                          const char *fmt, ...);
 
 /*
- * Copy up to maxLen pending LogEvent entries from the internal ring buffer
- * into out[], retaining the remaining entries.  *outCount receives the number copied.
- * Call only from the same application task that writes the ring.
+ * Copy up to maxLen of the oldest records into out[] without removing them;
+ * *outCount receives the number copied. Release them with
+ * LoggerFacade_ReleaseBuffer once they are queued for publishing.
  */
-void LoggerFacade_DrainBuffer(LogEvent *out, uint16_t maxLen, uint16_t *outCount);
+void LoggerFacade_PeekBuffer(LogEvent *out, uint16_t maxLen, uint16_t *outCount);
+
+/* Remove the count oldest records (at most the records stored). */
+void LoggerFacade_ReleaseBuffer(uint16_t count);
+
+/* Records refused because the ring was full, since start. */
+uint32_t LoggerFacade_DroppedCount(void);
+
+/*
+ * Write the pending repetition summary when its window has elapsed, even if no
+ * further event is logged. MqttLogAppender calls it every cycle.
+ */
+void LoggerFacade_FlushRepeats(void);
 
 #endif /* LOGGER_FACADE_H */

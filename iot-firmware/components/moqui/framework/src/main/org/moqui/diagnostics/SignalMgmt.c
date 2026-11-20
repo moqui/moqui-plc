@@ -18,6 +18,8 @@ void SignalMgmt_Update(SignalMgmt *sig) {
     switch (sig->operationType) {
         case SIGNAL_MGMT_OPERATING_MODE_RESET:
             LOGGER_LOG(&sig->logger, LOG_LEVEL_DEBUG, "Signal management reset.");
+            sig->error = false;
+            sig->cumulativeOutputActionOld = SIGNAL_OUTPUT_ACTION_NONE;
             for (uint16_t i = 1; i <= SIGNAL_LIST_MAX_SIZE; i++) {
                 sig->signalList[i] = false;
             }
@@ -31,8 +33,13 @@ void SignalMgmt_Update(SignalMgmt *sig) {
             break;
 
         case SIGNAL_MGMT_OPERATING_MODE_PREPARE:
-            LOGGER_LOG(&sig->logger, LOG_LEVEL_DEBUG, "Prepare: Init cumulative output bitmask for the current cycle.");
-            
+            /* The previous cycle is complete: log its cumulative output if it changed */
+            if (sig->cumulativeOutputAction != sig->cumulativeOutputActionOld) {
+                LOGGER_LOG(&sig->logger, LOG_LEVEL_INFO, "Signal cumulative output: %lu",
+                           (unsigned long)sig->cumulativeOutputAction);
+                sig->cumulativeOutputActionOld = sig->cumulativeOutputAction;
+            }
+
             sig->resetActivation = sig->reset && !sig->resetOld;
             sig->resetOld = sig->reset;
             
@@ -49,9 +56,10 @@ void SignalMgmt_Update(SignalMgmt *sig) {
             break;
 
         case SIGNAL_MGMT_OPERATING_MODE_PROCESS:
-            LOGGER_LOG(&sig->logger, LOG_LEVEL_DEBUG, "Process signal: %d", sig->code);
-
             if (sig->code < 1 || sig->code > SIGNAL_LIST_MAX_SIZE) {
+                if (!sig->error) {
+                    LOGGER_LOG(&sig->logger, LOG_LEVEL_ERROR, "Invalid signal code: %d", sig->code);
+                }
                 sig->error = true;
                 return;
             }
@@ -91,13 +99,12 @@ void SignalMgmt_Update(SignalMgmt *sig) {
                 }
 
                 if (!sig->signalList[sig->code]) {
-                    LOGGER_LOG(&sig->logger, LOG_LEVEL_DEBUG, "Signal code: %d reset.", sig->code);
+                    LOGGER_LOG(&sig->logger, LOG_LEVEL_INFO, "Signal code: %d reset.", sig->code);
                 }
             }
 
             if (sig->signalList[sig->code]) {
                 sig->cumulativeOutputAction |= sig->outputAction;
-                LOGGER_LOG(&sig->logger, LOG_LEVEL_DEBUG, "Signal cumulative output: %lu", (unsigned long)sig->cumulativeOutputAction);
 
                 if (sig->category < sig->activeCategory) {
                     sig->activeCategory = sig->category;

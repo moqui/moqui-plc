@@ -305,6 +305,16 @@ def render_main_status(items: list[StatusItemDef]) -> str:
     return "\n".join(lines)
 
 
+def render_state_change_log(status_expr: str, status_type: str, enum_names: list[str]) -> str:
+    """Log the FSM state once on each change, not at every scan (a per-scan message fills the log buffer)."""
+    lines = [f"IF {status_expr} <> statusOld THEN", f"    CASE {status_expr} OF"]
+    lines.extend(
+        f"        {status_type}.{name} : logger(message := '{name}.', level := LogLevel.Info);" for name in enum_names
+    )
+    lines.extend(["    END_CASE;", f"    statusOld := {status_expr};", "END_IF;"])
+    return "\n".join(lines)
+
+
 def render_main_fsm_blocks(
     statusflow_id: str,
     items: list[StatusItemDef],
@@ -324,8 +334,6 @@ def render_main_fsm_blocks(
     for item in items:
         status_transitions = by_from.get(item.status_id, [])
         lines = [f"    MainStatus.{item.enum_name} :"]
-        lines.append(f"        logger(message := '{item.enum_name}.', level := LogLevel.DEBUG);")
-        lines.append("")
         lines.append("        (* FSM output function *)")
         if fsm and upstream_model:
             lines.append(f"        {render_output_assignments(survey_states[item.status_id], upstream_model)}")
@@ -675,6 +683,7 @@ def main() -> int:
         "${STATE_TRANSITION_CASES}": render_state_transition_cases(
             args.statusflow_id, items, transitions, hold_request, request_map, fsm
         ),
+        "${MAIN_STATE_LOG}": render_state_change_log("dev.status", "MainStatus", [item.enum_name for item in items]),
         "${MAIN_FSM_CASE_BLOCKS}": render_main_fsm_blocks(
             args.statusflow_id, items, transitions, request_map, fsm, upstream_model
         ),

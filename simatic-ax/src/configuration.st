@@ -1,21 +1,30 @@
 CONFIGURATION moqui
     VAR_GLOBAL CONSTANT
         (* ========== Framework ========== *)
-			(* Exact Device.deviceId of this dedicated application. *)
-			applicationDeviceId : STRING := 'HVAC_DEMO_PLC';
+        	(* Exact Device.deviceId of this dedicated application. *)
+        	applicationDeviceId : STRING := 'HVAC_DEMO_PLC';
 
         	retryOnError : BOOL := TRUE;
         	(* Minimum time between retries after an error, in seconds *)
         	minRetryTime : UINT := UINT#10;
-        	(* If specified only retry this many times. When this count is reached paused will be set to true. *)
+        	(* If specified only retry this many times. When this count is reached MoquiStart stays in Error until a reset from the supervision. *)
         	maxRetryCount : UINT := UINT#5;
 
         (* ========== Logger ========== *)
 
+        	(* Logger facade configurations *)
         	LOG_MAX_SIZE : UINT := UINT#100;
         	defaultLogLevel : LogLevel := LogLevel#Debug;
-        	defaultLogSuppressDuration : TIME := T#0S; (* T#10s; *)
+        	(* Window in which equal consecutive events are only counted (T#0S disables suppression) *)
+        	defaultLogSuppressDuration : TIME := T#10S;
         	defaultLogSuppressDuplicates : BOOL := TRUE;
+        	(*
+        	 * Rate limit: maximum new events stored by one logger in one defaultLogSuppressDuration window (0 disables).
+        	 * Further events are only counted and reported by one Warn event at the end of the window.
+        	 * A safety net against loggers called at every cycle: devices log events on edges.
+        	 *)
+        	defaultLogMaxEventsPerWindow : UINT := UINT#20;
+        	(* Log appender configurations *)
         	LOG_SOURCE_LIST_MAX_SIZE : UINT := UINT#50;
 
         (* ========== Signal Management ========== *)
@@ -36,7 +45,7 @@ CONFIGURATION moqui
         	 *)
         	deviceConfigStoragePath : STRING := '';
         	ACTUATOR_GROUP_MAX_SIZE : UINT := UINT#8;
-            AXIS_IN_VELOCITY_TOLERANCE : LREAL := 0.02;
+            AXIS_IN_VELOCITY_TOLERANCE : LREAL := LREAL#0.02;
 
         	(* ========== Motion ========== *)
 
@@ -45,13 +54,17 @@ CONFIGURATION moqui
         	 * Each point holds one SMC_POS_REF (6 LREAL = 48 bytes) plus metadata.
         	 * Increase if longer trajectories are needed.
         	 *)
-        	TRAJECTORY_POINT_LIST_MAX_SIZE : DINT := 64;
+        	TRAJECTORY_POINT_LIST_MAX_SIZE : DINT := DINT#64;
     END_VAR
 
     VAR_GLOBAL
         (* Timing generation *)
             clks : Clocks;
 
+        	(*
+        	 * Framework args.
+        	 * External framework commands and configurations set by Moqui or supervision.
+             *)
         	enable : BOOL := TRUE;
         	init : BOOL := TRUE; (* It could be the powerOn signal*)
         	fault, error, commError, reset, autoReset : BOOL;
@@ -61,15 +74,22 @@ CONFIGURATION moqui
         	isPrimary : BOOL;
         	heartbeat : ULINT;
 
+            (* Array of reference to local logs used by the log appender *)
             logSourceList : ARRAY[1..LOG_SOURCE_LIST_MAX_SIZE] OF LogSource;
-            logSourceListSize : UINT := UINT#0;
+            (* Registered LoggerFacade buffers; incremented atomically, may exceed LOG_SOURCE_LIST_MAX_SIZE when the list is full *)
+            logSourceListSize : DINT := DINT#0;
+            (*
+             * Lowest level written by every LoggerFacade (Trace, Debug, Info, Warn, Error, Fatal; All = Trace; Off = none).
+             * Debug keeps the FSM and device events of the demo; Info is advisable in production.
+             *)
+            logMinLevel : LogLevel := LogLevel#Debug;
 
         	(* Facade for managing devices and logical parameters. *)
         	dev : DeviceFacade;
 
-        	(* Motion override — written by Moqui via liveParamsSub *)
+        	(* Motion override - written by Moqui via liveParamsSub *)
         	trjDynamicSlowdownEnable : BOOL := FALSE;
-        	trjDynamicSlowdownFactor : LREAL := 1.0;
+        	trjDynamicSlowdownFactor : REAL := REAL#1.0;
         	abortCurrentTrajectory : BOOL := FALSE;
     END_VAR
 

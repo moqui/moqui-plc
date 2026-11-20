@@ -19,6 +19,7 @@ from render_statusflow_templates import (
     render_output_assignments,
     render_predicate_assignments,
     render_predicate_declarations,
+    render_state_change_log,
     st_assignment,
     write_rendered,
 )
@@ -100,7 +101,6 @@ def render_subsystem_case_blocks(fsm: dict, items: list, upstream: dict) -> str:
     state_by_id = {state["status_id"]: state for state in fsm["states"]}
     for item in items:
         lines = [f"    {status_type}.{item.enum_name}:"]
-        lines.append(f"        logger(message := '{item.enum_name}.', level := LogLevel.DEBUG);")
         lines.append(f"        {render_output_assignments(state_by_id[item.status_id], upstream)}")
         transitions = transitions_by_from.get(item.status_id, [])
         for index, transition in enumerate(transitions):
@@ -241,6 +241,9 @@ def render_application(
                 "${SUBSYSTEM_INITIAL_STATUS}": initial,
                 "${SUBSYSTEM_PREDICATE_ASSIGNMENTS}": render_predicate_assignments(fsm),
                 "${SUBSYSTEM_CASE_BLOCKS}": render_subsystem_case_blocks(fsm, items, upstream),
+                "${SUBSYSTEM_STATE_LOG}": render_state_change_log(
+                    f"dev.{status_field}", status_type, [item.enum_name for item in items]
+                ),
             },
             component_dir / f"{controller_type}.pou",
         )

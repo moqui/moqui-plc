@@ -1,0 +1,7 @@
+# CODESYS 4 caches, build output and per-user state
+.library-cache/
+.devDesc-cache/
+.compileContexts/
+.intermediate/
+.bootapp/
+*.fbsws.user/

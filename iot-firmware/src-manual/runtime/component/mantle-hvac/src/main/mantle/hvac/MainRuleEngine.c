@@ -62,7 +62,6 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
             dev->processActualDuration += 1;
             dev->actualRuntime += 1;
             if (dev->estimatedRuntime > 0) {
-                dev->processRemainingDuration = dev->processEstimatedDuration - dev->processActualDuration;
                 if (!dev->timeBreakEnabled &&
                     dev->actualRuntime >= dev->estimatedRuntime &&
                     dev->actualRuntime >= dev->minRuntime) {
@@ -72,9 +71,13 @@ void MainRuleEngine_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode 
             }
         } else if ((dev->lastStatus == MAIN_STATUS_COOLING || dev->lastStatus == MAIN_STATUS_HEATING) && !dev->isCompleted) {
             dev->processActualDuration += 1;
-            if (dev->processEstimatedDuration > 0) {
-                dev->processRemainingDuration = dev->processEstimatedDuration - dev->processActualDuration;
-            }
+        }
+
+        /* Remaining duration, saturated at zero: the durations are unsigned and a phase can outlast its estimate. */
+        if (dev->processEstimatedDuration > dev->processActualDuration) {
+            dev->processRemainingDuration = dev->processEstimatedDuration - dev->processActualDuration;
+        } else {
+            dev->processRemainingDuration = 0;
         }
 
         if (dev->processEstimatedDuration > 0) {

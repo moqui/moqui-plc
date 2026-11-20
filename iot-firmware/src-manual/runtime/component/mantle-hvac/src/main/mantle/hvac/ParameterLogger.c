@@ -2,9 +2,11 @@
 #include "LoggerFacade.h"
 #include <stddef.h>
 
+/* The snapshot is a bounded burst of 29 events once a minute: not subject to the rate limit */
 static LoggerFacade s_parameter_logger = {
     .enable = true,
-    .loggerName = MOQUI_APPLICATION_DEVICE_ID
+    .loggerName = MOQUI_APPLICATION_DEVICE_ID,
+    .rateLimitDisabled = true
 };
 
 #define LOG_NUMERIC(parameter_id, value) \

@@ -1,6 +1,9 @@
 (*
  * Pure recipe sequencing logic. Implement complex logic, including micro-recipe composition,
  * alternative recipes, condition-based recipes, etc., if needed.
+ *
+ * A failed command (Init/Load) resets the recipe manager once and stops in Error, with error kept TRUE:
+ * a rising edge of reset starts again. It does not reload the recipes in a loop.
  *)
 FUNCTION_BLOCK DeviceConfigMgmt
 	VAR_EXTERNAL CONSTANT
@@ -11,6 +14,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 		enable : BOOL;
 		continueAfterError : BOOL;
 		configCompleted : BOOL; (* Config processed feedback *)
+		reset : BOOL; (* Rising edge: leave Error and start again *)
 	END_VAR
 	VAR_OUTPUT
 	    done, allConfigLoaded, busy, error : BOOL;
@@ -24,6 +28,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 	    logger : LoggerFacade;
 		init : BOOL;
 		configCompletedREdge : R_TRIG;
+		resetREdge : R_TRIG;
 	END_VAR
 
 	IF NOT init THEN
@@ -33,6 +38,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 	END_IF;
 
 	configCompletedREdge(CLK := configCompleted);
+	resetREdge(CLK := reset);
 
 	CASE status OF
 	    DeviceConfigMgmtStatus.Idle :
@@ -57,6 +63,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 
 	    DeviceConfigMgmtStatus.Load :
 	        IF (currentConfigIndex >= configCmds.configNameListSize) THEN
+	            busy := TRUE;
 	            status := DeviceConfigMgmtStatus.Completed;
 	        ELSE
 	            configCmds.configName := configCmds.configNameList[currentConfigIndex];
@@ -74,7 +81,7 @@ FUNCTION_BLOCK DeviceConfigMgmt
 
 	        IF configCompletedREdge.Q THEN
 	            done := FALSE;
-	            logger(message := concat(concat('Device config ', configCmds.configName), ' completed.'));
+	            logger(message := concat(concat('Device config ', configCmds.configName), ' completed.'), level := LogLevel.Info);
 	            currentConfigIndex := currentConfigIndex + 1;
 	            status := DeviceConfigMgmtStatus.Load;
 	        END_IF;
@@ -85,15 +92,26 @@ FUNCTION_BLOCK DeviceConfigMgmt
 			busy := FALSE;
 			error := FALSE;
 			currentConfigIndex := 0;
-	        logger(message := 'All device configs loaded.');
+	        logger(message := 'All device configs loaded.', level := LogLevel.Info);
 	        status := DeviceConfigMgmtStatus.Idle;
 
 	    DeviceConfigMgmtStatus.Resetting :
-	        configCmds(cmd := DeviceConfigCmdType.Reset, error => error, errorId => errorId);
+	        (* error and errorId keep the failed command's values *)
+	        configCmds(cmd := DeviceConfigCmdType.Reset);
 			IF NOT continueAfterError THEN
 	        	currentConfigIndex := 0;
 	        END_IF;
-		
-	        status := DeviceConfigMgmtStatus.Init;
+	        logger(message := 'Device config error. Waiting for a reset.', level := LogLevel.Error);
+	        status := DeviceConfigMgmtStatus.Error;
+
+	    DeviceConfigMgmtStatus.Error :
+	        error := TRUE;
+	        busy := FALSE;
+	        done := FALSE;
+	        IF resetREdge.Q THEN
+	            error := FALSE;
+	            errorId := 0;
+	            status := DeviceConfigMgmtStatus.Idle;
+	        END_IF;
 	END_CASE;
 	END_FUNCTION_BLOCK

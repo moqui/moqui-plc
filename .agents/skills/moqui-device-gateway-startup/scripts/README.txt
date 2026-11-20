@@ -4,8 +4,8 @@ Current scripts:
 
 - `render_gateway_startup_guide.py`
   - reads a reviewed seed XML or a saved session workspace
-  - discovers modeled gateways, scoped PLC/controller devices, and gateway-routed
-    `DeviceRequest` rows
+  - discovers modeled gateways, scoped PLC/controller devices, and the
+    `DeviceRequest` rows run by a `moqui.device.gateway` protocol service
   - emits a Markdown startup guide with concrete IDs and commands
   - reports structural blockers directly in the generated guide
   - if `--session-dir` is provided, writes by default into

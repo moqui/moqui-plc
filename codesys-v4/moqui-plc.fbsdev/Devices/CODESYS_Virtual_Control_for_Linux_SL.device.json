@@ -1,0 +1,23 @@
+{
+	"deviceDescription": {
+		"identification": {
+			"type": 4096,
+			"id": "0000 1007",
+			"version": "4.22.0.0"
+		}
+	},
+	"extensions": {
+		"BaseDevice.PlcConfig": {
+			"configuration": {
+				"applicationForIoHandling": "moqui",
+				"updateIosInStop": false,
+				"stopResetBehaviour": "KeepCurrentValues",
+				"generateForceVariables": false,
+				"showIoWarningsAsErrors": false,
+				"deviceDiagnosis": false,
+				"symbolicIoAccess": false,
+				"busCycleTask": "AxisGroupTestSuiteTask"
+			}
+		}
+	}
+}

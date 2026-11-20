@@ -316,9 +316,11 @@ class SkillRegressionTest(unittest.TestCase):
         logger_facade = (
             iot_root / "components/moqui/framework/src/main/org/moqui/context/LoggerFacade.c"
         ).read_text(encoding="utf-8")
-        self.assertIn("ev->source[0] = '\\0';", logger_facade)
-        self.assertIn("strncpy(ev->source, source", logger_facade)
+        # Text events are device-scoped (empty source), numeric events carry the exact Parameter.parameterId.
+        self.assertIn('fill_identity(&ev, tag, "", level);', logger_facade)
+        self.assertIn("fill_identity(&ev, logger->loggerName, source, level);", logger_facade)
         self.assertIn("#define LOG_RING_CAPACITY (LOG_MAX_SIZE)", logger_facade)
+        # Releasing a batch keeps the records not included in it.
         self.assertIn("s_ring_count = (uint16_t)(s_ring_count - n);", logger_facade)
         configuration = (
             iot_root / "components/moqui/framework/src/main/resources/MoquiConf.h"
@@ -416,6 +418,15 @@ class SkillRegressionTest(unittest.TestCase):
 
         seed_text = seed_path.read_text(encoding="utf-8")
         guide_text = guide_path.read_text(encoding="utf-8")
+        self.assertIn("./moq build", guide_text)
+        self.assertNotIn("quarkusDev", guide_text)
+        self.assertNotIn("8081", guide_text)
+        java_guide = guide_path.with_name("gateway-startup-guide-java.md")
+        run_ok(PYTHON, "skills/moqui-device-gateway-startup/scripts/render_gateway_startup_guide.py",
+               "--seed", str(seed_path), "--output", str(java_guide), "--gateway-runtime", "quarkus")
+        java_text = java_guide.read_text(encoding="utf-8")
+        self.assertIn("./gradlew quarkusDev", java_text)
+        self.assertNotIn("./moq build", java_text)
         self.assertIn('deviceTypeEnumId="DtEdgeGateway"', seed_text)
         self.assertIn('deviceId="UV_LINE_PLC" deviceName="UV Line CODESYS Application" softwareApplication="UvApplication"', seed_text)
         self.assertIn('purposeEnumId="DgmpProcessPLC"', seed_text)
@@ -424,10 +435,12 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn('parameterDefId="PD_LAMP_01_ENABLE_TIME"', seed_text)
         self.assertIn('brokerUri="paho-mqtt5:?brokerUrl=tcp://artemis:1883&amp;qos=1"', seed_text)
         self.assertIn('query="moqui/uv-line/lamp01/cmd"', seed_text)
-        self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite_GatewayDispatch"', seed_text)
-        self.assertIn('runServiceName="moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"', seed_text)
-        self.assertIn('brokerUri="http://gateway-edge-01:8081"', seed_text)
-        self.assertIn('query="UV_LINE_PLC_FAST_OutputsWrite"', seed_text)
+        self.assertIn('runServiceName="moqui.device.gateway.MqttServices.run#DeviceRequest"', seed_text)
+        self.assertIn('runServiceName="moqui.device.gateway.PlcLogServices.run#DeviceRequest"', seed_text)
+        self.assertIn('routerEnumId="DrrMQTTBroker"', seed_text)
+        self.assertNotIn("GatewayDispatch", seed_text)
+        self.assertNotIn("DrrMoquiDeviceGateway", seed_text)
+        self.assertNotIn("DeviceGatewayServices", seed_text)
         self.assertIn('query="moqui-plc"', seed_text)
         self.assertIn('query="moqui/parameters/live"', seed_text)
         self.assertIn('parameterId="P_LAMP_01_REF"', seed_text)
@@ -438,10 +451,10 @@ class SkillRegressionTest(unittest.TestCase):
         self.assertIn("UV_LINE_PLC_FAST_OutputsWrite", guide_text)
         self.assertIn("GW_EDGE_01", guide_text)
         self.assertIn("PLC log request", guide_text)
-        self.assertIn("Moqui REST dispatch wrappers", guide_text)
-        self.assertNotIn("OutputsWrite_GatewayDispatch` is routed", guide_text)
+        self.assertIn("start_DeviceGatewaySubscriptions", guide_text)
+        self.assertNotIn("outside the scope", guide_text)
 
-    def test_gateway_opcua_domain_generates_connection_and_rest_wrapper(self) -> None:
+    def test_gateway_opcua_domain_generates_connection_and_protocol_service(self) -> None:
         session_dir = self.init_session_from_fixture("gateway-valid")
         transport_path = session_dir / "survey-answers" / "transport-architecture-survey.yaml"
         transport_path.write_text(
@@ -508,8 +521,8 @@ plc4j_projection:
         self.assertIn('transportConfig="plc-uv-line:4840/moqui"', seed_text)
         self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite"', seed_text)
         self.assertIn('query="ns=2;s=UvLine.Lamp01.Cmd"', seed_text)
-        self.assertIn('requestName="UV_LINE_PLC_FAST_OutputsWrite_GatewayDispatch"', seed_text)
-        self.assertIn('brokerUri="http://gateway-edge-01:8081"', seed_text)
+        self.assertIn('runServiceName="moqui.device.gateway.OpcUaServices.run#DeviceRequest"', seed_text)
+        self.assertNotIn("GatewayDispatch", seed_text)
 
     def test_multi_subsystem_fixture_end_to_end(self) -> None:
         session_dir = self.init_session_from_fixture("multi-subsystem-valid")
@@ -581,6 +594,11 @@ plc4j_projection:
         self.assertIn("(* No fault state defined for this FSM. *)", cure_main)
         self.assertNotIn("IF dev.faultRequest THEN dev.status := MainStatus.Curing", cure_main)
         self.assertIn("dev.cureLampStatus := CureLampStatus.Active;", cure_controller)
+        # FSM states are logged on change only, never at every scan inside the CASE
+        for generated in (cure_main, cure_controller):
+            self.assertIn("<> statusOld THEN", generated)
+            self.assertNotIn("level := LogLevel.DEBUG);\n\n        (* FSM output function *)", generated)
+        self.assertIn("CureLampStatus.Active : logger(message := 'Active.', level := LogLevel.Info);", cure_controller)
         self.assertIn("uvLampBank : ActuatorGroup;", cure_facade)
         self.assertIn('jsonKey = "lampPowerReference"', cure_mapper)
         self.assertIn("dev.uvLampBankDemandSetpoint := TO_REAL(jsonValue.value.lrValue);", cure_mapper)
@@ -819,6 +837,8 @@ plc4j_projection:
 
     def test_transport_projection_accepts_real_plc4j_seed(self) -> None:
         plc4j_seed = REPO_ROOT.parents[1] / "moqui-plc4j" / "data" / "Plc4jTestData.xml"
+        if not plc4j_seed.is_file():
+            self.skipTest("moqui-plc4j repository is not checked out alongside moqui-plc")
         output = run_ok(
             PYTHON,
             "skills/moqui-device-seed-designer/scripts/validate_transport_projection.py",

@@ -54,6 +54,12 @@ class DialectRewriterTests(unittest.TestCase):
         self.assertEqual("IF (ADR(master) <> 0) THEN n := TO_INT(c); END_IF;\n", text)
         self.assertIn("__ISVALIDREF", rewriter("ironplc").rewrite("b := __ISVALIDREF(master);\n"))
 
+    def test_atomic_add_is_written_as_declared_function(self) -> None:
+        for target in ("rusty", "ironplc"):
+            text = rewriter(target).rewrite("n := __XADD(ADR(count), 1); (* __XADD(x) *)\n")
+            self.assertIn("n := MOQUI_XADD(ADR(count), 1);", text)
+            self.assertIn("(* __XADD(x) *)", text)
+
     def test_ironplc_drops_enum_qualifiers_and_flattens_comments(self) -> None:
         source = "(* a (* b *) c *)\nIF s = MainStatus.Idle THEN m := MC_BUFFER_MODE.aborting; END_IF;\n"
         text = rewriter("ironplc", enums=["MainStatus", "MC_BUFFER_MODE"]).rewrite(source)

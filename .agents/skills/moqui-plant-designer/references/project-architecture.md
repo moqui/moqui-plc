@@ -13,8 +13,9 @@ current checkout in this order:
 1. `moqui-math/README.md`, `moqui-math/entity/MathEntities.xml`,
    `moqui-device/README.md`, `moqui-device/entity/DeviceEntities.xml` and
    `DeviceViewEntities.xml`.
-2. `moqui-device/service/moqui/device/DeviceGatewayServices.xml` and
-   `DeviceServices.xml`, then `moqui-device-gateway/README.md`, routes and SQL.
+2. `moqui-device/service/moqui/device/DeviceServices.xml`,
+   `DeviceConfigServices.xml` and `TrajectoryPlannerServices.xml`, then
+   `moqui-device-gateway/README.md` and its protocol services.
 3. `moqui-plc/README.md`; follow the CODESYS call chain from `MoquiStart.st`
    through device configuration, `Main`, `MainRuleEngine`, `DeviceFacade`,
    `IOFacade`, `DeviceManager`, diagnostics and signal update functions.
@@ -35,7 +36,7 @@ evolved. Record any project-specific interpretation in the saved session.
 
 ## Platform layers
 
-- `moqui-framework` is both the business-application runtime and the platform
+- `mr-moqui` (Rust, master) or `moqui-framework` (Java) is both the business-application runtime and the platform
   for agentic applications. `moqui-math` and `moqui-device` are runtime
   components whose entities and services materialize the industrial model.
 - The Moqui database (normally PostgreSQL or YugabyteDB in production) remains
@@ -44,9 +45,11 @@ evolved. Record any project-specific interpretation in the saved session.
 - DataDocuments/DataFeeds may denormalize authoritative entities into
   OpenSearch for search or embeddings. They are projections, never a second
   source of truth.
-- `moqui-device-gateway` isolates asynchronous PLC traffic from the Moqui
-  runtime. Field-side requests use MQTT v5 or OPC UA; Moqui-side wrapper
-  requests call the gateway through REST callbacks.
+- `moqui-device-gateway` runs the field communication: on MR-Moqui as a
+  component inside Moqui (its own Tokio runtime and bounded persistence queue),
+  on the Java line as a separate Quarkus process. Requests use MQTT v5, OPC UA,
+  Modbus TCP or file/SFTP and name the gateway protocol service in
+  `runServiceName`.
 - Device integrations follow the `run#DeviceRequest` service-interface pattern.
   `moqui-plc4j` and `moqui-genicam` are symmetric protocol implementations;
   PLC4J peer-to-peer fieldbus communication is optional, not the primary path.

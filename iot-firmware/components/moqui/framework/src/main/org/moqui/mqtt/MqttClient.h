@@ -44,8 +44,9 @@ void MqttClient_PublishActuatorState(const Actuator *actuator);
  * json must be null-terminated; rejected if too long to MQTT_PUB_PAYLOAD_MAX-1. */
 void MqttClient_PublishDeviceStatus(const char *json);
 
-/* Enqueue a log event JSON to the MOQUI_LOG_TOPIC for async publish (QoS 0).
- * json must be null-terminated; rejected if too long to MQTT_PUB_PAYLOAD_MAX-1. */
-void MqttClient_PublishLog(const char *json);
+/* Enqueue a log batch JSON to the MOQUI_LOG_TOPIC for async publish (QoS LOG_PUB_QOS).
+ * json must be null-terminated. Returns false when it is too long for
+ * MQTT_PUB_PAYLOAD_MAX-1 or the publish queue is full: the caller keeps the records. */
+bool MqttClient_PublishLog(const char *json);
 
 #endif /* MQTT_CLIENT_H */

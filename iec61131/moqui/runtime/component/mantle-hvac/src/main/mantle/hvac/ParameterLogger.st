@@ -28,6 +28,8 @@ FUNCTION_BLOCK ParameterLogger
 	logger.loggerName := componentName;
 	logger.payloadType := LogPayloadType.Numeric;
 	logger.level := LogLevel.Info;
+	(* The snapshot is a bounded burst of 29 events once a minute: not subject to the rate limit *)
+	logger.maxEventsPerWindow := 0;
 
 	(* Process setpoints and limits. *)
 	logger(source := 'HvacTempSetpoint', numericValue := TO_LREAL(dev.tempSetpoint));

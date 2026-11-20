@@ -11,12 +11,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-GATEWAY_RUN_SERVICE = "moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
+# moqui-device-gateway runs inside Moqui: a gateway request names one of its protocol services in runServiceName.
+GATEWAY_SERVICE_PREFIX = "moqui.device.gateway."
+
+
+def is_gateway_request(request: dict) -> bool:
+    return request.get("runServiceName", "").startswith(GATEWAY_SERVICE_PREFIX)
 
 
 def utc_now() -> str:
@@ -187,30 +193,19 @@ def analyze_model(model: dict) -> dict:
         scoped_request_names = sorted(
             request_name
             for request_name, request in requests.items()
-            if request.get("routerEnumId") == "DrrMoquiDeviceGateway"
-            and request.get("deviceId") in scoped_devices
+            if is_gateway_request(request) and request.get("deviceId") in scoped_devices
         )
         out_of_scope_request_names = sorted(
             request_name
             for request_name, request in requests.items()
-            if request.get("routerEnumId") == "DrrMoquiDeviceGateway"
+            if is_gateway_request(request)
             and request.get("deviceId")
             and request.get("deviceId") not in scoped_devices
-            and request.get("runServiceName") != GATEWAY_RUN_SERVICE
-        )
-        dispatch_wrappers = sorted(
-            (
-                request
-                for request in requests.values()
-                if request.get("deviceId") == gateway_id
-                and request.get("runServiceName") == GATEWAY_RUN_SERVICE
-            ),
-            key=request_name_of,
         )
 
         if not scoped_request_names:
             warnings.append(
-                f"Gateway {gateway_id} has no in-scope DeviceRequest routed through DrrMoquiDeviceGateway."
+                f"Gateway {gateway_id} has no in-scope DeviceRequest run by a moqui.device.gateway service."
             )
 
         gateways.append(
@@ -219,7 +214,6 @@ def analyze_model(model: dict) -> dict:
                 "group_ids": group_ids,
                 "scoped_devices": [scoped_devices[key] for key in sorted(scoped_devices)],
                 "requests": [requests[name] for name in scoped_request_names],
-                "dispatch_wrappers": dispatch_wrappers,
                 "request_items_by_name": request_items_by_name,
                 "out_of_scope_request_names": out_of_scope_request_names,
             }
@@ -229,11 +223,7 @@ def analyze_model(model: dict) -> dict:
         "gateways": gateways,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
-        "all_gateway_requests": [
-            request
-            for request in requests.values()
-            if request.get("routerEnumId") == "DrrMoquiDeviceGateway"
-        ],
+        "all_gateway_requests": [request for request in requests.values() if is_gateway_request(request)],
     }
 
 
@@ -255,7 +245,7 @@ def request_name_of(request: dict) -> str:
     return request.get("requestName") or request.get("deviceRequestName") or ""
 
 
-def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
+def render_guide(seed_path: Path, output_path: Path, analysis: dict, gateway_runtime: str = "rust") -> str:
     lines: list[str] = []
     lines.append("# moqui-device-gateway first-startup guide")
     lines.append("")
@@ -286,7 +276,14 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
     lines.append("- Verify the gateway identity exists as both `Device` and `PhysicalDevice`.")
     lines.append("- Verify the gateway is a `DeviceGroupMember` with `purposeEnumId = DgmpEdgeGateway`.")
     lines.append("- Verify each target PLC/controller is in at least one shared `DeviceGroup` with the gateway.")
-    lines.append("- Verify active startup requests use `routerEnumId = DrrMoquiDeviceGateway`.")
+    if gateway_runtime == "rust":
+        lines.append(
+            "- Verify each gateway request names its protocol service in `runServiceName`: "
+            "`moqui.device.gateway.MqttServices.run#DeviceRequest` (`routerEnumId = DrrMQTTBroker`), "
+            "`OpcUaServices`, `ModbusServices` or `FileServices` (`DrrDirect`), `PlcLogServices` for PLC logs."
+        )
+    else:
+        lines.append("- Verify active startup requests are configured for the Quarkus gateway, as on the moqui-plc master branch.")
     lines.append("")
 
     for gateway in analysis["gateways"]:
@@ -305,44 +302,56 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
             lines.append("- No in-scope devices were found.")
         lines.append("")
 
-        lines.append("### Start local dependencies")
-        lines.append("")
-        lines.append("```bash")
-        lines.append("docker compose -f docker/postgres-compose.yml -p moqui-gateway up -d")
-        lines.append("docker compose -f ../moqui-framework/docker/activemq-compose.yml -p moqui-gateway up -d")
-        lines.append("```")
-        lines.append("")
-
-        lines.append("### Build and test the gateway")
-        lines.append("")
-        lines.append("```bash")
-        lines.append("./gradlew clean build")
-        lines.append("./gradlew test")
-        lines.append("```")
-        lines.append("")
-
-        lines.append("### Start the gateway")
-        lines.append("")
-        lines.append("```bash")
-        lines.append(f"GATEWAY_DEVICE_ID={gateway_id} \\")
-        lines.append("./gradlew quarkusDev -Dquarkus.profile=local")
-        lines.append("```")
-        lines.append("")
-
-        lines.append("Equivalent packaged startup:")
-        lines.append("")
-        lines.append("```bash")
-        lines.append(f"GATEWAY_DEVICE_ID={gateway_id} \\")
-        lines.append("java -Dquarkus.profile=local -jar build/quarkus-app/quarkus-run.jar")
-        lines.append("```")
-        lines.append("")
-
-        lines.append("### Readiness check")
-        lines.append("")
-        lines.append("```bash")
-        lines.append("curl http://localhost:8081/q/health/ready")
-        lines.append("```")
-        lines.append("")
+        if gateway_runtime == "rust":
+            lines.append("### Start the MQTT broker")
+            lines.append("")
+            lines.append("```bash")
+            lines.append("docker compose -f ../moqui-deploy/industrial/rmqtt-compose.yml up -d")
+            lines.append("```")
+            lines.append("")
+            lines.append("### Install, load and start Moqui")
+            lines.append("")
+            lines.append(
+                "moqui-device-gateway is a component of MR-Moqui, not a separate process. Put `moqui-math`, "
+                "`moqui-device` and `moqui-device-gateway` (their `mr-moqui` branches) in `runtime/component`, then "
+                "from the MR-Moqui root:"
+            )
+            lines.append("")
+            lines.append("```bash")
+            lines.append("./moq build")
+            lines.append("./moq load seed-initial seed")
+            lines.append(f"./moq load -l {shlex.quote(str(seed_path))}")
+            lines.append(f"device_gateway_device_id={shlex.quote(gateway_id)} ./moq run")
+            lines.append("```")
+            lines.append("")
+            lines.append("### Readiness check")
+            lines.append("")
+            lines.append(
+                f"- `device_gateway_device_id` makes this Moqui instance the gateway `{gateway_id}`: the service job "
+                "`start_DeviceGatewaySubscriptions` starts the subscriptions of the controllers in its scope within a "
+                "minute of the start, and requests outside its scope are refused. "
+                "`moqui.device.gateway.SubscriptionServices.get#StartupSubscriptions` lists what it starts, "
+                "`get#SubscriptionState` what runs."
+            )
+            lines.append("- Gateway failures are in the Moqui log (runtime/log).")
+            lines.append("")
+        else:
+            lines.append("### Start local dependencies")
+            lines.append("")
+            lines.append("```bash")
+            lines.append("docker compose -f ../moqui-deploy/industrial/moqui-postgres-compose.yml -p moqui up -d moqui-database")
+            lines.append("docker compose -f ../moqui-deploy/industrial/activemq-compose.yml -p moqui-broker up -d")
+            lines.append("```")
+            lines.append("")
+            lines.append("### Build, test and start the Quarkus gateway")
+            lines.append("")
+            lines.append("```bash")
+            lines.append("./gradlew clean build")
+            lines.append(f"GATEWAY_DEVICE_ID={shlex.quote(gateway_id)} \\")
+            lines.append("./gradlew quarkusDev -Dquarkus.profile=local")
+            lines.append("curl http://localhost:8081/q/health/ready")
+            lines.append("```")
+            lines.append("")
 
         lines.append("### Modeled DeviceRequest inventory")
         lines.append("")
@@ -358,15 +367,6 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
             lines.append("- No in-scope gateway-routed requests were found.")
         lines.append("")
 
-        if gateway["dispatch_wrappers"]:
-            lines.append("### Moqui REST dispatch wrappers")
-            lines.append("")
-            for request in gateway["dispatch_wrappers"]:
-                lines.append(
-                    f"- `{request_name_of(request)}` invokes `{request.get('query', '')}` through `{request.get('brokerUri', '')}`."
-                )
-            lines.append("")
-
         first_write = next(
             (request for request in gateway["requests"] if request.get("requestTypeEnumId") == "DrtWrite"),
             None,
@@ -375,11 +375,17 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
             request_name = request_name_of(first_write)
             lines.append("### First manual request")
             lines.append("")
-            lines.append("```bash")
-            lines.append("curl -X POST \\")
-            lines.append(f"  http://localhost:8081/api/device-request/run/{request_name} \\")
-            lines.append("  -H 'X-API-Key: change-me'")
-            lines.append("```")
+            if gateway_runtime == "rust":
+                lines.append(
+                    f"Run `moqui.device.DeviceServices.run#DeviceRequest` with `requestName = {request_name}` "
+                    "(Tools app, Service Run); the result has `status` and `itemResults`."
+                )
+            else:
+                lines.append("```bash")
+                lines.append("curl -X POST \\")
+                lines.append(f"  http://localhost:8081/api/device-request/run/{request_name} \\")
+                lines.append("  -H 'X-API-Key: change-me'")
+                lines.append("```")
             lines.append("")
 
         log_requests = [request for request in gateway["requests"] if request.get("purposeEnumId") == "DrpLogging"]
@@ -411,17 +417,26 @@ def render_guide(seed_path: Path, output_path: Path, analysis: dict) -> str:
             lines.append("")
             for request_name in gateway["out_of_scope_request_names"]:
                 lines.append(
-                    f"- `{request_name}` is routed through `DrrMoquiDeviceGateway` but is outside the scope of gateway `{gateway_id}`."
+                    f"- `{request_name}` is run by moqui-device-gateway but its device is outside the scope of gateway `{gateway_id}`."
                 )
             lines.append("")
 
-    lines.append("## Useful integration tests from moqui-device-gateway")
+    lines.append("## Useful tests from moqui-device-gateway")
     lines.append("")
-    lines.append("- `./gradlew test --tests '*GatewaySeededRouteIntegrationTest' -Dquarkus.profile=integration`")
-    lines.append("- `./gradlew test --tests '*GatewayDeviceGroupSubscriptionDiscoveryTest' -Dquarkus.profile=integration`")
-    lines.append("- `./gradlew test --tests '*PlcLogIngestIntegrationTest' -Dquarkus.profile=integration`")
+    if gateway_runtime == "rust":
+        lines.append("- `cargo test --locked` in `runtime/component/moqui-device-gateway`")
+        lines.append("- `./moq test moqui-device`")
+    else:
+        lines.append("- `./gradlew test --tests '*GatewaySeededRouteIntegrationTest' -Dquarkus.profile=integration`")
+        lines.append("- `./gradlew test --tests '*GatewayDeviceGroupSubscriptionDiscoveryTest' -Dquarkus.profile=integration`")
+        lines.append("- `./gradlew test --tests '*PlcLogIngestIntegrationTest' -Dquarkus.profile=integration`")
     lines.append("")
 
+    if gateway_runtime == "rust":
+        lines.append("Broker credentials belong in the DeviceConnection options (`usernameEnv`/`passwordEnv`), not in the seed. See the README of the moqui-device-gateway `mr-moqui` branch.")
+    else:
+        lines.append("Set DATABASE_URL/LOG_DATABASE_URL and MQTT_USERNAME/MQTT_PASSWORD for the actual test infrastructure. See the README of the moqui-device-gateway `main` branch.")
+    lines.append("")
     lines.append("## Principle")
     lines.append("")
     lines.append("The gateway startup procedure must stay a projection of the data model. If startup fails because scope, requests, or identities are incomplete, repair the modeled data and regenerate.")
@@ -434,6 +449,7 @@ def main() -> int:
     parser.add_argument("--seed", type=Path, help="Reviewed seed XML to inspect")
     parser.add_argument("--session-dir", type=Path, help="Session directory containing seed-data/ and session.json")
     parser.add_argument("--output", type=Path, help="Output Markdown file")
+    parser.add_argument("--gateway-runtime", choices=("rust", "quarkus"), default="rust")
     args = parser.parse_args()
 
     seed_path = resolve_input_seed(args)
@@ -442,7 +458,7 @@ def main() -> int:
 
     model = load_seed_model(seed_path)
     analysis = analyze_model(model)
-    rendered = render_guide(seed_path, output_path, analysis)
+    rendered = render_guide(seed_path, output_path, analysis, args.gateway_runtime)
     output_path.write_text(rendered, encoding="utf-8")
 
     if args.session_dir:

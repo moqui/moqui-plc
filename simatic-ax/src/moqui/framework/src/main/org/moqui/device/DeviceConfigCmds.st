@@ -103,7 +103,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 	CASE cmd OF
 		DeviceConfigCmdType#Init :
 			IF commandChanged THEN
-				logger(message := 'Loading device config list.');
+				logger(message := 'Loading device config list.', level := LogLevel#Info);
 				listIndex := UINT#0;
 				WHILE listIndex <= DEVICE_CONFIG_LIST_MAX_SIZE DO
 					configNameList[listIndex] := '';
@@ -454,7 +454,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 					lineStart := lineEnd + DINT#1;
 				END_WHILE;
 
-				logger(message := Concat(Concat(Concat('Loaded device config ', configName), ' of type '), configType));
+				logger(message := Concat(Concat(Concat('Loaded device config ', configName), ' of type '), configType), level := LogLevel#Info);
 			END_IF;
 
 			error := FALSE;
@@ -476,7 +476,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 			logger(message := 'Delete is not supported in AX runtime.', level := LogLevel#Error);
 		
 		DeviceConfigCmdType#Reset :
-			logger(message := 'Resetting device config list.');
+			logger(message := 'Resetting device config list.', level := LogLevel#Info);
 			listIndex := UINT#0;
 			WHILE listIndex <= DEVICE_CONFIG_LIST_MAX_SIZE DO
 				configNameList[listIndex] := '';

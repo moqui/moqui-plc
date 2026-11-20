@@ -23,6 +23,17 @@
 #define JSON_ELEMENT_LIST_MAX_SIZE (100U)
 #define LOG_APPENDER_BATCH_SIZE    (10U)
 #define LOG_APPENDER_TIMEOUT_US    (50000U)
+/* Equal consecutive events within this window are only counted (0 disables suppression). */
+#define LOG_SUPPRESS_DURATION_MS   (10000U)
+/* Rate limit: new events stored by one logger in one LOG_SUPPRESS_DURATION_MS window; further events are only
+ * counted and reported by one Warn event (a safety net against loggers called at every cycle). */
+#define LOG_MAX_EVENTS_PER_WINDOW  (20U)
+/* Lowest level stored and printed until LoggerFacade_SetMinLevel changes it
+ * (DEBUG keeps the FSM and device events of the demo; INFO is advisable in production). */
+#define LOG_MIN_LEVEL_DEFAULT      LOG_LEVEL_DEBUG
+/* QoS of the log messages: 1 keeps them in the MQTT client's outbox until the broker acknowledges them. */
+#define LOG_PUB_QOS                (1)
+#define PARAMS_SUB_QOS             (1)
 
 /* ========== MQTT topics (structural names, not runtime addresses) ========== */
 #define MOQUI_LOG_TOPIC            "moqui-log"

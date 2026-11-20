@@ -1,3 +1,15 @@
+(*
+ * Bounded log queue between one producer and one consumer, without locks and without waits.
+ *
+ * - Producer: the LoggerFacade that owns this instance, in its own task. It calls the block with cmd := LogCmd#Push,
+ *   writes logBuffer[writeSlot] and only then publishes the record by incrementing writeCount.
+ * - Consumer: reads the records between readCount and writeCount, starting from its LogSource.readSlot, and
+ *   releases them by incrementing readCount. The AX port has no consumer yet: the queue fills and then refuses.
+ *
+ * Each counter has a single writer. The S7-1500 runs the user program on one core and a 32-bit aligned write is
+ * atomic, so a task that preempts another sees the counters in program order; the canonical CODESYS source uses
+ * __XADD for multicore targets. When the queue is full the new record is refused and counted in droppedCount.
+ *)
 FUNCTION_BLOCK LogRingBuffer
 	VAR_EXTERNAL CONSTANT
 	    LOG_MAX_SIZE : UINT;
@@ -7,96 +19,52 @@ FUNCTION_BLOCK LogRingBuffer
 	    logEntry : LogEvent;
 	END_VAR
 	VAR_OUTPUT
-	    done, error, isFull, isEmpty : BOOL;
-	    head : UINT := UINT#1;
-	    tail : UINT := UINT#1;
-	    (* Peek/Pop result: set on LogCmd#Peek and LogCmd#Pop *)
-	    headEntry : LogEvent;
-	    (* Exposed so that it can be cloned by the log appender (memcpy one-cycle operation). *)
+	    done : BOOL;
+	    error : BOOL;
+	    (* The record was refused because the queue was full *)
+	    dropped : BOOL;
 	    logBuffer : ARRAY[1..LOG_MAX_SIZE] OF LogEvent;
-	    logSize : UINT;
-	    overflowCount : UDINT;
-	END_VAR
-	VAR CONSTANT
-		MAX_UDINT : UDINT := UDINT#16#FFFFFFFF;
+	    (* Records ever written (producer-owned); wraps around, only differences are meaningful *)
+	    writeCount : DINT;
+	    (* Records ever released (consumer-owned) *)
+	    readCount : DINT;
+	    (* Records refused because the queue was full (producer-owned) *)
+	    droppedCount : UDINT;
+	    isFull : BOOL;
+	    isEmpty : BOOL;
 	END_VAR
 	VAR
-	    lastCommand : LogCmd := LogCmd#Idle;
-	    i : UINT;
+	    writeSlot : UINT := UINT#1;
+	    pending : DINT;
 	END_VAR
 
-	(* Reset instant outputs *)
 	done := FALSE;
 	error := FALSE;
+	dropped := FALSE;
 
-	(* Invariants guard *)
-	IF (head < UINT#1) OR (head > LOG_MAX_SIZE) OR (tail < UINT#1) OR (tail > LOG_MAX_SIZE) OR (logSize > LOG_MAX_SIZE) THEN
-	    head := UINT#1; tail := UINT#1; logSize := UINT#0;
+	IF cmd = LogCmd#Idle THEN RETURN; END_IF;
+	IF (cmd <> LogCmd#Push) OR (writeSlot < UINT#1) OR (writeSlot > LOG_MAX_SIZE) THEN
 	    error := TRUE;
 	    RETURN;
 	END_IF;
 
-	IF (overflowCount = MAX_UDINT) THEN overflowCount := UDINT#1; END_IF;
-
-	IF (cmd <> LogCmd#Idle) THEN
-	    CASE cmd OF
-	        LogCmd#Push :
-	            logBuffer[tail] := logEntry;
-
-	            IF (logSize >= LOG_MAX_SIZE) THEN
-	                (* Buffer full, overwrite oldest entries *)
-	                head := (head MOD LOG_MAX_SIZE) + UINT#1;
-	                overflowCount := overflowCount + UDINT#1;
-	            ELSE
-	                logSize := logSize + UINT#1;
-	            END_IF;
-
-	            tail := (tail MOD LOG_MAX_SIZE) + UINT#1;
-	            done := TRUE;
-
-	        (* Increment repeat counter instead of storing new log entry *)
-	        LogCmd#IncrementLast :
-	            IF logSize = UINT#0 THEN
-					error := TRUE;
-				ELSE
-	                i := tail - UINT#1;
-	                IF i < UINT#1 THEN i := LOG_MAX_SIZE; END_IF;
-
-	                (* Saturate repeatCount *)
-	                IF logBuffer[i].repeatCount < UINT#65535 THEN
-	                    logBuffer[i].repeatCount := logBuffer[i].repeatCount + UINT#1;
-	                END_IF;
-				
-					done := TRUE;
-	            END_IF;
-
-	        (* Returns head entry without removing it. Error if empty (Java Queue.peek semantics). *)
-	        LogCmd#Peek :
-	            IF logSize = UINT#0 THEN
-	                error := TRUE;
-	            ELSE
-	                headEntry := logBuffer[head];
-	                done := TRUE;
-	            END_IF;
-
-	        (* Returns and removes head entry. Error if empty (Java Deque.pop semantics). *)
-	        LogCmd#Pop :
-	            IF logSize = UINT#0 THEN
-	                error := TRUE;
-	            ELSE
-	                headEntry := logBuffer[head];
-	                head := (head MOD LOG_MAX_SIZE) + UINT#1;
-	                logSize := logSize - UINT#1;
-	                done := TRUE;
-	            END_IF;
-
-	        LogCmd#Clear :
-	            head := UINT#1; tail := UINT#1; logSize := UINT#0; overflowCount := UDINT#0;
-	            done := TRUE;
-	    END_CASE;
+	pending := writeCount - readCount;
+	IF (pending < DINT#0) OR (pending >= TO_DINT(LOG_MAX_SIZE)) THEN
+	    (* Full, or counters out of range: refuse the record, never overwrite unreleased records *)
+	    IF droppedCount < UDINT#16#FFFFFFFF THEN droppedCount := droppedCount + UDINT#1; END_IF;
+	    dropped := TRUE;
+	    isFull := TRUE;
+	    isEmpty := FALSE;
+	    RETURN;
 	END_IF;
 
-	lastCommand := cmd;
-	isEmpty := (logSize = UINT#0);
-	isFull := (logSize = LOG_MAX_SIZE);
-	END_FUNCTION_BLOCK
+	logBuffer[writeSlot] := logEntry;
+	logBuffer[writeSlot].sequence := TO_UDINT(writeCount) + UDINT#1;
+	writeSlot := (writeSlot MOD LOG_MAX_SIZE) + UINT#1;
+	(* Publish the record after it is complete *)
+	writeCount := writeCount + DINT#1;
+	done := TRUE;
+
+	isFull := (pending + DINT#1) >= TO_DINT(LOG_MAX_SIZE);
+	isEmpty := FALSE;
+END_FUNCTION_BLOCK

@@ -58,6 +58,7 @@ I file manuali restano fuori dalla generazione V1:
 - `${DIGITAL_SIGNAL_DECLARATIONS}`: elenco variabili `BOOL`
 - `${ATOMIC_DEVICE_DECLARATIONS}`: istanze `Actuator`, `Axis`, `ProcessPid`, ecc.
 - `${MAIN_FSM_CASE_BLOCKS}`: rami `CASE` della FSM in `Main`, uno per stato, comprensivi di output function e state-update function
+- `${MAIN_STATE_LOG}` e `${SUBSYSTEM_STATE_LOG}`: log dello stato della FSM solo al cambio (`statusOld`), mai a ogni scan dentro il `CASE`: messaggi diversi scritti a ogni ciclo eludono la soppressione dei duplicati del `LoggerFacade`
 - `${STATE_TRANSITION_CASES}`: rami `CASE` della rule engine, derivati dalla topologia di `StatusFlowTransition` piu' condizioni e precedenze fornite dall'utente durante il workflow o trovate nei dati esistenti
 - `${SENSOR_PREDICATES}`: predicati di processo/ambiente/sicurezza derivati da parametri logici, soglie, isteresi, tempi e regole di safety
 - `${BLOCKING_DEVICE_SIGNAL_RULES}`: regole diagnostiche per ogni device bloccante

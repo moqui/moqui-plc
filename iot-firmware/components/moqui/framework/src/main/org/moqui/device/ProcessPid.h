@@ -151,6 +151,8 @@ typedef struct {
     bool  wakeupReq;
     bool  prevReset;
     bool  resetEdge;
+    /* Previous value, so that an invalid configuration is logged once */
+    bool  invalidConfigOld;
     bool  startRamp;
 
     float rampCurrent;

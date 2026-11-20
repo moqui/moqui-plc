@@ -19,13 +19,18 @@ FUNCTION_BLOCK NetworkDiagnostics
 		moduleError : DED.ERROR;
 		diagnosisInfoAvailable : BOOL;
 	    diagnosisInfoBuffer : STRING; 
-		fieldbusDataPtr : DED.CAA.PVOID;
-		fieldbusdata : POINTER TO STRING;
-		dataSize : DED.CAA.SIZE;
 	    dataCount : DED.CAA.SIZE;
 		diagnoseIoModule : RemoteIoModuleDiagnostics;
+		moduleDiagnosisError : BOOL;
+		anyError : BOOL;
+		(* Error of the previous call, so that details are logged when the diagnostics turn to error *)
+		errorOld : BOOL;
 		i: INT;
 		init : BOOL;
+	END_VAR
+	VAR CONSTANT
+		(* Guard against a malformed device tree *)
+		MAX_MODULES : INT := 256;
 	END_VAR
 
 	error := TRUE;
@@ -48,8 +53,6 @@ FUNCTION_BLOCK NetworkDiagnostics
 	 *     reconfigure(xExecute := TRUE, itfNode := Ethernet);
 	*)
  
-	logger(message := concat(concat(concat('Run diagnostics on Ethernet adapeter with name: ', ethernet.DeviceName), ' and NIC name: '), ethernet.NICName),
-		level := LogLevel.DEBUG);
 	(* For applications without remote IO modules or with IO modules integrated into the PLC rack. *)
 	IF NOT ethernet.Enable THEN
 		logger(message := 'The Ethernet adapter is disabled.', level := LogLevel.DEBUG);
@@ -57,7 +60,7 @@ FUNCTION_BLOCK NetworkDiagnostics
 		RETURN;
 	END_IF;
 	IF ethernet.ChildNodeCount = 0 THEN
-		logger(message := 'No child devices under the Ethernet adapter. Disable the Ethernet adapter!');
+		logger(message := 'No child devices under the Ethernet adapter. Disable the Ethernet adapter!', level := LogLevel.Warn);
 	END_IF;
 	IF ethernet.State = IODrvEthernet.EthernetState.ERROR THEN
 		logger(message := 'Ethernet adapter in error state.', level := LogLevel.ERROR);
@@ -78,51 +81,55 @@ FUNCTION_BLOCK NetworkDiagnostics
 
 	(* 
 	 * Avoid checking software subsystems of the network stack (e.g. Modbus TCP Client component).
-	 * Check only the physical remote devices.
-	 * Find the first physical remote device.
+	 * Check only the physical remote devices, starting from the first one: every module is checked,
+	 * and an empty node ends the list. Details are logged when the diagnostics turn to error.
 	 *)
+	anyError := FALSE;
 	module := DED.INode_TO_IDevice(ethernet.FirstChildNode.FirstChildNode);
-	FOR i := 1 TO __UXINT_TO_INT(module.SiblingNodeCount) DO
-		module := DED.INode_TO_IDevice(module.NextSiblingNode);
+	i := 0;
+	WHILE (module <> 0) AND (i < MAX_MODULES) DO
+		i := i + 1;
 		module.GetDeviceInfo(deiInfo := moduleInfo);
 		moduleName := DED.GetDeviceNameString(module);
 
-		IF NOT module.Enable THEN
-			logger(message := concat(concat('The ', moduleName), ' IO module is disabled.'), level := LogLevel.DEBUG);
-			CONTINUE;
-		END_IF;
-		IF module.ChildNodeCount = 0 THEN
-			logger(message := concat(concat('The ', moduleName), ' IO module has no child devices.'), level := LogLevel.DEBUG);
-		END_IF;
-		moduleStatus := module.GetDeviceState(xDiagnosisinfoAvailable => diagnosisInfoAvailable, eError => moduleError);
-		IF moduleStatus = DED.DEVICE_STATE.ERROR THEN
-			logger(message := concat(concat(concat(concat('The ', moduleName), ' IO module is in error state.'), ' Error code: '),
-				TO_STRING(moduleError)), level := LogLevel.ERROR);
-			logger(message := concat(concat(concat(concat(concat('Module info: Type ', TO_STRING(moduleInfo.eType)), ' - Instance number '),
-				TO_STRING(moduleInfo.idInstance)), ' - Unique ID '), TO_STRING(moduleInfo.idSystem)), level := LogLevel.ERROR);
-
-			IF diagnosisInfoAvailable THEN
-				moduleError := module.GetDeviceDiagnosisInfo(pData := fieldbusDataPtr, szSize := dataSize, szCount => dataCount);
-				fieldbusData := fieldbusDataPtr; 
-				diagnosisInfoBuffer := fieldbusData^;
-				logger(message := 'Diagnosis data:', level := LogLevel.ERROR);
-				logger(message := concat('Error code: ', TO_STRING(moduleError)), level := LogLevel.ERROR);
-				logger(message := concat('Error stack: ', TO_STRING(fieldbusData)), level := LogLevel.ERROR);
+		IF module.Enable THEN
+			moduleStatus := module.GetDeviceState(xDiagnosisinfoAvailable => diagnosisInfoAvailable, eError => moduleError);
+			IF moduleStatus = DED.DEVICE_STATE.ERROR THEN
+				anyError := TRUE;
+				IF NOT errorOld THEN
+					logger(message := concat(concat(concat(concat('The ', moduleName), ' IO module is in error state.'), ' Error code: '),
+						TO_STRING(moduleError)), level := LogLevel.ERROR);
+					logger(message := concat(concat(concat(concat(concat('Module info: Type ', TO_STRING(moduleInfo.eType)), ' - Instance number '),
+						TO_STRING(moduleInfo.idInstance)), ' - Unique ID '), TO_STRING(moduleInfo.idSystem)), level := LogLevel.ERROR);
+					IF diagnosisInfoAvailable THEN
+						(* The diagnosis data is copied into diagnosisInfoBuffer, then logged as text *)
+						diagnosisInfoBuffer := '';
+						moduleError := module.GetDeviceDiagnosisInfo(pData := ADR(diagnosisInfoBuffer),
+							szSize := SIZEOF(diagnosisInfoBuffer) - 1, szCount => dataCount);
+						logger(message := concat('Diagnosis error code: ', TO_STRING(moduleError)), level := LogLevel.ERROR);
+						logger(message := concat('Diagnosis data: ', diagnosisInfoBuffer), level := LogLevel.ERROR);
+					END_IF;
+				END_IF;
+			ELSE
+				(* 
+			     * Check the remote IO module registers for detecting any errors, if needed.
+				 * Otherwise, comment out the following code.
+			     *)
+				diagnoseIoModule(moduleName := moduleName, error => moduleDiagnosisError, diagnosisInfo => diagnosisInfoBuffer);
+				IF moduleDiagnosisError THEN
+					anyError := TRUE;
+					IF NOT errorOld THEN
+						logger(message := concat(concat('The remote IO module ', moduleName), ' is connected but has errors.'), level := LogLevel.ERROR);
+						logger(message := concat('Error stack: ', diagnosisInfoBuffer), level := LogLevel.ERROR);
+					END_IF;
+				END_IF;
 			END_IF;
-			CONTINUE;
 		END_IF;
-	
-		(* 
-	     * Check the remote IO module registers for detecting any errors, if needed.
-		 * Otherwise, comment out the following code.
-	     *)
-		diagnoseIoModule(moduleName := moduleName, error => error, diagnosisInfo => diagnosisInfoBuffer);
-		IF error THEN
-			logger(message := 'The remote IO module is connected but has errors.', level := LogLevel.ERROR);
-			logger(message := concat('Error stack: ', diagnosisInfoBuffer), level := LogLevel.ERROR); 
-			CONTINUE;
-		END_IF;
-	END_FOR;
 
-	error := FALSE;
+		module := DED.INode_TO_IDevice(module.NextSiblingNode);
+	END_WHILE;
+
+	error := anyError;
+	IF errorOld AND NOT error THEN logger(message := 'Network diagnostics: no errors.', level := LogLevel.Info); END_IF;
+	errorOld := error;
 	END_FUNCTION_BLOCK

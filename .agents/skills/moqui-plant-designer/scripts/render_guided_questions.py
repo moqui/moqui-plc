@@ -222,15 +222,6 @@ def build_guided_questions(model: dict, atomic_library: dict) -> dict:
             }
         )
     if transport["gateway_required"]:
-        for gateway in model["gateways"]:
-            if gateway["gateway_device_id"] and not gateway["rest_base_uri"]:
-                questions.append(
-                    {
-                        "stage": "transport_architecture",
-                        "question": f"Qual e il REST base URI del gateway {gateway['gateway_device_id']} usato da Moqui per il dispatch?",
-                        "why": "Il wrapper DeviceRequest Moqui-side deve raggiungere il servizio standalone senza incorporare credenziali nel seed.",
-                    }
-                )
         if not any(row["transport_id"] for row in model["gateway_transports"]):
             questions.append(
                 {

@@ -61,6 +61,21 @@ VAR_OUTPUT
 END_VAR
 END_FUNCTION_BLOCK
 
+FUNCTION_BLOCK MC_GroupDisable
+VAR_IN_OUT
+    AxisGroup : TO_Kinematics;
+END_VAR
+VAR_INPUT
+    Execute   : BOOL;
+END_VAR
+VAR_OUTPUT
+    Done    : BOOL;
+    Busy    : BOOL;
+    Error   : BOOL;
+    ErrorID : DWORD;
+END_VAR
+END_FUNCTION_BLOCK
+
 FUNCTION_BLOCK MC_GroupReset
 VAR_IN_OUT
     AxisGroup : TO_Kinematics;

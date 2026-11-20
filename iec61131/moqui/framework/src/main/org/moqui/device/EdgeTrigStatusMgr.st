@@ -79,8 +79,8 @@ FUNCTION_BLOCK EdgeTrigStatusMgr
 			END_IF;
 		END_IF;
 
-		(* TimeOut (To): The total timeout only runs during execution *)
-		IF timeoutTimer > 0 AND status = EdgeTriggerStatus.Executing THEN
+		(* TimeOut (To): runs during execution, and again during the abort, so Aborting cannot wait forever *)
+		IF timeoutTimer > 0 AND (status = EdgeTriggerStatus.Executing OR status = EdgeTriggerStatus.Aborting) THEN
 			timeoutTimer := timeoutTimer - 1;
 		END_IF;
 	END_IF;
@@ -102,8 +102,11 @@ FUNCTION_BLOCK EdgeTrigStatusMgr
 	        activeCycle := (timeLimit = 0) OR (timeLimitTimer > 0);
 
 	        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+	            (* The error ID is set once, when the error occurs *)
+	            errorId := SEL(errorCondition, 2, 1); (* 1 = ExternalError, 2 = Total timeout expired *)
 	            status := EdgeTriggerStatus.Error;
 	        ELSIF abortRequest THEN
+	            timeoutTimer := timeout; (* The abort has its own timeout *)
 	            status := EdgeTriggerStatus.Aborting;
 	        ELSIF readyCondition THEN
 	            status := EdgeTriggerStatus.Done; (* Target achieved *)
@@ -113,6 +116,7 @@ FUNCTION_BLOCK EdgeTrigStatusMgr
 	        activeCycle := FALSE;
 
 	        IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+	            errorId := SEL(errorCondition, 2, 1); (* 1 = ExternalError, 2 = Total timeout expired *)
 	            status := EdgeTriggerStatus.Error;
 	        ELSIF abortComplete THEN
 				status := EdgeTriggerStatus.Aborted;
@@ -136,12 +140,7 @@ FUNCTION_BLOCK EdgeTrigStatusMgr
 
 	    EdgeTriggerStatus.Error :
 	        busy := FALSE; activeCycle := FALSE; error := TRUE;
-
-	        IF errorCondition THEN
-	            errorId := 1; (* ExternalError *)
-	        ELSE
-	            errorId := 2; (* Total timeout expired *)
-	        END_IF;
+	        (* errorId was set on entry and is kept until the reset *)
 
 	        IF resetRequest OR NOT execute THEN
 				status := EdgeTriggerStatus.Resetting;

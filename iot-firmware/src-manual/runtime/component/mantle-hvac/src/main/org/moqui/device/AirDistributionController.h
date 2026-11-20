@@ -35,6 +35,8 @@ typedef struct {
     AirDistributionControllerStatus status;
     uint16_t cumulatedTimeHigh;
     uint16_t cumulatedTimeLow;
+    /* Make-before-break: the old damper is disabled only after the new one is enabled */
+    bool     breakIssued;
     bool     loggerInit;
 } AirDistributionController;
 

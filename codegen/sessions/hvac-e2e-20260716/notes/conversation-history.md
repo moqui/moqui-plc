@@ -262,3 +262,33 @@ work. It intentionally excludes platform-internal prompts and tool metadata.
 - Changed IoT C sources passed local C11 syntax checks. The full ESP-IDF Docker
   build remains pending because downloading the missing toolchain image timed
   out without reaching compilation.
+
+## 16. Logging pipeline and MQTT ownership (2026-11-13)
+
+- The log4j-style structure (LoggerFacade -> buffer -> appender) is kept. Each
+  `LogRingBuffer` now has one producer (its facade) and one consumer
+  (`LogDispatcher`); the counters are exchanged with `__XADD`, a full buffer
+  refuses and counts new records instead of overwriting, and records are
+  released only after the broker acknowledged their batch (QoS 1, bounded
+  retries with the DUP flag, then counted as discarded).
+- `MqttCommunication` (task `MqttCommunicationTask`, 100 ms, priority 3) is the
+  only caller of `connectionFactory` and calls `MqttParameterSub`,
+  `MqttParameterPub` and `LogDispatcher` in this order; these programs no longer
+  have tasks of their own. Live parameter writes are processed first.
+  `MqttParameterPub` stays optional (peer-PLC replication, disabled by default).
+- Log payloads stay the gateway's map of events, with fixed-width keys
+  (`"001"`...) and the added fields `level`, `marker`, `logEventId`, `sequence`.
+  Repetitions are written once as a summary (`repeatCount`, window
+  `defaultLogSuppressDuration` = 10 s). The global `logMinLevel` defaults to
+  `Debug` so the demo keeps its DEBUG device logs; `Info` is advisable in
+  production.
+- Config fixes: `paramsReDelivery` FALSE (DUP flag on a first QoS 0 send violates
+  MQTT), `logAppenderTimeout` UDINT 5 s, `pubContentType` `application/json`.
+  Log messages expire after `logMessageExpiryInterval` = 86400 s instead of the
+  60 s of `pubMessageExpiryInterval`, so an offline gateway loses no queued logs.
+- Live verification plan: `notes/logging-live-test-runbook.md`.
+- Applied to CODESYS (canonical and `codesys-v4`), Simatic AX overrides and both
+  IoT firmware trees. CODESYS 4 compiles every task with 0 errors; firmware host
+  tests (also sanitized) and Python suites pass. Simatic AX was not compiled
+  (no `apax` on the machine) and nothing ran on a PLC. The `codesys-v3`
+  projectarchive must be updated by hand in CODESYS 3.5; no commit was made.

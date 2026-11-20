@@ -31,9 +31,10 @@ FUNCTION_BLOCK ProcessPid
 	    setpointDecreaseTime : TIME := T#0S;
 	    (* Freezes the setpoint of the process PID controller *)
 	    setpointFreezeEnable : BOOL;
-	    (* Inverts the input of the process PID controller.
+	    (* Inverts the input of the process PID controller (reverse acting loop, e.g. a cooling valve).
 	     * Deviation not inverted (Deviation = Setpoint - Feedback).
 	     * Deviation inverted (Deviation = Feedback - Setpoint).
+	     * The inverted deviation is the one the PID regulates on, so gain stays positive.
 	     *)
 	    deviationInversion : BOOL;
 	    (* Defines the minimum limit for the process PID controller output. Using the minimum and maximum limits, it is possible to restrict the operation range *)
@@ -98,7 +99,7 @@ FUNCTION_BLOCK ProcessPid
 	    trackingRef : REAL := 0.0;
 	    (* Timing *)
 	    clock : BOOL; (* Tick pulse, e.g. clks.clock10ms *)
-	    tickTime : TIME := T#10ms;
+	    tickTime : TIME := T#10ms; (* Period of the clock pulse: T#100ms with clks.clock100ms. Used by the S-shaped and exponential ramps *)
 	    (* Optional setpoint change epsilon (avoid restart on tiny changes) *)
 	    setpointEpsilon : REAL := 0.000001;
 	END_VAR
@@ -173,6 +174,10 @@ FUNCTION_BLOCK ProcessPid
 	    expTau : REAL;
 	    (* Logger facade *)
 	    logger : LoggerFacade;
+	    (* PID inputs after the deviation inversion *)
+	    pidActual, pidSetpoint : REAL;
+	    (* Previous values, so that events are logged on change only *)
+	    invalidConfigOld, setpointFrozenOld, trackingOld, deadbandOld, outputLimitsActiveOld, overflowOld, zeroOutputOld, atSetpointOld : BOOL;
 	END_VAR
 
 	(* Master enable gate *)
@@ -214,18 +219,19 @@ FUNCTION_BLOCK ProcessPid
 	(* Configuration parameters validation *)
 	IF (integrationTime < 0) OR (derivationTime < 0) OR (gain <= 0)
 	        OR (setpointMin > setpointMax) OR (outputMin > outputMax) THEN
-	    logger(message := 'Invalid PID arguments detected.', level := LogLevel.Error);
+	    IF NOT invalidConfigOld THEN logger(message := 'Invalid PID arguments detected.', level := LogLevel.Error); END_IF;
+	    invalidConfigOld := TRUE;
 	    active := FALSE;
 	    execute := FALSE;
 	    invalidConfig := TRUE;
 	    RETURN;
 	END_IF;
 
+	invalidConfigOld := FALSE;
+
 	(* Enable core logic *)
 	active := TRUE;
 	execute := TRUE;
-
-	logger(message := 'Running process PID.', level := LogLevel.Debug);
 
 	(* Reset handling *)
 	resetEdge := reset AND NOT prevReset;
@@ -246,13 +252,12 @@ FUNCTION_BLOCK ProcessPid
 	END_IF;
 
 	(* Feedback processing (scaling) *)
+	(* Values are not logged every scan: process values belong to the application ParameterLogger. *)
 	feedbackActual := feedback * feedbackMultiplier;
-	logger(message := concat('Input feedback value ', TO_STRING(feedback)), level := LogLevel.Debug);
-	logger(message := concat('Scaled feedback value ', TO_STRING(feedbackActual)), level := LogLevel.Debug);
 
 	(* Setpoint processing (limit + ramp + freeze). *)
 	IF setpointFreezeEnable THEN
-	    logger(message := concat('Setpoint freezed at value', TO_STRING(lastSetpoint)), level := LogLevel.Debug);
+	    IF NOT setpointFrozenOld THEN logger(message := concat('Setpoint frozen at value ', TO_STRING(lastSetpoint)), level := LogLevel.Debug); END_IF;
 	    setpointTarget := lastSetpoint;
 	ELSE
 	    setpointTarget := LIMIT(setpointMin, setpoint * setpointMultiplier, setpointMax);
@@ -260,8 +265,6 @@ FUNCTION_BLOCK ProcessPid
 
 	(* Ramp is enabled only when both times are > 0 *)
 	IF (setpointIncreaseTime > T#0S) AND (setpointDecreaseTime > T#0S) THEN
-	    logger(message := 'Setpoint ramp up enabled.', level := LogLevel.Debug);
-
 	    (* Detect target changes to restart the ramp generator (epsilon-based) *)
 	    startRamp := (ABS(setpointTarget - lastSetpointTarget) > setpointEpsilon) OR resetEdge;
 	    lastSetpointTarget := setpointTarget;
@@ -279,8 +282,9 @@ FUNCTION_BLOCK ProcessPid
 	            incSec := MAX(0.001, TO_REAL(incMs) / 1000.0); decSec := MAX(0.001, TO_REAL(decMs) / 1000.0);
 	            spRange := MAX(1.0, setpointMax - setpointMin);
 	            ascRate := spRange / incSec; decRate := spRange / decSec;
+	            (* ascRate and decRate are per second, so the RAMP_REAL timebase is one second *)
 	            rampFunc(in := setpointTarget, ascend := ascRate, descend := decRate,
-	                timebase := tickTime, reset := resetEdge, out => setpointInternal);
+	                timebase := T#1S, reset := resetEdge, out => setpointInternal);
 
 	        RampType.Exponential :
 	        	(* 
@@ -301,13 +305,12 @@ FUNCTION_BLOCK ProcessPid
 
 	(* Update the process PID status *)
 	setpointFrozen := setpointFreezeEnable;
+	setpointFrozenOld := setpointFrozen;
 	setpointActual := setpointInternal;
-	logger(message := concat('Actual setpoint value ', TO_STRING(setpointActual)), level := LogLevel.Debug);
 
 	(* Deviation and control modes *)
 	(* Deviation calculation *)
 	deviationActual := SEL(deviationInversion, setpointActual - feedbackActual, feedbackActual - setpointActual);
-	logger(message := concat('Actual deviation value ', TO_STRING(deviationActual)), level := LogLevel.Debug);
 
 	(* Deadband logic *)
 	deadbandTimer(IN := (deadbandRange > 0.0) AND (ABS(deviationActual) <= deadbandRange), PT := deadbandDelay);
@@ -359,7 +362,6 @@ FUNCTION_BLOCK ProcessPid
 	yManual := lastOutput;
 
 	IF trackingMode THEN
-	    logger(message := 'Tracking mode enabled.', level := LogLevel.Debug);
 	    tracking := TRUE; manualMode := TRUE; yManual := trackingRef;
 	    sleepTimer(IN := FALSE);
 	    sleepBoost := FALSE; sleepBoostTimer(IN := FALSE);
@@ -368,45 +370,58 @@ FUNCTION_BLOCK ProcessPid
 	ELSIF sleepMode THEN
 	    manualMode := TRUE; yManual := 0.0;
 	ELSIF deadband THEN
-	    logger(message := 'Deadband enabled.', level := LogLevel.Debug);
 	    manualMode := TRUE; yManual := lastOutput;
 	ELSE
 	    manualMode := outputFreezeEnable;
 	    yManual := lastOutput;
 	END_IF;
 
-	(* Core PID execution *)
-	pid(actual := feedbackActual, set_point := setpointActual, kp := gain, tn := integrationTime, tv := derivationTime,
+	(*
+	 * Core PID execution. The PID regulates set_point - actual: with deviationInversion the
+	 * two inputs are swapped, so the PID regulates feedback - setpoint (reverse acting loop).
+	 *)
+	IF deviationInversion THEN
+	    pidActual := setpointActual; pidSetpoint := feedbackActual;
+	ELSE
+	    pidActual := feedbackActual; pidSetpoint := setpointActual;
+	END_IF;
+	pid(actual := pidActual, set_point := pidSetpoint, kp := gain, tn := integrationTime, tv := derivationTime,
 	    y_manual := yManual, y_offset := offset, y_min := outputMin, y_max := outputMax,
 	    manual := manualMode, reset := resetEdge, y => outputInternal,
 	    limits_active => outputLimitsActive, overflow => overflow);
 
-	IF overflow THEN
+	IF overflow AND NOT overflowOld THEN
 	    logger(message := 'PID overflow. Resetting the integral part.', level := LogLevel.Error);
 	END_IF;
+	overflowOld := overflow;
 
-	IF outputLimitsActive THEN
+	IF outputLimitsActive AND NOT outputLimitsActiveOld THEN
 	    logger(message := 'Output limits active.', level := LogLevel.Debug);
 	END_IF;
+	outputLimitsActiveOld := outputLimitsActive;
+
+	IF tracking AND NOT trackingOld THEN logger(message := 'Tracking mode enabled.', level := LogLevel.Debug); END_IF;
+	trackingOld := tracking;
+	IF deadband AND NOT deadbandOld THEN logger(message := 'Deadband enabled.', level := LogLevel.Debug); END_IF;
+	deadbandOld := deadband;
 
 	(* Update ABB-like output reference for sleep decision *)
 	lastPidOutput := outputInternal;
 
 	(* Apply final output substitution rules consistent with selected mode *)
 	outputActual := outputInternal;
-	logger(message := concat('Actual output value ', TO_STRING(outputActual)), level := LogLevel.Debug);
 
 	outputFrozen := outputFreezeEnable OR deadband;
 	zeroOutput := (ABS(outputActual) < setpointEpsilon);
 	lastOutput := outputActual;
-	IF zeroOutput THEN
+	IF zeroOutput AND NOT zeroOutputOld THEN
 		logger(message := 'PID output to zero', level := LogLevel.Debug);
 	END_IF;
+	zeroOutputOld := zeroOutput;
 
-	IF ABS(deviationActual) < atSetpointHysteresis THEN
-			logger(message := 'PID at setpoint.', level := LogLevel.Debug);
-	    atSetpoint := TRUE;
-	ELSE
-	    atSetpoint := FALSE;
+	atSetpoint := ABS(deviationActual) < atSetpointHysteresis;
+	IF atSetpoint AND NOT atSetpointOld THEN
+		logger(message := 'PID at setpoint.', level := LogLevel.Debug);
 	END_IF;
+	atSetpointOld := atSetpoint;
 	END_FUNCTION_BLOCK

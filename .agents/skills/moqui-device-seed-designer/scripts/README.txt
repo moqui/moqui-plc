@@ -33,16 +33,17 @@ Current scripts:
     - grouped physical I/O `DeviceRequest` + `DeviceRequestItem` rows for:
       - `moqui-device-gateway` using explicit MQTT topics or OPC UA node IDs
       - `moqui-plc4j` using explicit `plc4j_query` values from the surveys
-    - Moqui-side REST dispatch wrappers linked to gateway-side requests through `DeviceRequest.query`
+    - each gateway request names its protocol service (`moqui.device.gateway.*Services.run#DeviceRequest`)
   - runs the upstream survey validation first, so partial surveys block generation
   - keeps the output explicitly reviewable rather than pretending that all enums or grouping decisions are final
 
 - `validate_transport_projection.py`
   - validates that the resulting seed projects onto at least one real transport layer
   - accepted transport projections today:
-    - `moqui-device-gateway` via `routerEnumId = DrrMoquiDeviceGateway`
+    - `moqui-device-gateway` via `runServiceName = moqui.device.gateway.<Protocol>Services.run#DeviceRequest`
     - `moqui-plc4j` via `runServiceName = moqui.plc4j.Plc4jServices.run#Plc4jRequest`
-  - checks coherence of `DeviceConnection`, `connectionName`, `routerEnumId`, and gateway scope markers
+  - checks coherence of `DeviceConnection`, `connectionName`, `brokerUri`, `routerEnumId` and the protocol service
+  - rejects the removed REST proxy (`DrrMoquiDeviceGateway`, `moqui.device.DeviceGatewayServices`)
 
 Known includes:
 
@@ -65,7 +66,7 @@ Known includes:
 - `axis_group_config`
 - `signal_mgmt_config`
 - `mqtt`
-- `gateway_wrapper`
+- `recipe_export`
 - `framework_ec`
 - `opcua` (auxiliary direct-transport reference; not part of the normal minimal moqui-plc request set)
 
@@ -97,7 +98,7 @@ python3 scripts/validate_transport_projection.py \
 Ready-made examples:
 
 - `references/seed-bundle-spec.mqtt-framework.example.json`
-- `references/seed-bundle-spec.opcua-gateway-wrapper.example.json`
+- `references/seed-bundle-spec.opcua-recipe-export.example.json`
 - `references/seed-bundle-spec.actuator-group.example.json`
 - `references/seed-bundle-spec.digital-sensor.example.json`
 - `references/seed-bundle-spec.analog-sensor.example.json`

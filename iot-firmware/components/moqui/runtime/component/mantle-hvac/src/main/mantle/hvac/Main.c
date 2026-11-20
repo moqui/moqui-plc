@@ -7,6 +7,8 @@
 static LoggerFacade              main_logger  = { .enable = true, .loggerName = MOQUI_APPLICATION_DEVICE_ID };
 static DeviceDiagnostics         s_diags      = { .operationType = OPERATING_MODE_RUN };
 static AirDistributionController s_airDistrib = {0};
+/* Previous status, so that the FSM state is logged on change only */
+static MainStatus                s_statusOld  = MAIN_STATUS_STANDBY;
 
 void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationType, bool enable, bool deviceConfigContextResetRequest, bool *done, bool *error) {
     if (!enable) return;
@@ -48,11 +50,19 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
         s_diags.operationType = operationType;
         DeviceDiagnostics_Update(&s_diags, dev);
 
-        LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Run FSM transition-condition logic.");
         MainRuleEngine_Update(dev, clks, operationType, error);
     }
 
-    if (operationType == OPERATING_MODE_INIT || dev->status != MAIN_STATUS_STANDBY) {
+    /*
+     * Preserve the originating phase while idling in Standby. A temporary thermal override of Drying
+     * (Drying -> Cooling/Heating) keeps Drying as the originating phase: MainRuleEngine returns to Drying
+     * from Cooling/Heating while lastStatus = Drying, so it must stay Drying for the whole override.
+     */
+    if (operationType == OPERATING_MODE_INIT) {
+        dev->lastStatus = dev->status;
+    } else if ((dev->status != MAIN_STATUS_STANDBY) &&
+               !((dev->lastStatus == MAIN_STATUS_DRYING) &&
+                 ((dev->status == MAIN_STATUS_COOLING) || (dev->status == MAIN_STATUS_HEATING)))) {
         dev->lastStatus = dev->status;
     }
 
@@ -60,10 +70,8 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
         dev->status = MAIN_STATUS_FAULT;
     }
 
-    LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Run Main FSM.");
     switch (dev->status) {
         case MAIN_STATUS_STANDBY:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Standby.");
             dev->standbyRequest = false;
 
             dev->coldGroupEnableRequest = false;
@@ -81,7 +89,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
 
         case MAIN_STATUS_VENTILATION:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Ventilation.");
             dev->ventilationRequest = false;
 
             dev->coldGroupEnableRequest = false;
@@ -99,7 +106,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
 
         case MAIN_STATUS_COOLING:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Cooling.");
             dev->coolingRequest = false;
 
             dev->coldGroupEnableRequest = true;
@@ -116,7 +122,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
 
         case MAIN_STATUS_HEATING:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Heating.");
             dev->heatingRequest = false;
 
             dev->coldGroupEnableRequest = false;
@@ -133,7 +138,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
 
         case MAIN_STATUS_DRYING:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Drying.");
             dev->dryingRequest = false;
 
             dev->coldGroupEnableRequest = true;
@@ -151,7 +155,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
 
         case MAIN_STATUS_FAULT:
-            LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Fault.");
             dev->faultRequest = false;
 
             *error = true;
@@ -171,6 +174,20 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
             break;
     }
 
+    /* Log the FSM state on change only: a message every scan would fill the log buffer. */
+    if (dev->status != s_statusOld) {
+        switch (dev->status) {
+            case MAIN_STATUS_STANDBY:     LOGGER_LOG(&main_logger, LOG_LEVEL_INFO, "Standby."); break;
+            case MAIN_STATUS_VENTILATION: LOGGER_LOG(&main_logger, LOG_LEVEL_INFO, "Ventilation."); break;
+            case MAIN_STATUS_COOLING:     LOGGER_LOG(&main_logger, LOG_LEVEL_INFO, "Cooling."); break;
+            case MAIN_STATUS_HEATING:     LOGGER_LOG(&main_logger, LOG_LEVEL_INFO, "Heating."); break;
+            case MAIN_STATUS_DRYING:      LOGGER_LOG(&main_logger, LOG_LEVEL_INFO, "Drying."); break;
+            case MAIN_STATUS_FAULT:       LOGGER_LOG(&main_logger, LOG_LEVEL_ERROR, "Fault."); break;
+            default: break;
+        }
+        s_statusOld = dev->status;
+    }
+
     s_airDistrib.operationType = operationType;
     s_airDistrib.enable        = dev->airFlowEnableRequest && dev->airDistributionEnabled;
     s_airDistrib.clock1s       = clks->clock1s;
@@ -178,7 +195,6 @@ void Main_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode operationT
 
     *done = dev->isCompleted;
 
-    LOGGER_LOG(&main_logger, LOG_LEVEL_DEBUG, "Update HVAC devices.");
     DeviceManager_Update(dev, clks, operationType);
 
     /* Coherent post-device-update parameter snapshot. */

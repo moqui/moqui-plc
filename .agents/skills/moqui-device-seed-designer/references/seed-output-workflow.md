@@ -48,7 +48,7 @@ Recommended reference split:
 - `device-group-seed-template.xml` for subsystem grouping through `DeviceGroup` and `DeviceGroupMember`
 - `framework-ec-seed-template.xml` for standard `moqui-plc` framework-facing parameters and requests
 - `mqtt-device-request-seed-template.xml` for the one standard live-parameter request
-- `gateway-wrapper-request-seed-template.xml` for the standard recipe export wrapper
+- `recipe-export-request-seed-template.xml` for the standard recipe export request (`FileServices`, `DrtConfigWrite`)
 - `device-config-template.xml` for the first reusable TEMPLATE configuration and its first application rule
 - `device-config-set-template.xml` for the first reusable TEMPLATE configuration set for a `DeviceGroup`
 - `actuator-device-config-template.xml` for the configurable subset of an `Actuator`

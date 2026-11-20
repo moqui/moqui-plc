@@ -47,11 +47,10 @@ void AirDistributionController_Update(AirDistributionController *ctrl,
             if ((dev->setPointTimeHigh > 0U) &&
                 (ctrl->cumulatedTimeHigh >= dev->setPointTimeHigh)) {
                 ctrl->cumulatedTimeHigh = 0U;
-                /* Make-Before-Break: close high, open low */
-                dev->highFlowDamperEnableRequest  = false;
-                dev->highFlowDamperDisableRequest = true;
+                /* Make-Before-Break: first enable the low damper; the high one is disabled in TransitionToLow */
                 dev->lowFlowDamperEnableRequest   = true;
                 dev->lowFlowDamperDisableRequest  = false;
+                ctrl->breakIssued                 = false;
                 LOGGER_LOG(&ctrl->logger, LOG_LEVEL_DEBUG, "Transition to low throw.");
                 ctrl->status = AIR_DIST_STATUS_TRANSITION_TO_LOW;
             }
@@ -60,7 +59,12 @@ void AirDistributionController_Update(AirDistributionController *ctrl,
         case AIR_DIST_STATUS_TRANSITION_TO_LOW:
             /* Wait for the Actuator FB to clear both request flags, confirming
              * the physical maneuver is complete (asynchronous handshake). */
-            if (!dev->highFlowDamperDisableRequest && !dev->lowFlowDamperEnableRequest) {
+            if (!ctrl->breakIssued && !dev->lowFlowDamperEnableRequest) {
+                /* Low damper enabled (make): now disable the high damper (break) */
+                dev->highFlowDamperEnableRequest  = false;
+                dev->highFlowDamperDisableRequest = true;
+                ctrl->breakIssued                 = true;
+            } else if (ctrl->breakIssued && !dev->highFlowDamperDisableRequest) {
                 LOGGER_LOG(&ctrl->logger, LOG_LEVEL_DEBUG, "Enter low throw phase.");
                 ctrl->status = AIR_DIST_STATUS_LOW_PHASE;
             }
@@ -73,18 +77,22 @@ void AirDistributionController_Update(AirDistributionController *ctrl,
             if ((dev->setPointTimeLow > 0U) &&
                 (ctrl->cumulatedTimeLow >= dev->setPointTimeLow)) {
                 ctrl->cumulatedTimeLow = 0U;
-                /* Make-Before-Break: close low, open high */
+                /* Make-Before-Break: first enable the high damper; the low one is disabled in TransitionToHigh */
                 dev->highFlowDamperEnableRequest  = true;
                 dev->highFlowDamperDisableRequest = false;
-                dev->lowFlowDamperEnableRequest   = false;
-                dev->lowFlowDamperDisableRequest  = true;
+                ctrl->breakIssued                 = false;
                 LOGGER_LOG(&ctrl->logger, LOG_LEVEL_DEBUG, "Transition to high throw.");
                 ctrl->status = AIR_DIST_STATUS_TRANSITION_TO_HIGH;
             }
             break;
 
         case AIR_DIST_STATUS_TRANSITION_TO_HIGH:
-            if (!dev->lowFlowDamperDisableRequest && !dev->highFlowDamperEnableRequest) {
+            if (!ctrl->breakIssued && !dev->highFlowDamperEnableRequest) {
+                /* High damper enabled (make): now disable the low damper (break) */
+                dev->lowFlowDamperEnableRequest   = false;
+                dev->lowFlowDamperDisableRequest  = true;
+                ctrl->breakIssued                 = true;
+            } else if (ctrl->breakIssued && !dev->lowFlowDamperDisableRequest) {
                 LOGGER_LOG(&ctrl->logger, LOG_LEVEL_DEBUG, "Enter high throw phase.");
                 ctrl->status = AIR_DIST_STATUS_HIGH_PHASE;
             }

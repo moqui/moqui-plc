@@ -1,20 +1,17 @@
+(*
+ * Current date and time in UTC, from the real-time clock.
+ * Log events carry UTC: the gateway reads a DT# date as UTC, and UTC has no repeated hour at the daylight
+ * saving change. Convert to local time only for display.
+ * Returns DT#1970-01-01-00:00:00 if the RTC cannot be read.
+ *)
 FUNCTION nowTimestamp : DATE_AND_TIME
 	VAR
-	    utcTimestamp: UDINT;
-	    localTimestamp: UDINT;
-	    result: SysTimeRtc.RTS_IEC_RESULT;
-		nowTimestampLocalString : STRING;
+	    utcTimestamp : UDINT;
+	    result : SysTimeRtc.RTS_IEC_RESULT;
 	END_VAR
 
-	(* Get current UTC time *)
+	(* Seconds since 1970-01-01 in UTC *)
 	utcTimestamp := SysTimeRtcGet(result);
-	(* Handle error (log it, return a default timestamp, etc.) *)
 	IF result <> 0 THEN RETURN; END_IF;
-	(* Convert UTC seconds to local time *)
-	result := SysTimeRtcConvertUtcToLocal(utcTimestamp, localTimestamp);
-	IF result <> 0 THEN RETURN; END_IF;
-	(* Convert local time to data and time format *)
-	nowTimestamp := TO_DT(localTimestamp);
-	(* Convert date and time format to a string *)
-	nowTimestampLocalString := TO_STRING(nowTimestamp);
+	nowTimestamp := TO_DT(utcTimestamp);
 	END_FUNCTION

@@ -17,7 +17,18 @@ from pathlib import Path
 
 
 PL4J_RUN_SERVICE = "moqui.plc4j.Plc4jServices.run#Plc4jRequest"
-GATEWAY_RUN_SERVICE = "moqui.device.DeviceGatewayServices.run#GatewayDeviceRequest"
+# moqui-device-gateway runs inside Moqui: each request names the protocol service of its endpoint.
+GATEWAY_SERVICE_PREFIX = "moqui.device.gateway."
+GATEWAY_RUN_SERVICES = {
+    "moqui.device.gateway.MqttServices.run#DeviceRequest": "mqtt",
+    "moqui.device.gateway.PlcLogServices.run#DeviceRequest": "mqtt",
+    "moqui.device.gateway.OpcUaServices.run#DeviceRequest": "opcua",
+    "moqui.device.gateway.ModbusServices.run#DeviceRequest": "modbus",
+    "moqui.device.gateway.FileServices.run#DeviceRequest": "file",
+}
+GATEWAY_ROUTERS = {"mqtt": "DrrMQTTBroker", "opcua": "DrrDirect", "modbus": "DrrDirect", "file": "DrrDirect"}
+REMOVED_GATEWAY_ROUTER = "DrrMoquiDeviceGateway"
+REMOVED_GATEWAY_SERVICES = "moqui.device.DeviceGatewayServices."
 
 
 def local_name(tag: str) -> str:
@@ -104,33 +115,35 @@ def validate_transport_projection(model: dict) -> dict[str, int]:
         run_service = request.get("runServiceName", "")
         connection_name = request.get("connectionName", "")
 
-        if router == "DrrMoquiDeviceGateway":
+        if router == REMOVED_GATEWAY_ROUTER or run_service.startswith(REMOVED_GATEWAY_SERVICES):
+            errors.append(
+                f"Request {request_name} uses the removed REST gateway proxy ({REMOVED_GATEWAY_ROUTER} or "
+                f"DeviceGatewayServices): name the protocol service of moqui-device-gateway in runServiceName instead."
+            )
+        elif run_service.startswith(GATEWAY_SERVICE_PREFIX):
             gateway_requests.append(request_name)
-            if run_service == GATEWAY_RUN_SERVICE:
-                if request.get("deviceId") not in gateway_ids:
-                    errors.append(
-                        f"Gateway dispatch wrapper {request_name} must target a DgmpEdgeGateway device."
-                    )
-                target_request_name = request.get("query", "")
-                if not target_request_name or target_request_name not in requests:
-                    errors.append(
-                        f"Gateway dispatch wrapper {request_name} query must reference an existing gateway-side DeviceRequest."
-                    )
-                if not request.get("brokerUri", ""):
-                    errors.append(f"Gateway dispatch wrapper {request_name} must define the gateway REST brokerUri.")
-            else:
-                if request.get("deviceId") not in process_plc_ids:
-                    errors.append(
-                        f"Gateway field request {request_name} targets deviceId {request.get('deviceId', '')} that is not modeled as DgmpProcessPLC."
-                    )
-                if not request.get("brokerUri", "") and not connection_name:
-                    errors.append(
-                        f"Gateway field request {request_name} must define MQTT brokerUri or OPC UA connectionName."
-                    )
-                if connection_name and connection_name not in connections:
-                    errors.append(
-                        f"Gateway field request {request_name} references missing DeviceConnection {connection_name}."
-                    )
+            protocol = GATEWAY_RUN_SERVICES.get(run_service)
+            broker_uri = request.get("brokerUri", "")
+            if protocol is None:
+                errors.append(f"Gateway request {request_name} names an unknown gateway service {run_service}.")
+            elif router != GATEWAY_ROUTERS[protocol]:
+                errors.append(
+                    f"Gateway request {request_name} ({protocol}) must use routerEnumId {GATEWAY_ROUTERS[protocol]}, found {router or '<empty>'}."
+                )
+            if request.get("deviceId") not in process_plc_ids:
+                errors.append(
+                    f"Gateway field request {request_name} targets deviceId {request.get('deviceId', '')} that is not modeled as DgmpProcessPLC."
+                )
+            if protocol == "mqtt" and not broker_uri.startswith(("mqtt://", "mqtts://", "paho-mqtt5:")):
+                errors.append(f"MQTT request {request_name} must define an mqtt:// or mqtts:// brokerUri.")
+            if protocol in ("opcua", "modbus") and not broker_uri and not connection_name:
+                errors.append(f"Gateway request {request_name} must define brokerUri or connectionName.")
+            if protocol == "file" and not broker_uri.startswith(("file:", "sftp://")):
+                errors.append(f"File request {request_name} must define a file: or sftp:// brokerUri.")
+            if connection_name and connection_name not in connections:
+                errors.append(
+                    f"Gateway field request {request_name} references missing DeviceConnection {connection_name}."
+                )
 
         if run_service == PL4J_RUN_SERVICE:
             plc4j_requests.append(request_name)
@@ -160,11 +173,7 @@ def validate_transport_projection(model: dict) -> dict[str, int]:
 
     if not gateway_requests and not plc4j_requests:
         errors.append(
-            "No transport projection found: define at least one gateway-routed request or one PLC4J runServiceName request."
-        )
-    if gateway_requests and not gateway_ids:
-        errors.append(
-            "Gateway-routed requests exist but no DeviceGroupMember with purposeEnumId DgmpEdgeGateway was found."
+            "No transport projection found: define at least one moqui-device-gateway request or one PLC4J runServiceName request."
         )
 
     if errors:

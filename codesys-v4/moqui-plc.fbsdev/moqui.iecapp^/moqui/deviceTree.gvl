@@ -1,0 +1,34 @@
+NAMESPACE deviceTree
+(* Device tree objects that CODESYS generates from the project's device
+ * configuration and that moqui-plc code references by name: the Ethernet
+ * adapter, the SoftMotion drives, kinematic groups and cam tables used by the
+ * test suites.
+ *
+ * Declarations only. A runtime that hosts moqui-plc creates these objects from
+ * its own I/O configuration (for example an EtherCAT master and its drives).
+ *)
+
+VAR_GLOBAL
+    (* AxisTestSuite *)
+    MasterDrive : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    SlaveDrive : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    TestCam : SM3_Basic.MC_CAM_REF;
+
+    (* AxisGroupTestSuite: six-joint arm *)
+    TestRobotArm : SM3_Robotics.AXIS_GROUP_REF_SM3;
+    j1 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    j2 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    j3 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    j4 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    j5 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    j6 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+
+    (* PickAndPlaceTestSuite: tripod robot, rotary table, conveyor belt *)
+    Tripod : SM3_Robotics.AXIS_GROUP_REF_SM3;
+    Tripod1 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    Tripod2 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    Tripod3 : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    DriveRotaryTable : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+    DriveConveyorBelt : SM3_Basic.AXIS_REF_VIRTUAL_SM3;
+END_VAR
+END_NAMESPACE

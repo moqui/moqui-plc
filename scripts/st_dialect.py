@@ -19,7 +19,10 @@ Rewrites, in order:
 5. RuSTy only: ``__ISVALIDREF(r)`` becomes ``(ADR(r) <> 0)`` (an unbound
    reference has address 0) and the CODESYS ``__UXINT_TO_<T>`` conversions
    become ``TO_<T>``.
-6. IronPLC only: nested comments are flattened and enumeration qualifiers are
+6. ``__XADD(p, v)`` becomes ``MOQUI_XADD(p, v)``: neither compiler has the
+   CODESYS atomic operators; rust-plc/interfaces/codesys-system/atomic.st
+   declares the function a runtime implements as an atomic fetch-add.
+7. IronPLC only: nested comments are flattened and enumeration qualifiers are
    dropped (``MainStatus.Idle`` -> ``Idle``), because IronPLC resolves
    enumeration values from context and rejects the qualified form inside
    statements. CONFIGURATION files get TASK lines before PROGRAM lines.
@@ -40,6 +43,7 @@ _UNION_RE = re.compile(r"(?<![A-Za-z0-9_])UNION(?![A-Za-z0-9_])")
 _ISVALIDREF_RE = re.compile(r"__ISVALIDREF\s*\(\s*([A-Za-z_][A-Za-z0-9_.\[\]]*)\s*\)", re.IGNORECASE)
 _UXINT_TO_RE = re.compile(r"(?<![A-Za-z0-9_])__UXINT_TO_(?=[A-Za-z])", re.IGNORECASE)
 _END_UNION_RE = re.compile(r"(?<![A-Za-z0-9_])END_UNION(?![A-Za-z0-9_])")
+_XADD_RE = re.compile(r"(?<![A-Za-z0-9_])__XADD(?=\s*\()", re.IGNORECASE)
 
 
 def code_only(text: str) -> str:
@@ -162,6 +166,7 @@ class DialectRewriter:
             text = _sub_code(text, self._gvl_re, "", counts, "global variable list qualifiers dropped")
         text = _sub_code(text, _END_UNION_RE, "END_STRUCT", counts, "UNION declared as STRUCT")
         text = _sub_code(text, _UNION_RE, "STRUCT", counts, "UNION declared as STRUCT")
+        text = _sub_code(text, _XADD_RE, "MOQUI_XADD", counts, "__XADD written as MOQUI_XADD")
         if self.target == "rusty":
             text = _sub_code(text, _ISVALIDREF_RE, r"(ADR(\1) <> 0)", counts, "__ISVALIDREF written as ADR(...) <> 0")
             text = _sub_code(text, _UXINT_TO_RE, "TO_", counts, "__UXINT_TO_ conversions written as TO_")

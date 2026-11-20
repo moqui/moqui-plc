@@ -9,11 +9,13 @@ void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode o
     dev->coldGlycolPump.disableRequest = &dev->coldGroupDisableRequest;
     Actuator_Update(&dev->coldGlycolPump);
 
-    /* VAR_IN_OUT requests are consumed by Actuator; the valve follows the
-     * persistent pump command rather than the transient acknowledgment bit. */
+    /* VAR_IN_OUT requests are consumed by Actuator; the valve follows the stable
+     * Enabled state of its pump, not the transient request or the enable output. */
     dev->coldGlycolValve.feedback    = dev->tempFeedback;
     dev->coldGlycolValve.setpoint    = dev->tempSetpoint;
-    dev->coldGlycolValve.enable      = dev->coldGlycolPump.enable;
+    dev->coldGlycolValve.enable      = dev->coldGlycolPump.isEnabled;
+    /* Reverse acting: cooling opens the valve when the temperature is above the setpoint */
+    dev->coldGlycolValve.deviationInversion = true;
     dev->coldGlycolValve.reset       = false;
     dev->coldGlycolValve.clock       = clks->clock100ms;
     /* This application samples the PID every clock100ms pulse. */
@@ -29,7 +31,7 @@ void DeviceManager_Update(DeviceFacade *dev, const Clocks *clks, OperatingMode o
 
     dev->hotGlycolValve.feedback    = dev->tempFeedback;
     dev->hotGlycolValve.setpoint    = dev->tempSetpoint;
-    dev->hotGlycolValve.enable      = dev->hotGlycolPump.enable;
+    dev->hotGlycolValve.enable      = dev->hotGlycolPump.isEnabled;
     dev->hotGlycolValve.reset       = false;
     dev->hotGlycolValve.clock       = clks->clock100ms;
     dev->hotGlycolValve.tickTimeMs  = 100U;

@@ -1,14 +1,15 @@
 USING Siemens.Simatic.S71500.Clocks;
 
+(*
+ * Current date and time in UTC, from the system clock of the CPU.
+ * Log events carry UTC: the gateway reads a date as UTC, and UTC has no repeated hour at the daylight
+ * saving change. Convert to local time only for display.
+ *)
 FUNCTION nowTimestamp : DATE_AND_TIME
 	VAR
-		localDateTime : LDATE_AND_TIME;
-		execResult : WORD;
+		systemDateTime : LDATE_AND_TIME;
 	END_VAR
 
-	nowTimestamp := DT#1970-01-01-00:00:00;
-	execResult := GetLocalDateTime(value => localDateTime);
-	IF (execResult = WORD#16#0000) OR (execResult = WORD#16#0001) THEN
-		nowTimestamp := TO_DT(localDateTime);
-	END_IF;
+	GetSystemDateTime(value => systemDateTime);
+	nowTimestamp := TO_DT(systemDateTime);
 	END_FUNCTION

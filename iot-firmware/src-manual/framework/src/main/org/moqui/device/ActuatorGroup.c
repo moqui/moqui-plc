@@ -38,7 +38,8 @@ void ActuatorGroup_Update(ActuatorGroup *grp, bool clockPulse) {
         if (!grp->actuatorFault[i] && !grp->actuatorInterlocked[i]) {
             grp->availableNum++;
         }
-        if (grp->actuatorEnabled[i]) {
+        /* A faulted actuator does not count as running, even if Actuator still holds its enable output */
+        if (grp->actuatorEnabled[i] && !grp->actuatorFault[i]) {
             grp->runningNum++;
         }
     }
@@ -98,6 +99,13 @@ void ActuatorGroup_Update(ActuatorGroup *grp, bool clockPulse) {
                 grp->internalStatus = ACTUATOR_GROUP_STATUS_STOPPING;
                 LOGGER_LOG(&grp->logger, LOG_LEVEL_DEBUG, "Actuator group stopping.");
             } else {
+                /* Stop a faulted actuator that is still enabled: the replacement below takes its place */
+                for (uint16_t i = 1; i <= grp->actuatorNum; i++) {
+                    if (grp->actuatorEnabled[i] && grp->actuatorFault[i] && !grp->disableRequests[i]) {
+                        grp->disableRequests[i] = true;
+                    }
+                }
+
                 if (grp->runningNum < grp->minRunning) {
                     for (uint16_t i = 1; i <= grp->actuatorNum; i++) {
                         uint16_t idx = grp->sortedIdx[i];

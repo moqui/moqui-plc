@@ -1,3 +1,5 @@
+USING System.Strings;
+
 (* Signal supervisor *)
 FUNCTION_BLOCK SignalMgmt
 VAR_EXTERNAL CONSTANT
@@ -33,6 +35,7 @@ VAR_OUTPUT
 	(* Reset availability indicators (updated each cycle in Prepare+Process, for operator feedback) *)
 	resetEnable : BOOL; (* TRUE if at least one active signal has cause gone and requires manual reset *)
 	auxResetEnable : BOOL; (* TRUE if at least one active signal has cause gone and accepts aux reset *)
+	(* Invalid signal code or missing loggerName; kept until the next Reset *)
 	error : BOOL := FALSE;
 END_VAR
 VAR
@@ -49,6 +52,8 @@ VAR
 	selectiveResetActivation : BOOL;
 	requiresManualReset : BOOL;
 	clearIndex : UINT;
+	(* Cumulative output of the previous cycle, so that it is logged on change only *)
+	cumulativeOutputActionOld : DWORD := DWORD#16#0000;
 END_VAR
 
 (* Logger facade init *)
@@ -61,11 +66,11 @@ IF loggerName = '' THEN
 	RETURN;
 END_IF;
 
-error := FALSE;
-
 CASE operationType OF
 	SignalMgmtOperatingMode#Reset :
 		logger(message := 'Signal management reset.', level := LogLevel#Debug);
+		error := FALSE;
+		cumulativeOutputActionOld := DWORD#16#0000;
 		clearIndex := UINT#1;
 		WHILE clearIndex <= SIGNAL_LIST_MAX_SIZE DO
 			signalList[clearIndex] := FALSE;
@@ -80,6 +85,11 @@ CASE operationType OF
 		auxResetEnable := FALSE;
 
 	SignalMgmtOperatingMode#Prepare :
+		(* The previous cycle is complete: log its cumulative output if it changed *)
+		IF cumulativeOutputAction <> cumulativeOutputActionOld THEN
+			logger(message := Concat('Signal cumulative output: ', ToString(cumulativeOutputAction)), level := LogLevel#Info);
+			cumulativeOutputActionOld := cumulativeOutputAction;
+		END_IF;
 		(* Detection of reset edges valid for the entire cycle *)
 		resetActivation := reset AND NOT resetOld;
 		resetOld := reset;
@@ -96,6 +106,7 @@ CASE operationType OF
 	SignalMgmtOperatingMode#Process :
 		(* Bounds check *)
 		IF (code < 1) OR (TO_UINT(code) > SIGNAL_LIST_MAX_SIZE) THEN
+			IF NOT error THEN logger(message := Concat('Invalid signal code: ', ToString(code)), level := LogLevel#Error); END_IF;
 			error := TRUE;
 			RETURN;
 		END_IF;
@@ -152,7 +163,7 @@ CASE operationType OF
 			END_IF;
 
 			IF NOT signalList[code] THEN
-				logger(message := 'Signal reset.');
+				logger(message := 'Signal reset.', level := LogLevel#Info);
 			END_IF;
 		END_IF;
 

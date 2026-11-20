@@ -137,11 +137,10 @@ void Actuator_Update(Actuator *self)
     }
     if (self->operationType != OPERATING_MODE_RUN) { return; }
 
-    if (self->notInitialized) {
+    if (self->notInitialized && !self->notInitializedOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Actuator not initialized.");
     }
-
-    LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Running actuator.");
+    self->notInitializedOld = self->notInitialized;
 
     /* Clock handler for diagnosis-oriented timing */
     if (self->clock && (self->timer > 0U)) {
@@ -160,7 +159,6 @@ void Actuator_Update(Actuator *self)
     /* Generic actuator FSM */
     switch (self->status) {
         case ACTUATOR_STATUS_DISABLED:
-            LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator disabled.");
             if (self->disableRequest != NULL) { *self->disableRequest = false; }
 
             if (reqEnable) {
@@ -173,8 +171,6 @@ void Actuator_Update(Actuator *self)
             break;
 
         case ACTUATOR_STATUS_ENABLE_PHASE:
-            LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator in the enabling phase.");
-
             /* Admissible transition: EnablePhase -> DisablePhase */
             if (reqDisable) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG,
@@ -194,7 +190,6 @@ void Actuator_Update(Actuator *self)
             break;
 
         case ACTUATOR_STATUS_ENABLED:
-            LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator enabled.");
             if (self->enableRequest != NULL) { *self->enableRequest = false; }
 
             if (reqDisable) {
@@ -207,8 +202,6 @@ void Actuator_Update(Actuator *self)
             break;
 
         case ACTUATOR_STATUS_DISABLE_PHASE:
-            LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator in the disabling phase.");
-
             /* Admissible transition: DisablePhase -> EnablePhase */
             if (reqEnable) {
                 LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG,
@@ -233,6 +226,29 @@ void Actuator_Update(Actuator *self)
             break;
     }
 
+    /* Log the state on change only: a message every scan would fill the log buffer. */
+    if (self->status != self->statusOld) {
+        switch (self->status) {
+            case ACTUATOR_STATUS_DISABLED:
+                LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator disabled.");
+                break;
+            case ACTUATOR_STATUS_ENABLE_PHASE:
+                LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator in the enabling phase.");
+                break;
+            case ACTUATOR_STATUS_ENABLED:
+                LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator enabled.");
+                break;
+            case ACTUATOR_STATUS_DISABLE_PHASE:
+                LOGGER_LOG(&self->logger, LOG_LEVEL_DEBUG, "Actuator in the disabling phase.");
+                break;
+            default:
+                break;
+        }
+        self->statusOld = self->status;
+    }
+    self->isEnabled  = (self->status == ACTUATOR_STATUS_ENABLED);
+    self->isDisabled = (self->status == ACTUATOR_STATUS_DISABLED);
+
     /* -----------------------------------------------------------------------
      * Diagnostics handler.
      * Detectable faults under dynamic and static conditions.
@@ -252,22 +268,31 @@ void Actuator_Update(Actuator *self)
     self->fault = self->disabledSensorFault || self->enabledSensorFault ||
                   self->actuatorFault       || self->externalFault;
 
-    if (self->fault) {
+    /* Log faults on their rising edge, and the end of a fault condition */
+    if (self->fault && !self->faultOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Fault diagnostics:");
     }
-    if (self->disabledSensorFault) {
+    if (self->disabledSensorFault && !self->disabledSensorFaultOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Disabled sensor fault.");
     }
-    if (self->enabledSensorFault) {
+    if (self->enabledSensorFault && !self->enabledSensorFaultOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Enabled sensor fault.");
     }
-    if (self->actuatorFault) {
+    if (self->actuatorFault && !self->actuatorFaultOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Actuator fault.");
     }
-    if (self->externalFault) {
+    if (self->externalFault && !self->externalFaultOld) {
         LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR,
                    "External fault (e.g: Motor branch-circuit protection).");
     }
+    if (self->faultOld && !self->fault) {
+        LOGGER_LOG(&self->logger, LOG_LEVEL_INFO, "Fault cleared.");
+    }
+    self->faultOld               = self->fault;
+    self->disabledSensorFaultOld = self->disabledSensorFault;
+    self->enabledSensorFaultOld  = self->enabledSensorFault;
+    self->actuatorFaultOld       = self->actuatorFault;
+    self->externalFaultOld       = self->externalFault;
 
     /* -----------------------------------------------------------------------
      * Post-elaboration for actuation polymorphism.

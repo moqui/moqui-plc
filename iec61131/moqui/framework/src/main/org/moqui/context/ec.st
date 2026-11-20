@@ -20,7 +20,13 @@ VAR_GLOBAL
 	
     (* Array of reference to local logs used by the log appender *)
     logSourceList : ARRAY[1..LOG_SOURCE_LIST_MAX_SIZE] OF LogSource;
-    logSourceListSize : UINT := 0;
+    (* Registered LoggerFacade buffers; incremented atomically, may exceed LOG_SOURCE_LIST_MAX_SIZE when the list is full *)
+    logSourceListSize : DINT := 0;
+    (*
+     * Lowest level written by every LoggerFacade (Trace, Debug, Info, Warn, Error, Fatal; All = Trace; Off = none).
+     * Debug keeps the FSM and device events of the demo; Info is advisable in production.
+     *)
+    logMinLevel : LogLevel := LogLevel.Debug;
 
 	(* Facade for managing devices and logical parameters. *)
 	dev : DeviceFacade;
@@ -31,14 +37,14 @@ VAR_GLOBAL
 	(* Optional: Moqui WorkEffort entity used for tracking information related to the execution of a production run. *)
 	workEffort : WorkEffort;
 
-	(* MQTT pub/sub commands *)
+	(* MQTT pub/sub commands: MqttCommunication is the only caller of connectionFactory *)
 	connectionFactory : MqttConnectionFactory;
 	logAppenderEnable : BOOL := TRUE;
 	paramsPubEnable : BOOL := FALSE;
 	paramsSubEnable : BOOL := TRUE;
 
-	(* Motion override — written by Moqui via liveParamsSub *)
+	(* Motion override - written by Moqui via liveParamsSub *)
 	trjDynamicSlowdownEnable : BOOL := FALSE;
-	trjDynamicSlowdownFactor : LREAL := 1.0;
+	trjDynamicSlowdownFactor : REAL := 1.0;
 	abortCurrentTrajectory : BOOL := FALSE;
 END_VAR

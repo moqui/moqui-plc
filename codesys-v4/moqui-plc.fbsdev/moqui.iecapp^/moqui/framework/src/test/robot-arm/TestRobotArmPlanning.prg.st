@@ -1,0 +1,7 @@
+PROGRAM TestRobotArmPlanning
+
+	;
+	(* The planning task must have a cycle that is exactly N×T_bus with N integers.
+	 * If the values ​​do not meet this constraint, CODESYS calculates an inconsistent CP configuration and each MC_MoveLinearAbsolute fails.
+	 *)
+	END_PROGRAM

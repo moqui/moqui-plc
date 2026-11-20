@@ -110,8 +110,6 @@ Optional but strongly recommended when the application also uses
 - `gatewayName`
 - optional `gatewayDeviceTypeEnumId`
 - optional `gatewayMemberPurposeEnumId`
-- `restBaseUri` used by Moqui to invoke the standalone gateway
-- positive `restTimeoutSeconds`
 - `scopedSubsystemIds`
 - optional `scopedDeviceIds`
 - optional notes
@@ -151,7 +149,7 @@ Required before declaring the seed complete:
   - owning `gatewayDeviceId`
   - protocol: `mqtt` or `opcua`
   - explicitly scoped sampling-domain IDs
-  - MQTT Camel base `brokerUri`, or OPC UA connection/driver/transport fields
+  - MQTT base `brokerUri` (`paho-mqtt5:` syntax shared by the Java and Rust gateways), or OPC UA connection/driver/transport fields
   - optional ownership and topic of the single PLC-log and live-parameter MQTT channels
 
 The MQTT base URI must leave the topic portion empty so the gateway can append

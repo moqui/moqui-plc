@@ -517,7 +517,7 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             }
             break;
 
-        /* pass[25]: HighPhase->TransitionToLow after setPointTimeHigh clock1s ticks */
+        /* pass[25]: HighPhase->TransitionToLow after setPointTimeHigh clock1s ticks: make first (low enabled, high not yet disabled) */
         case 25:
             suite->dev.status                = MAIN_STATUS_DRYING;
             suite->dev.tempFeedback          = T_NORMAL;
@@ -525,7 +525,7 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->clks.clock1s              = true;
             run(suite, OPERATING_MODE_RUN, true);
             suite->clks.clock1s              = false;
-            if (suite->dev.lowFlowDamperEnableRequest && suite->dev.highFlowDamperDisableRequest) {
+            if (suite->dev.lowFlowDamperEnableRequest && !suite->dev.highFlowDamperDisableRequest) {
                 suite->pass[25] = true;
                 suite->cycles   = 0U;
                 suite->step     = 26U;
@@ -533,7 +533,7 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             }
             break;
 
-        /* pass[26]: TransitionToLow->LowPhase after damper handshake (clock100ms) */
+        /* pass[26]: TransitionToLow->LowPhase after both damper handshakes (clock100ms): low enabled, then high disabled */
         case 26:
             suite->dev.status                = MAIN_STATUS_DRYING;
             suite->dev.tempFeedback          = T_NORMAL;
@@ -542,7 +542,8 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->clks.clock1s              = false;
             run(suite, OPERATING_MODE_RUN, true);
             suite->clks.clock100ms           = false;
-            if (!suite->dev.lowFlowDamperEnableRequest && !suite->dev.highFlowDamperDisableRequest) {
+            if (!suite->dev.lowFlowDamperEnableRequest && !suite->dev.highFlowDamperDisableRequest &&
+                suite->dev.lowFlowDamper.isEnabled && suite->dev.highFlowDamper.isDisabled) {
                 suite->pass[26] = true;
                 suite->cycles   = 0U;
                 suite->step     = 27U;
@@ -558,7 +559,7 @@ void HvacTestSuite_Update(HvacTestSuite *suite)
             suite->clks.clock1s              = true;
             run(suite, OPERATING_MODE_RUN, true);
             suite->clks.clock1s              = false;
-            if (suite->dev.highFlowDamperEnableRequest && suite->dev.lowFlowDamperDisableRequest) {
+            if (suite->dev.highFlowDamperEnableRequest && !suite->dev.lowFlowDamperDisableRequest) {
                 suite->pass[27] = true;
                 suite->dev.airDistributionEnabled = false;
                 run(suite, OPERATING_MODE_INIT, true);

@@ -47,21 +47,22 @@ void MqttClient_Init(const char *brokerUri) {
 
 /* ------------------------------------------------------------------ */
 
-static void enqueue_msg(const char *topic, const char *payload, int qos) {
+static bool enqueue_msg(const char *topic, const char *payload, int qos) {
     MqttPubMsg msg;
-    if (!s_pub_queue || !topic || !payload) { return; }
+    if (!s_pub_queue || !topic || !payload) { return false; }
     strncpy(msg.topic,   topic,   sizeof(msg.topic)   - 1U);
     msg.topic[sizeof(msg.topic) - 1U] = '\0';
     strncpy(msg.payload, payload, sizeof(msg.payload) - 1U);
     msg.payload[sizeof(msg.payload) - 1U] = '\0';
     if (strlen(topic) >= sizeof(msg.topic) || strlen(payload) >= sizeof(msg.payload)) {
         atomic_fetch_add(&s_dropped, 1U);
-        return;
+        return false;
     }
     msg.qos = qos;
     msg.attempts = 0U;
     /* Non-blocking: drop if full (high-priority control task must not stall). */
-    if (xQueueSend(s_pub_queue, &msg, 0U) != pdTRUE) { atomic_fetch_add(&s_dropped, 1U); }
+    if (xQueueSend(s_pub_queue, &msg, 0U) != pdTRUE) { atomic_fetch_add(&s_dropped, 1U); return false; }
+    return true;
 }
 
 void MqttClient_PublishActuatorState(const Actuator *actuator) {
@@ -74,17 +75,17 @@ void MqttClient_PublishActuatorState(const Actuator *actuator) {
              (int)actuator->status,
              actuator->enable ? "true" : "false",
              actuator->fault  ? "true" : "false");
-    enqueue_msg(s_actuator_topic, buf, 1);
+    (void)enqueue_msg(s_actuator_topic, buf, 1);
 }
 
 void MqttClient_PublishDeviceStatus(const char *json) {
     if (!json) { return; }
-    enqueue_msg(s_status_topic, json, 0);
+    (void)enqueue_msg(s_status_topic, json, 0);
 }
 
-void MqttClient_PublishLog(const char *json) {
-    if (!json) { return; }
-    enqueue_msg(s_log_topic, json, 0);
+bool MqttClient_PublishLog(const char *json) {
+    if (!json) { return false; }
+    return enqueue_msg(s_log_topic, json, LOG_PUB_QOS);
 }
 
 /* ------------------------------------------------------------------ */

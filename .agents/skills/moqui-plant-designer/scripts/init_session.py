@@ -188,8 +188,6 @@ gateways:
     gateway_name: ""
     gateway_device_type_enum_id: "DtEdgeGateway"
     gateway_member_purpose_enum_id: "DgmpEdgeGateway"
-    rest_base_uri: ""
-    rest_timeout_seconds: 30
     scoped_subsystem_ids: []
     scoped_device_ids: []
     notes: ""

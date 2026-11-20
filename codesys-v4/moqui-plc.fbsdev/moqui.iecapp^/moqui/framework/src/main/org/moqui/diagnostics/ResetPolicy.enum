@@ -1,0 +1,9 @@
+(* Reset policy bitfields *)
+TYPE ResetPolicy : (
+	AuxReset := 512,
+	UnconditionedReset := 16384,
+	AutoConditionedReset := 8192,
+	AutoProvisionalReset := 4096,
+	AutoPriorityReset := 2048,
+	AutoReset := 1024
+); END_TYPE
