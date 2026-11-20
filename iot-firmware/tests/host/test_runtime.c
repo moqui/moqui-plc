@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "ClockGeneration.h"
+#include "platform.h"
 #include "MoquiStart.h"
 #include "HvacTestSuite.h"
 #include "HvacDeviceConfigOps.h"
@@ -167,9 +168,27 @@ static void test_logs(void) {
     assert(discard[2].level==LOG_LEVEL_ERROR && discard[1].sequence+1==discard[2].sequence);
     LoggerFacade_ReleaseBuffer(count);
 
-    /* A full ring refuses new records instead of overwriting unpublished ones. */
-    uint32_t dropped=LoggerFacade_DroppedCount();
+    /* Rate limit: a facade stores at most LOG_MAX_EVENTS_PER_WINDOW new events in one window, then reports once. */
+    LoggerFacade chatty={.enable=true,.loggerName="HVAC_RATE_TEST"};
     char text[32];
+    for (unsigned i=0;i<LOG_MAX_EVENTS_PER_WINDOW+10U;i++) {
+        snprintf(text,sizeof(text),i%2U ? "even %u" : "odd %u",i); LoggerFacade_Log(&chatty,LOG_LEVEL_INFO,text);
+    }
+    assert(chatty.rateLimited && chatty.windowSuppressed==10U);
+    total=0;
+    do { LoggerFacade_PeekBuffer(discard,10,&count); LoggerFacade_ReleaseBuffer(count); total+=count; } while (count);
+    assert(total==LOG_MAX_EVENTS_PER_WINDOW);
+    for (unsigned i=0;i<(LOG_SUPPRESS_DURATION_MS/10U);i++) { (void)pal_time_us(); }
+    LoggerFacade_Log(&chatty,LOG_LEVEL_INFO,"after the window");
+    LoggerFacade_PeekBuffer(discard,10,&count); assert(count==2 && !chatty.rateLimited);
+    assert(discard[0].level==LOG_LEVEL_WARN && discard[0].marker==LOG_MARKER_HEALTH && discard[0].source[0]=='\0');
+    assert(strcmp(discard[0].payload.message,"10 log events suppressed: logger too verbose")==0);
+    assert(strcmp(discard[1].payload.message,"after the window")==0);
+    LoggerFacade_ReleaseBuffer(count);
+
+    /* A full ring refuses new records instead of overwriting unpublished ones (rate limit off for this logger). */
+    logger.rateLimitDisabled=true;
+    uint32_t dropped=LoggerFacade_DroppedCount();
     for (unsigned i=0;i<LOG_MAX_SIZE+5U;i++) { snprintf(text,sizeof(text),"fill %u",i); LoggerFacade_Log(&logger,LOG_LEVEL_INFO,text); }
     assert(LoggerFacade_DroppedCount()==dropped+5U);
     LoggerFacade_PeekBuffer(discard,1,&count); assert(count==1 && strcmp(discard[0].payload.message,"fill 0")==0);

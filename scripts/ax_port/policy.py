@@ -76,6 +76,8 @@ MOTION_MANUAL_OVERRIDE_STEMS = PROCESS_MANUAL_OVERRIDE_STEMS | frozenset({
     Path("framework/src/main/org/moqui/motion/AxisGroupCompat"),
     Path("framework/src/main/org/moqui/motion/AxisInternalStatus"),
     Path("framework/src/main/org/moqui/motion/AxisGroupInternalStatus"),
+    # AX SMC_POS_REF is a flat struct, not the CODESYS union with the Cartesian view c.
+    Path("framework/src/main/org/moqui/motion/posRefEqual"),
     # AX SIMATIC does not allow non-literal array bounds in TYPE definitions.
     # The manual version hardcodes the literal (keep in sync with TRAJECTORY_POINT_LIST_MAX_SIZE).
     Path("framework/src/main/org/moqui/motion/Trajectory"),

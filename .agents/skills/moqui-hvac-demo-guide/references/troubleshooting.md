@@ -47,7 +47,9 @@ Load this reference only after a checkpoint fails. Use the root
   `connectionFactory.connected`.
 - Check `LogDispatcher.errorId` and, in `ec.logSourceList`, the
   `publishedCount`/`discardedCount` of the sources; "N log events dropped"
-  records mean a buffer was full (raise `logMinLevel` or `LOG_MAX_SIZE`).
+  records mean a buffer was full (raise `logMinLevel` or `LOG_MAX_SIZE`);
+  "N log events suppressed: logger too verbose" records name a block that
+  writes a message at every cycle.
 - Check `clks.clock1minute` and the `ParameterLogger` call after
   `DeviceManager`.
 - Distinguish device events from parameter events using the `source` contract.

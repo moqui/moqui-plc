@@ -14,6 +14,8 @@ typedef struct {
     LoggerFacade logger;
     RemoteIoModuleDiagnostics diagnoseIoModule;
     bool init;
+    /* Previous error, so that the network state is logged on change only */
+    bool errorOld;
 
 } NetworkDiagnostics;
 

@@ -13,6 +13,8 @@ VAR CONSTANT
 END_VAR
 VAR
     logger : LoggerFacade;
+    (* Previous status, so that the FSM state is logged on change only *)
+    statusOld : ${SUBSYSTEM_STATUS_TYPE} := ${SUBSYSTEM_STATUS_TYPE}.${SUBSYSTEM_INITIAL_STATUS};
 END_VAR
 
 logger.enable := TRUE; logger.loggerName := componentName;
@@ -30,4 +32,7 @@ ${SUBSYSTEM_PREDICATE_ASSIGNMENTS}
 CASE dev.${SUBSYSTEM_STATUS_FIELD} OF
 ${SUBSYSTEM_CASE_BLOCKS}
 END_CASE;
+
+(* Log the FSM state on change only: a message every scan would fill the log buffer. *)
+${SUBSYSTEM_STATE_LOG}
 END_FUNCTION_BLOCK

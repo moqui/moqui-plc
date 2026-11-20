@@ -25,7 +25,7 @@ VAR_GLOBAL
     logSourceListSize : DINT := 0;
     (*
      * Lowest level written by every LoggerFacade (Trace, Debug, Info, Warn, Error, Fatal; All = Trace; Off = none).
-     * Debug keeps the per-cycle FSM and device messages of the demo; Info is advisable in production.
+     * Debug keeps the FSM and device events of the demo; Info is advisable in production.
      *)
     logMinLevel : LogLevel := LogLevel.Debug;
 
@@ -44,9 +44,9 @@ VAR_GLOBAL
 	paramsPubEnable : BOOL := FALSE;
 	paramsSubEnable : BOOL := TRUE;
 
-	(* Motion override — written by Moqui via liveParamsSub *)
+	(* Motion override - written by Moqui via liveParamsSub *)
 	trjDynamicSlowdownEnable : BOOL := FALSE;
-	trjDynamicSlowdownFactor : LREAL := 1.0;
+	trjDynamicSlowdownFactor : REAL := 1.0;
 	abortCurrentTrajectory : BOOL := FALSE;
 END_VAR
 END_NAMESPACE

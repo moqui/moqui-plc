@@ -55,7 +55,12 @@ canonical logging design:
   records not yet released;
 - events below the global `logMinLevel` (default `Debug`) are ignored, and an
   event equal to the previous one within `defaultLogSuppressDuration` (10 s) is
-  written once more as a summary with `repeatCount` = repetitions.
+  written once more as a summary with `repeatCount` = repetitions;
+- a facade stores at most `defaultLogMaxEventsPerWindow` (20) new events in one
+  window and then reports "N log events suppressed" once (`ParameterLogger`
+  sets `maxEventsPerWindow := UINT#0`);
+- `logEventDate` is UTC: `nowTimestamp` reads `GetSystemDateTime`, not the local
+  time; the AX `logEventId` is `loggerName-<event sequence>`.
 
 The S7-1500 runs the user program on one core, so the counters need no atomic
 operation (the CODESYS source uses `__XADD` for multicore targets). Without a
@@ -235,6 +240,16 @@ Run the Python checks with:
 apax test-port-scripts
 apax audit-fidelity
 ```
+
+### Building on a workstation
+
+`apax-lock.json` pins the catalog `@ax/simatic-ax` 2510.14.0. When the registry
+no longer serves that catalog, `apax install` fails with "Neither package.json
+nor apax.yml found ...2510.14.0": install and build in a copy of the workspace
+without the lock (do not commit the regenerated lock). The STC compiler of the
+current catalogs (11.6 and later) runs on .NET 10; with only .NET 8 installed,
+`apax build` stops with "app-launch-failed": install the .NET 10 runtime, or point
+`DOTNET_ROOT` to an extracted one for the build.
 
 ## Expected validation sequence
 

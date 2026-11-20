@@ -21,6 +21,7 @@ Key constants:
 - `defaultLogLevel`
 - `defaultLogSuppressDuration` (window of the repetition summary; `T#0S` disables it)
 - `defaultLogSuppressDuplicates`
+- `defaultLogMaxEventsPerWindow` (rate limit: new events of one LoggerFacade per window, 20; `0` disables it; a facade with a bounded burst, such as `ParameterLogger`, sets `maxEventsPerWindow := 0`)
 - `LOG_SOURCE_LIST_MAX_SIZE`
 - `LOG_JSON_PAYLOAD_MAX_SIZE`
 - `JSON_PAYLOAD_MAX_SIZE`

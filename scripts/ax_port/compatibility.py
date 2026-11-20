@@ -24,13 +24,13 @@ SIGNAL_OUTPUT_ACTION_REPLACEMENTS = {
     "SignalOutputAction#None": "DWORD#16#0000",
     "SignalOutputAction#EmergencyStop": "DWORD#16#0001",
     "SignalOutputAction#ImmediateStop": "DWORD#16#0002",
-    "SignalOutputAction#OnPhaseStop": "DWORD#16#0003",
-    "SignalOutputAction#Inhibition": "DWORD#16#0004",
+    "SignalOutputAction#OnPhaseStop": "DWORD#16#0004",
+    "SignalOutputAction#Inhibition": "DWORD#16#0008",
     "SignalOutputAction.None": "DWORD#16#0000",
     "SignalOutputAction.EmergencyStop": "DWORD#16#0001",
     "SignalOutputAction.ImmediateStop": "DWORD#16#0002",
-    "SignalOutputAction.OnPhaseStop": "DWORD#16#0003",
-    "SignalOutputAction.Inhibition": "DWORD#16#0004",
+    "SignalOutputAction.OnPhaseStop": "DWORD#16#0004",
+    "SignalOutputAction.Inhibition": "DWORD#16#0008",
 }
 
 
@@ -64,6 +64,13 @@ def apply_file_compatibility(relative: Path, text: str) -> CompatibilityResult:
         if changed:
             result.text = result.text.replace(source, target)
         _record(result, "main_add_ax_clock_facade", changed)
+
+    if relative.as_posix() == "runtime/component/mantle-hvac/src/main/mantle/hvac/ParameterLogger.st":
+        source = "logger.maxEventsPerWindow := 0;"
+        changed = source in result.text
+        if changed:
+            result.text = result.text.replace(source, "logger.maxEventsPerWindow := UINT#0;")
+        _record(result, "parameter_logger_typed_rate_limit", changed)
 
     result.text, count = WORKEFFORT_DECL_RE.subn("", result.text)
     _record(result, "remove_unavailable_work_effort", count > 0)

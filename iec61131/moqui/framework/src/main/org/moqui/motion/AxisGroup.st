@@ -122,6 +122,7 @@ VAR
      * Consumed by the unconditional PLCopen FB calls at the bottom.
      *)
     groupEnableExecute : BOOL;
+    groupDisableExecute : BOOL;
     groupResetExecute : BOOL;
     moveLinearAbsoluteExecute : BOOL;
     moveLinearRelativeExecute : BOOL;
@@ -139,6 +140,7 @@ VAR
 
     (* PLCopen Part 4 group management *)
     enableGroup : MC_GroupEnable;
+    disableGroup : MC_GroupDisable;
     resetGroup : MC_GroupReset;
     readGroupStatus : MC_GroupReadStatus;
     readGroupError : MC_GroupReadError;
@@ -177,7 +179,6 @@ IF NOT init THEN
 	init := TRUE;
 END_IF;
 
-logger(message := 'Running axis group.', level := LogLevel.DEBUG);
 
 (* Reset edge detection *)
 resetActivation := reset AND NOT resetOld;
@@ -203,7 +204,7 @@ IF internalStatus <> AxisGroupInternalStatus.Error AND
         commandAborted := TRUE;
         cmdError := TRUE;
         cmdErrorId := readGroupError.GroupErrorID;
-		logger(message := 'Axis gruop error.', level := LogLevel.DEBUG);
+		logger(message := CONCAT('Axis group error. Group error code: ', DWORD_TO_STRING(TO_DWORD(readGroupError.GroupErrorID))), level := LogLevel.Error);
     ELSIF readGroupStatus.GroupErrorStop AND
           internalStatus >= AxisGroupInternalStatus.Standby THEN
         (* Ignore GroupErrorStop during init - startup from ErrorStop is handled in WaitPower *)
@@ -253,7 +254,7 @@ ELSIF internalStatus = AxisGroupInternalStatus.WaitReset THEN
 
         oldCmd := AxisGroupCmd.Idle;
         hasPending := FALSE;
-		logger(message := 'Axis group reset.', level := LogLevel.DEBUG);
+		logger(message := 'Axis group reset.', level := LogLevel.Info);
 		
         (* Axes remain powered - group is already in GroupStandby after MC_GroupReset *)
         internalStatus := AxisGroupInternalStatus.Standby;
@@ -272,6 +273,7 @@ ELSE
      *)
     IF NOT groupEnable AND internalStatus >= AxisGroupInternalStatus.Standby THEN
         groupEnableExecute := FALSE;
+        groupDisableExecute := TRUE; (* MC_GroupDisable: GroupStandby -> GroupDisabled *)
         moveLinearAbsoluteExecute := FALSE;
         moveLinearRelativeExecute := FALSE;
         moveCircularAbsoluteExecute := FALSE;
@@ -328,13 +330,20 @@ ELSE
             groupNotInitialized := TRUE;
             ready := FALSE;
 
-            IF groupEnable THEN
+            (* MC_GroupDisable started by the power-off check: release it when finished *)
+            IF disableGroup.Done OR disableGroup.Error THEN
+                IF disableGroup.Error THEN logger(message := 'Axis group disable failed.', level := LogLevel.Error); END_IF;
+                groupDisableExecute := FALSE;
+            END_IF;
+
+            IF groupEnable AND NOT disableGroup.Busy THEN
+				logger(message := 'Axis group enabling.', level := LogLevel.DEBUG);
+                groupDisableExecute := FALSE;
                 groupEnableExecute := TRUE;
                 internalStatus := AxisGroupInternalStatus.Enabling;
             END_IF;
 
         AxisGroupInternalStatus.Enabling :
-			logger(message := 'Axis group enabling.', level := LogLevel.DEBUG);
             groupNotInitialized := TRUE;
             IF enableGroup.Done THEN
                 groupEnableExecute := FALSE;
@@ -343,13 +352,14 @@ ELSE
 
         (* Command dispatch - mirrors Axis.pou Ready state. *)
         AxisGroupInternalStatus.Standby :
-            logger(message := 'Axis group ready to accept commands.', level := LogLevel.DEBUG);
+            IF NOT ready THEN logger(message := 'Axis group ready to accept commands.', level := LogLevel.DEBUG); END_IF;
 			groupNotInitialized := FALSE;
             ready := TRUE;
             commandExecuted := FALSE;
             commandAborted := FALSE;
 
             IF NOT groupEnable THEN
+                groupDisableExecute := TRUE;
                 internalStatus := AxisGroupInternalStatus.NotPowered;
 
             ELSIF cmd = AxisGroupCmd.MoveLinearAbsolute THEN
@@ -484,10 +494,17 @@ ELSE
             END_IF;
 
         AxisGroupInternalStatus.CheckLinearAbsoluteState :
-            (* SMC_POS_REF fields cannot be compared directly - re-trigger is caller-driven via cmd change *)
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) OR (velocity <> oldVelocity) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveLinearAbsoluteExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveLinearAbsoluteState;
             END_IF;
 
         (* MoveLinearRelative *)
@@ -568,6 +585,14 @@ ELSE
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) OR (velocity <> oldVelocity) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveLinearRelativeExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveLinearRelativeState;
             END_IF;
 
         (* MoveCircularAbsolute *)
@@ -648,6 +673,14 @@ ELSE
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) OR NOT posRefEqual(auxPoint, oldAuxPoint) OR (velocity <> oldVelocity) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveCircularAbsoluteExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveCircularAbsoluteState;
             END_IF;
 
         (* MoveCircularRelative *)
@@ -728,6 +761,14 @@ ELSE
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) OR NOT posRefEqual(auxPoint, oldAuxPoint) OR (velocity <> oldVelocity) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveCircularRelativeExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveCircularRelativeState;
             END_IF;
 
         (* MoveDirectAbsolute - no velocity/acceleration/deceleration/jerk inputs *)
@@ -804,6 +845,14 @@ ELSE
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveDirectAbsoluteExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveDirectAbsoluteState;
             END_IF;
 
         (* MoveDirectRelative - no velocity/acceleration/deceleration/jerk inputs *)
@@ -880,6 +929,14 @@ ELSE
             IF cmd <> oldCmd THEN
                 commandExecuted := FALSE;
                 internalStatus := AxisGroupInternalStatus.Standby;
+            ELSIF NOT posRefEqual(endPoint, oldEndPoint) THEN
+                (* A new target with the same cmd: consecutive waypoints without passing through Idle *)
+                oldEndPoint := endPoint;
+                oldAuxPoint := auxPoint;
+                oldVelocity := velocity;
+                moveDirectRelativeExecute := TRUE;
+                commandExecuted := FALSE;
+                internalStatus := AxisGroupInternalStatus.MoveDirectRelativeState;
             END_IF;
 
         (* GroupHalt - abortable; decelerates to standstill on path. *)
@@ -993,6 +1050,11 @@ END_IF;
 enableGroup(
     AxisGroup := group,
     Execute := groupEnableExecute
+);
+
+disableGroup(
+    AxisGroup := group,
+    Execute := groupDisableExecute
 );
 
 resetGroup(

@@ -68,6 +68,9 @@ typedef struct {
     /* VAR_OUTPUT — actuation outputs */
     bool enable;
     bool disable;
+    /* VAR_OUTPUT — stable states, for callers that depend on this actuator (e.g. a valve that follows its pump) */
+    bool isEnabled;
+    bool isDisabled;
 
     /* VAR — internal state */
     ActuatorStatus status;
@@ -78,6 +81,15 @@ typedef struct {
 
     /* Logger facade */
     LoggerFacade logger;
+
+    /* Previous values, so that states and faults are logged on change only */
+    ActuatorStatus statusOld;
+    bool notInitializedOld;
+    bool faultOld;
+    bool disabledSensorFaultOld;
+    bool enabledSensorFaultOld;
+    bool actuatorFaultOld;
+    bool externalFaultOld;
 
 } Actuator;
 

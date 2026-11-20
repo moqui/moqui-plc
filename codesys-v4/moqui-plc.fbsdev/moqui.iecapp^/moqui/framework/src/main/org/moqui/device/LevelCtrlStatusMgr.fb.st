@@ -126,8 +126,8 @@ IF clock THEN
 		END_IF;
 	END_IF;
 
-	(* TimeOut (To): The total timeout only runs during execution *)
-	IF timeoutTimer > 0 AND status = LevelCtrlStatus.Executing THEN
+	(* TimeOut (To): runs during execution, and again during the abort, so Aborting cannot wait forever *)
+	IF timeoutTimer > 0 AND (status = LevelCtrlStatus.Executing OR status = LevelCtrlStatus.Aborting) THEN
 		timeoutTimer := timeoutTimer - 1;
 	END_IF;
 END_IF;
@@ -149,8 +149,11 @@ CASE status OF
         activeCycle := (timeLimit = 0) OR (timeLimitTimer > 0);
 
         IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            (* The error ID is set once, when the error occurs *)
+            errorId := SEL(errorCondition, 2, 1); (* 1 = ExternalError, 2 = Total timeout expired *)
             status := LevelCtrlStatus.Error;
         ELSIF NOT enable THEN
+            timeoutTimer := timeout; (* The abort has its own timeout *)
             status := LevelCtrlStatus.Aborting;
         ELSIF NOT isContinuous AND readyCondition THEN
             status := LevelCtrlStatus.Done; (* Target achieved (Standard variants) *)
@@ -160,6 +163,7 @@ CASE status OF
         activeCycle := FALSE;
         
         IF errorCondition OR ((timeout > 0) AND (timeoutTimer = 0)) THEN
+            errorId := SEL(errorCondition, 2, 1); (* 1 = ExternalError, 2 = Total timeout expired *)
             status := LevelCtrlStatus.Error;
 		ELSIF abortComplete THEN
 			status := LevelCtrlStatus.Resetting;
@@ -174,12 +178,7 @@ CASE status OF
 
     LevelCtrlStatus.Error :
         busy := FALSE; activeCycle := FALSE; error := TRUE;
-
-        IF errorCondition THEN
-            errorId := 1; (* ExternalError *)
-        ELSE
-            errorId := 2; (* Total timeout expired *)
-        END_IF;
+        (* errorId was set on entry and is kept until the reset *)
 
 		IF resetRequest OR NOT enable THEN
 			status := LevelCtrlStatus.Resetting;

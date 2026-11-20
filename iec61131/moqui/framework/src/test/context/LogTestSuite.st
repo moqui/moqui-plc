@@ -1,5 +1,6 @@
 (*
- * Log pipeline test suite: LogRingBuffer, LoggerFacade registration, level threshold and duplicate summaries.
+ * Log pipeline test suite: LogRingBuffer, LoggerFacade registration, level threshold, duplicate summaries
+ * and rate limit.
  * It runs once; passed is TRUE when every check holds, otherwise failedCheck is the number of the first failed check.
  *
  * Run it in its own test task with MqttCommunication not running: the suite reads the registered buffer itself,
@@ -22,6 +23,7 @@ PROGRAM LogTestSuite
 		failedCheck : UINT;
 		ring : LogRingBuffer;
 		facade : LoggerFacade;
+		limitedFacade : LoggerFacade;
 		event : LogEvent;
 		source : REFERENCE TO LogSource;
 		savedMinLevel : LogLevel;
@@ -95,6 +97,31 @@ PROGRAM LogTestSuite
 				AND (failedCheck = 0) THEN failedCheck := checks; END_IF;
 		checks := checks + 1; IF NOT ((source.logRef.logBuffer[1].sequence = 1) AND (source.logRef.logBuffer[3].sequence = 3))
 				AND (failedCheck = 0) THEN failedCheck := checks; END_IF;
+	END_IF;
+
+	(* ========== LoggerFacade: rate limit with alternating events ========== *)
+	limitedFacade.enable := TRUE;
+	limitedFacade.loggerName := 'LOG_RATE_TEST';
+	limitedFacade.level := LogLevel.Info;
+	limitedFacade.suppressDuplicates := TRUE;
+	limitedFacade.suppressDuration := T#1H;
+	limitedFacade.maxEventsPerWindow := 3;
+
+	limitedFacade(message := 'a');
+	IF failedCheck = 0 THEN
+		source REF= logSourceList[DINT_TO_UINT(logSourceListSize)];
+		writtenBefore := source.logRef.writeCount;
+
+		(* 'b' and 'a' fill the window (3 events), then the alternation is only counted: no summary per call *)
+		FOR i := 1 TO 10 DO
+			limitedFacade(message := 'b');
+			limitedFacade(message := 'a');
+		END_FOR;
+		checks := checks + 1; IF NOT (source.logRef.writeCount = writtenBefore + 2) AND (failedCheck = 0) THEN failedCheck := checks; END_IF;
+
+		limitedFacade(message := 'b');
+		checks := checks + 1; IF NOT (limitedFacade.rateLimited AND NOT limitedFacade.done
+				AND (source.logRef.writeCount = writtenBefore + 2)) AND (failedCheck = 0) THEN failedCheck := checks; END_IF;
 	END_IF;
 
 	logMinLevel := savedMinLevel;

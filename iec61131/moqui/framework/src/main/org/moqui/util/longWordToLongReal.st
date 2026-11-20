@@ -1,26 +1,23 @@
-(* Utility function to convert a word array to a long real variable *)
+(*
+ * Utility function to convert a word array to a long real variable.
+ * The words carry the IEEE 754 bit pattern: wordArray[0] is the most significant word,
+ * bigEndian = TRUE reverses the word order. longRealToWordArray is the inverse.
+ *)
 FUNCTION longWordToLongReal : LREAL
 	VAR_INPUT
 		wordArray : ARRAY[0..3] OF WORD;
 		bigEndian : BOOL := FALSE;
 	END_VAR
 	VAR
-		lwordValue : LWORD;
-		w : ARRAY[0..3] OF WORD;
+		bits : LongRealBits;
 	END_VAR
 
+	bits.lwordValue := TO_LWORD(wordArray[0]);
+	bits.lwordValue := SHL(bits.lwordValue, 16) OR TO_LWORD(wordArray[1]);
+	bits.lwordValue := SHL(bits.lwordValue, 16) OR TO_LWORD(wordArray[2]);
+	bits.lwordValue := SHL(bits.lwordValue, 16) OR TO_LWORD(wordArray[3]);
 	IF bigEndian THEN
-	    w[0] := wordArray[3];
-	    w[1] := wordArray[2];
-	    w[2] := wordArray[1];
-	    w[3] := wordArray[0];
-	ELSE
-	    w := wordArray;
+	    bits.lwordValue := swapLWordEndian(bits.lwordValue);
 	END_IF;
-
-	lwordValue := TO_LWORD(w[3]);
-	lwordValue := SHL(lwordValue, 16) OR TO_LWORD(w[2]);
-	lwordValue := SHL(lwordValue, 16) OR TO_LWORD(w[1]);
-	lwordValue := SHL(lwordValue, 16) OR TO_LWORD(w[0]);
-	longWordToLongReal := TO_LREAL(lwordValue);
+	longWordToLongReal := bits.lrealValue;
 	END_FUNCTION

@@ -59,6 +59,12 @@ redundancy mechanisms are outside the framework.
   batches are released only after the broker acknowledges them (QoS 1), and
   equal consecutive events are written once with `repeatCount`. Events below
   the global `logMinLevel` are ignored.
+- Generated blocks log events, not states: a state change, the rising edge of a
+  fault and its end, a recipe loaded. A message written at every cycle defeats
+  the repetition summary; the per-facade rate limit
+  (`defaultLogMaxEventsPerWindow`) then writes "N log events suppressed: logger
+  too verbose". A periodic snapshot logger (`ParameterLogger`) sets
+  `maxEventsPerWindow := 0`. `logEventDate` is UTC, as the gateway reads it.
 - `MqttParameterSub` receives approved live parameter updates.
 - `MqttParameterPub` is an optional peer-PLC/Application parameter exchange for
   a developer-defined redundancy strategy; it is not the telemetry path.

@@ -77,8 +77,7 @@ PROGRAM AxisTestSuite
 
 	(*
 	 * Keep axes powered while the test is running.
-	 * axisEnable / masterEnable are VAR_IN_OUT: each Axis FB clears them when homing completes (handshake).
-	 * Re-asserting TRUE every cycle keeps the axis in Ready after homing.
+	 * axisEnable is a level command: the axis stays powered and Ready while it is TRUE.
 	 * masterEnable is only raised for the synchronization steps (16 onward).
 	 *)
 	slaveEnable := NOT testDone AND NOT testFailed;

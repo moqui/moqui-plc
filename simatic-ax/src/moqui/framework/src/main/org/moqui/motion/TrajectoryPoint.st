@@ -41,7 +41,7 @@ TYPE TrajectoryPoint : STRUCT
     bufferMode : Motion.MC_BUFFER_MODE;
     (*
      * Per-point transition mode override (active when hasBlendingOverride = TRUE).
-     * moqui: TrajectoryPoint.blendingEnumId → PpcmPlcTMNone / PpcmPlcTMCornerDist / ...
+     * moqui: TrajectoryPoint.blendingEnumId -> PpcmPlcTMNone / PpcmPlcTMCornerDist / ...
      *)
     transitionMode: CoordMotion.MC_TRANSITION_MODE;
     (* 6-DOF position in the active coordinate system *)

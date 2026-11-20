@@ -256,7 +256,8 @@ logger), events go to a buffer, and one appender publishes them.
 
 ```text
 LoggerFacade (control tasks)            MqttCommunication (MqttCommunicationTask, 100 ms)
-  level threshold, duplicate summary       connectionFactory: connect, reconnect after mqttReconnectDelay
+  level threshold, duplicate summary,      connectionFactory: connect, reconnect after mqttReconnectDelay
+  rate limit
   -> own LogRingBuffer  ---------------->  MqttParameterSub   live parameter writes, first
      (one producer, one consumer)          MqttParameterPub   optional peer-PLC replication
                                            LogDispatcher      log batches -> MqttLogAppender -> logTopic
@@ -271,6 +272,22 @@ LoggerFacade (control tasks)            MqttCommunication (MqttCommunicationTask
   default `Debug`; `Info` is advisable in production) are ignored. An event equal
   to the previous one of the same facade within `defaultLogSuppressDuration`
   (10 s) is only counted and later written once with `repeatCount` = repetitions.
+- **Events, not states.** Blocks log events: a state change, the rising edge of
+  a fault and its end ("Fault cleared."), a recipe loaded. A condition that
+  lasts is not logged again at every cycle: per-cycle messages from one block
+  alternate and defeat the repetition summary, which only compares an event with
+  the previous one.
+- **Rate limit.** As a safety net, one facade stores at most
+  `defaultLogMaxEventsPerWindow` (20) new events in one `defaultLogSuppressDuration`
+  window; further events are only counted, and the first call after the window
+  writes one `Warn` record "N log events suppressed: logger too verbose" (empty
+  `source`, so a DeviceLog of the facade's `loggerName`). Repetitions do not count.
+  A facade with a known bounded burst sets `maxEventsPerWindow := 0`, as
+  `ParameterLogger` does for its 29-value snapshot.
+- **Time.** `logEventDate` is UTC (`nowTimestamp` reads the real-time clock
+  without the local conversion), as the gateway reads a `DT#` date: there is no
+  repeated hour at the daylight saving change. Convert to local time only for
+  display.
 - **Dispatching.** `LogDispatcher` visits the sources in turn and publishes at
   most `LOG_APPENDER_BATCH_SIZE` records of one source per MQTT message, with
   QoS 1. It releases the records only after the broker acknowledged them, retries
@@ -287,18 +304,23 @@ LoggerFacade (control tasks)            MqttCommunication (MqttCommunicationTask
   the keys have a fixed width so that a reader that sorts keys keeps the order:
 
   ```json
-  {"001":{"logEventId":"HVAC_DEMO_PLC-1798402291","logEventDate":"DT#2026-11-13-10:15:02",
+  {"001":{"logEventId":"HVAC_DEMO_PLC-1798402291034-27-12","logEventDate":"DT#2026-11-13-09:15:02",
           "loggerName":"HVAC_DEMO_PLC","source":"HvacTempSetpoint","level":2,"marker":0,
           "type":1,"repeatCount":1,"sequence":42,"numericValue":23.5}}
   ```
 
   `sequence` numbers the records of one buffer, so a reader can detect gaps.
+  A generated `logEventId` is `loggerName-<UTC ms>-<source slot>-<event count>`:
+  the slot and the count keep it unique when two events of one cycle share the
+  millisecond or two facades share the `loggerName`, and the time separates
+  restarts of the application.
 
 Diagnostics: `LogSource.publishedCount`, `discardedCount` and
 `reportedDropCount` in `ec.logSourceList`, `LogRingBuffer.droppedCount`,
 `LogDispatcher.errorId` and `MqttCommunication.connectionErrorCount`.
 `LogTestSuite` (task `LogTestSuiteTask`, without `MqttCommunicationTask`) checks
-the buffer, the registration, the threshold and the repetition summary.
+the buffer, the registration, the threshold, the repetition summary and the rate
+limit.
 
 ## Recipe Storage Path
 
@@ -457,7 +479,7 @@ export entity_ds_sslmode=disable  # local demo only
 `HVACDemoData.xml` and `DeviceGatewayDemoData.xml` (`type="demo"`, loaded by `./moq load`) add
 the live-parameter write request `HVAC_DEMO_LiveParametersWrite` and the PLC log subscription
 `HVAC_DEMO_PlcLogSubscribe` used in steps 5 to 9. The broker endpoint defaults to
-`device_mqtt_broker_uri` from `MoquiConf.xml`.
+`moqui-device@broker-uri` (moqui-device's `MoquiConf.xml`).
 
 For the **Java framework alternative**, use PowerShell:
 
@@ -523,21 +545,24 @@ direction each message belongs to:
 
 ### 5. Start the gateway
 
-For **MR-Moqui**, the gateway starts with Moqui. The broker credentials come
-from the environment of the Moqui process (the MQTT client reads
-`MQTT_USERNAME` and `MQTT_PASSWORD`), so the model holds no password. From the
-MR-Moqui root, in another terminal:
+For **MR-Moqui**, the gateway starts with Moqui. Its settings are attributes of
+the `<moqui-device>` element of moqui-device's `MoquiConf.xml`, set from the
+environment of the Moqui process by their `moqui_conf__` names (`moqui conf env`
+lists them), so the model holds no password. From the MR-Moqui root, in another
+terminal:
 
 ```bash
 export entity_ds_db_conf=postgres entity_ds_host=127.0.0.1 entity_ds_port=5432
 export entity_ds_database=moqui entity_ds_user=moqui entity_ds_password=moqui
 export entity_ds_sslmode=disable  # local demo only
-export MQTT_USERNAME=artemis MQTT_PASSWORD=artemis
-export device_gateway_device_id=HVAC_DEMO_GATEWAY
+export moqui_conf__moqui_device__broker_uri='paho-mqtt5:?brokerUrl=tcp://127.0.0.1:1883&qos=1'
+export moqui_conf__moqui_device__broker_username=artemis
+export moqui_conf__moqui_device__broker_password=artemis
+export moqui_conf__moqui_device__gateway_device_id=HVAC_DEMO_GATEWAY
 ./moq run --debug
 ```
 
-`device_gateway_device_id` is the gateway this Moqui instance is: `HVAC_DEMO_GATEWAY`,
+`moqui-device@gateway-device-id` is the gateway this Moqui instance is: `HVAC_DEMO_GATEWAY`,
 the `DgmpEdgeGateway` member of the `HVAC_DEMO` group. Within a minute of the
 start, the service job `start_DeviceGatewaySubscriptions` starts the active
 subscriptions of the controllers in its scope, here `HVAC_DEMO_PlcLogSubscribe`
@@ -707,7 +732,8 @@ The first query should contain the value most recently observed by
   before publishing.
 - **No subscription started:** check the Moqui log for `Subscription start
   failed` or `Subscription discovery failed`: usually
-  `device_gateway_device_id=HVAC_DEMO_GATEWAY` or `MQTT_USERNAME`/`MQTT_PASSWORD`
+  `moqui_conf__moqui_device__gateway_device_id=HVAC_DEMO_GATEWAY` or the broker
+  user and password (`moqui_conf__moqui_device__broker_username`/`_password`)
   are missing from the Moqui environment, or `HVACDemoData.xml` and
   `DeviceGatewayDemoData.xml` (`type="demo"`) were not loaded.
   `start#Subscriptions` retries a lost subscription every minute.
@@ -725,11 +751,15 @@ The first query should contain the value most recently observed by
   derived clocks are based on that cycle; inspect `clks.clock1minute`, then
   `ParameterLogger.logger.error` and `logger.dropped`, then `LogDispatcher.errorId`
   and the `publishedCount`/`discardedCount` of the sources in `ec.logSourceList`.
-- **Many text messages:** DEBUG-level FSM/device logs are expected in the demo
-  (`logMinLevel = Debug`); equal consecutive messages of one block are written
-  once every 10 s with their `repeatCount`. Set `logMinLevel := LogLevel.Info`
-  to keep only Info and above. `ParameterLogger` entries are distinguished by a
-  non-empty `source`.
+- **Many text messages:** DEBUG-level device events are expected in the demo
+  (`logMinLevel = Debug`), but only on changes: equal consecutive messages of one
+  block are written once every 10 s with their `repeatCount`. Set
+  `logMinLevel := LogLevel.Info` to keep only Info and above. `ParameterLogger`
+  entries are distinguished by a non-empty `source`.
+- **"N log events suppressed: logger too verbose" records:** a block writes more
+  than `defaultLogMaxEventsPerWindow` new events in 10 s, usually a message
+  written at every cycle; log it on a change instead. The record's `loggerName`
+  names the block.
 - **"N log events dropped" records:** a block logs faster than the
   dispatcher publishes; raise the level threshold or `LOG_MAX_SIZE`.
 
@@ -747,6 +777,25 @@ database volumes.
 
 To be able to carry out automatic tests or start the framework, it is necessary to
 connect the CODESYS tasks to the appropriate PLC PROGRAM.
+
+The SoftMotion function blocks of an axis must be called from the task that
+updates that axis. Set the task of each drive of the `SoftMotion General Axis
+Pool` (and the PLC Settings bus cycle task) to the task of the test suite that
+moves it; otherwise every SoftMotion block of the axis, even
+`MC_ReadActualPosition`, fails at its first call with
+`SMC_FB_CALLED_FROM_WRONG_TASK` (36), in simulation and on Control Win alike.
+
+### Single axis
+
+To run the **single axis** test suite (`SlaveDrive`, `MasterDrive`), you need to link:
+
+* `AxisTestSuiteTask` --> `AxisTestSuite`
+
+### Logging
+
+`LogTestSuiteTask` --> `LogTestSuite`, without `StartTask` and
+`MqttCommunicationTask` (the suite reads its own buffer). Pass: `passed = TRUE`,
+`checks = 15`, `failedCheck = 0`.
 
 ### Pick and Place (PnP)
 

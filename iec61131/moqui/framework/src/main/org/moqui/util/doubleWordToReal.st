@@ -1,16 +1,20 @@
-(* Utility function to convert a word array to a real variable *)
+(*
+ * Utility function to convert a word array to a real variable.
+ * The words carry the IEEE 754 bit pattern: wordArray[0] is the most significant word,
+ * bigEndian = TRUE reverses the word order. realToWordArray is the inverse.
+ *)
 FUNCTION doubleWordToReal : REAL
 	VAR_INPUT
 		wordArray : ARRAY[0..1] OF WORD;
 		bigEndian : BOOL := FALSE;
 	END_VAR
 	VAR
-	    dwordValue : DWORD;
+	    bits : RealBits;
 	END_VAR
 
-	dwordValue := SHL(TO_DWORD(wordArray[0]), 16) OR TO_DWORD(wordArray[1]);
+	bits.dwordValue := SHL(TO_DWORD(wordArray[0]), 16) OR TO_DWORD(wordArray[1]);
 	IF bigEndian THEN
-	    dwordValue := swapDWordEndian(dwordValue);
+	    bits.dwordValue := swapDWordEndian(bits.dwordValue);
 	END_IF;
-	doubleWordToReal := TO_REAL(dwordValue);
+	doubleWordToReal := bits.realValue;
 	END_FUNCTION

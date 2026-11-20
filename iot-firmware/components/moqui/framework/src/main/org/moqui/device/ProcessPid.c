@@ -185,13 +185,17 @@ void ProcessPidFull_Update(ProcessPid *self)
         (self->gain <= 0.0f) ||
         (self->setpointMin > self->setpointMax) ||
         (self->outputMin   > self->outputMax)) {
-        LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Invalid PID arguments.");
+        if (!self->invalidConfigOld) {
+            LOGGER_LOG(&self->logger, LOG_LEVEL_ERROR, "Invalid PID arguments.");
+        }
+        self->invalidConfigOld = true;
         self->active        = false;
         self->execute       = false;
         self->invalidConfig = true;
         return;
     }
 
+    self->invalidConfigOld = false;
     self->invalidConfig = false;
     self->active        = true;
     self->execute       = true;
@@ -406,12 +410,17 @@ void ProcessPidFull_Update(ProcessPid *self)
         self->yManual    = self->lastOutput;
     }
 
-    /* Core PID */
+    /*
+     * Core PID. pid_step regulates setPoint - actual: with deviationInversion the two are swapped, so the PID
+     * regulates feedback - setpoint (reverse acting loop, e.g. a cooling valve) with a positive gain.
+     */
     if (self->clock || self->resetEdge) {
+        float pidActual   = self->deviationInversion ? self->setpointActual : self->feedbackActual;
+        float pidSetpoint = self->deviationInversion ? self->feedbackActual : self->setpointActual;
         self->overflow = false;
         self->outputInternal = pid_step(
             &self->pid,
-            self->feedbackActual, self->setpointActual,
+            pidActual, pidSetpoint,
             self->gain, self->integrationTime, self->derivationTime,
             self->yManual, self->offset,
             self->outputMin, self->outputMax,

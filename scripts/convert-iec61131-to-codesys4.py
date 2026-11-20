@@ -453,9 +453,11 @@ def install_libraries() -> int:
     with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(archive) as zf:
         files = []
         for info in zf.infolist():
-            if "compiled-library" not in info.filename or "\\" not in info.filename:
+            # The archive folder separator is "\" or "/", depending on the CODESYS that saved it
+            parts = re.split(r"[\\/]", info.filename, maxsplit=1)
+            if "compiled-library" not in info.filename or len(parts) < 2:
                 continue
-            entry = info.filename.split("\\", 1)[1]
+            entry = parts[1]
             title = re.match(r"(.+?), (\d+\.\d+\.\d+)(?:\.\d+)? \((.+?)\)\s", entry)
             if not title or (title.group(1).lower(), title.group(2)) in shipped:
                 continue

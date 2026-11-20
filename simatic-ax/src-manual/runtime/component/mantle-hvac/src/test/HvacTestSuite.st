@@ -510,7 +510,7 @@ PROGRAM HvacTestSuite
 			clks.clock1s := TRUE;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			clks.clock1s := FALSE;
-			IF dev.lowFlowDamperEnableRequest AND dev.highFlowDamperDisableRequest THEN
+			IF dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest THEN
 				pass[25] := TRUE;
 				cycles := UINT#0;
 				step := UINT#26;
@@ -524,7 +524,8 @@ PROGRAM HvacTestSuite
 			clks.clock1s := FALSE;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			clks.clock100ms := FALSE;
-			IF NOT dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest THEN
+			IF NOT dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest
+					AND dev.lowFlowDamper.isEnabled AND dev.highFlowDamper.isDisabled THEN
 				pass[26] := TRUE;
 				cycles := UINT#0;
 				step := UINT#27;
@@ -537,7 +538,7 @@ PROGRAM HvacTestSuite
 			clks.clock1s := TRUE;
 			main(operationType := OperatingMode#Run, enable := TRUE);
 			clks.clock1s := FALSE;
-			IF dev.highFlowDamperEnableRequest AND dev.lowFlowDamperDisableRequest THEN
+			IF dev.highFlowDamperEnableRequest AND NOT dev.lowFlowDamperDisableRequest THEN
 				pass[27] := TRUE;
 				dev.airDistributionEnabled := FALSE;
 				main(operationType := OperatingMode#Init, enable := TRUE);

@@ -118,7 +118,6 @@ FUNCTION_BLOCK MainRuleEngine
 			ec.dev.processActualDuration := ec.dev.processActualDuration + 1;
 			ec.dev.actualRuntime := ec.dev.actualRuntime + 1;
 			IF ec.dev.estimatedRuntime > 0 THEN
-				ec.dev.processRemainingDuration := ec.dev.processEstimatedDuration - ec.dev.processActualDuration;
 				IF NOT ec.dev.timeBreakEnabled
 						AND (ec.dev.actualRuntime >= ec.dev.estimatedRuntime)
 						AND (ec.dev.actualRuntime >= ec.dev.minRuntime) THEN
@@ -131,9 +130,13 @@ FUNCTION_BLOCK MainRuleEngine
 			(* Thermostat dwell between active cycles counts toward phase duration,
 			 * but does not count as active runtime. *)
 			ec.dev.processActualDuration := ec.dev.processActualDuration + 1;
-			IF ec.dev.processEstimatedDuration > 0 THEN
-				ec.dev.processRemainingDuration := ec.dev.processEstimatedDuration - ec.dev.processActualDuration;
-			END_IF;
+		END_IF;
+
+		(* Remaining duration, saturated at zero: the durations are UDINT and a phase can outlast its estimate. *)
+		IF ec.dev.processEstimatedDuration > ec.dev.processActualDuration THEN
+			ec.dev.processRemainingDuration := ec.dev.processEstimatedDuration - ec.dev.processActualDuration;
+		ELSE
+			ec.dev.processRemainingDuration := 0;
 		END_IF;
 
 		(* isCompleted is independent of the run/break cycle:

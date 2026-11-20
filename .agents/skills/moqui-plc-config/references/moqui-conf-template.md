@@ -14,6 +14,7 @@ Use this structure to summarize chosen values before editing `MoquiConf.gvl`.
 - `defaultLogLevel` =
 - `defaultLogSuppressDuration` =
 - `defaultLogSuppressDuplicates` =
+- `defaultLogMaxEventsPerWindow` =
 - `LOG_SOURCE_LIST_MAX_SIZE` =
 - `LOG_JSON_PAYLOAD_MAX_SIZE` =
 - `JSON_PAYLOAD_MAX_SIZE` =

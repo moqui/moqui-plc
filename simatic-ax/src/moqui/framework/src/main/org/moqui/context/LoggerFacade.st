@@ -9,13 +9,20 @@ USING System.Strings;
  *   type and value) within suppressDuration is only counted. The count is written later as one summary record,
  *   a copy of the event with repeatCount = repetitions, when a different event arrives or when the window has
  *   elapsed at any later call ("last message repeated N times"). Stored records are never modified.
+ * - Rate limit: at most maxEventsPerWindow new events are stored in one suppressDuration window. Further
+ *   events are only counted; at the first call after the window one Warn event reports how many were suppressed.
+ *   Repetitions counted by duplicate suppression do not count against the limit.
  * - The local LogRingBuffer has this block as its only producer: call it from one task only.
+ * - Inputs are retained between calls, as for every function block: pass level at every call,
+ *   otherwise the event gets the level of the previous call.
+ * - Generated logEventId: loggerName-<event sequence> (AX: no millisecond clock is read for the ID).
  *)
 FUNCTION_BLOCK LoggerFacade
 	VAR_EXTERNAL CONSTANT
 		defaultLogLevel : LogLevel;
 		defaultLogSuppressDuration : TIME;
 		defaultLogSuppressDuplicates : BOOL;
+		defaultLogMaxEventsPerWindow : UINT;
 		LOG_SOURCE_LIST_MAX_SIZE : UINT;
 	END_VAR
 	VAR_EXTERNAL
@@ -40,6 +47,8 @@ FUNCTION_BLOCK LoggerFacade
 	VAR_INPUT
 		suppressDuplicates : BOOL := defaultLogSuppressDuplicates;
 		suppressDuration : TIME := defaultLogSuppressDuration;
+		(* Rate limit: new events stored per suppressDuration window (0 disables) *)
+		maxEventsPerWindow : UINT := defaultLogMaxEventsPerWindow;
 	END_VAR
 	VAR_OUTPUT
 		(* The event was stored, or counted as a repetition *)
@@ -48,6 +57,8 @@ FUNCTION_BLOCK LoggerFacade
 		error : BOOL;
 		(* The event, or a pending repetition summary, was refused because the local buffer was full *)
 		dropped : BOOL;
+		(* The event was not stored: the rate limit of the window was reached *)
+		rateLimited : BOOL;
 	END_VAR
 	VAR
 		(* Local log ring buffer *)
@@ -67,11 +78,18 @@ FUNCTION_BLOCK LoggerFacade
 		minRank : INT;
 		(* Log event ID generator *)
 		eventSequence : UDINT := UDINT#0;
+		(* Rate limit window *)
+		windowOpen : BOOL;
+		windowStart : DATE_AND_TIME;
+		windowEventCount : UINT;
+		windowSuppressed : UDINT;
+		rateNotice : LogEvent;
 	END_VAR
 
 	done := FALSE;
 	error := FALSE;
 	dropped := FALSE;
+	rateLimited := FALSE;
 
 	(* Register once into the log appender source list *)
 	IF NOT init THEN
@@ -89,6 +107,30 @@ FUNCTION_BLOCK LoggerFacade
 
 	now := nowTimestamp();
 
+	(* Rate limit: at the end of the window report the suppressed events, then open a new window *)
+	IF NOT windowOpen OR ((now - windowStart) >= suppressDuration) THEN
+		IF (windowSuppressed > UDINT#0) AND (logMinLevel <> LogLevel#Off) THEN
+			eventSequence := eventSequence + UDINT#1;
+			rateNotice.logEventId := Concat(Concat(loggerName, '-suppressed-'), ToString(eventSequence));
+			rateNotice.loggerName := loggerName;
+			rateNotice.level := LogLevel#Warn;
+			rateNotice.marker := LogMarker#Health;
+			rateNotice.logEventDate := now;
+			(* A device event, not a parameter value: empty source (DeviceLog of loggerName) *)
+			rateNotice.source := '';
+			rateNotice.payloadType := LogPayloadType#Text;
+			rateNotice.payload.message := Concat(ToString(windowSuppressed), ' log events suppressed: logger too verbose');
+			rateNotice.repeatCount := UINT#1;
+			logBuffer(cmd := LogCmd#Push, logEntry := rateNotice);
+			logBuffer.cmd := LogCmd#Idle;
+			dropped := logBuffer.dropped;
+		END_IF;
+		windowOpen := TRUE;
+		windowStart := now;
+		windowEventCount := UINT#0;
+		windowSuppressed := UDINT#0;
+	END_IF;
+
 	(* Write the pending repetition summary once its window has elapsed *)
 	IF (repeatPending > UINT#0) AND ((now - lastLogEvent.logEventDate) >= suppressDuration) THEN
 		summary := lastLogEvent;
@@ -97,7 +139,7 @@ FUNCTION_BLOCK LoggerFacade
 		summary.repeatCount := repeatPending;
 		repeatPending := UINT#0;
 		logBuffer(cmd := LogCmd#Push, logEntry := summary);
-		dropped := logBuffer.dropped;
+		dropped := dropped OR logBuffer.dropped;
 	END_IF;
 
 	(* Level threshold: All is the lowest threshold, Off disables logging *)
@@ -145,6 +187,17 @@ FUNCTION_BLOCK LoggerFacade
 		done := TRUE;
 		RETURN;
 	END_IF;
+
+	(*
+	 * Rate limit: over the limit the new event is only counted. Checked before the repetition summary,
+	 * so alternating events cannot write one summary per call; the summary is written when the window elapses.
+	 *)
+	IF (maxEventsPerWindow > UINT#0) AND (windowEventCount >= maxEventsPerWindow) THEN
+		IF windowSuppressed < UDINT#16#FFFFFFFF THEN windowSuppressed := windowSuppressed + UDINT#1; END_IF;
+		rateLimited := TRUE;
+		RETURN;
+	END_IF;
+	windowEventCount := windowEventCount + UINT#1;
 
 	(* A different event: first write the repetitions of the previous one *)
 	IF repeatPending > UINT#0 THEN

@@ -27,7 +27,11 @@
  *     (LoggerFacade_DroppedCount); stored records are never overwritten;
  *   - an event equal to the last stored one within LOG_SUPPRESS_DURATION_MS is
  *     only counted, and later written as one summary record with
- *     repeatCount = repetitions.
+ *     repeatCount = repetitions;
+ *   - rate limit: a logger stores at most LOG_MAX_EVENTS_PER_WINDOW new events in
+ *     one LOG_SUPPRESS_DURATION_MS window; further events are only counted, and at
+ *     its first call after the window one Warn event reports how many were
+ *     suppressed. Repetitions do not count against the limit.
  *
  * Thread safety: none needed — every function is called by the control task.
  * LoggerFacade_Init MUST be called before the first LOGGER_LOG invocation.
@@ -35,6 +39,14 @@
 typedef struct {
     bool        enable;
     const char *loggerName;
+    /* true: not subject to the rate limit (a bounded burst, e.g. a periodic parameter snapshot) */
+    bool        rateLimitDisabled;
+    /* Rate limit window, owned by the facade */
+    bool        windowOpen;
+    uint64_t    windowStartMs;
+    uint16_t    windowEventCount;
+    uint32_t    windowSuppressed;
+    bool        rateLimited; /* the last event was not stored: the limit of the window was reached */
 } LoggerFacade;
 
 /*
@@ -51,13 +63,13 @@ LogLevel LoggerFacade_GetMinLevel(void);
  * Platform logging back-end — defined in LoggerFacade.c so that
  * headers remain free of platform-specific includes.
  */
-void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level, const char *message);
+void LoggerFacade_Log(LoggerFacade *logger, LogLevel level, const char *message);
 
 /*
  * Append a parameter-scoped numeric event. loggerName is the exact owning
  * Device.deviceId and source is the exact pre-existing Parameter.parameterId.
  */
-void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogNumeric(LoggerFacade *logger, LogLevel level,
                              const char *source, double numericValue);
 
 /*
@@ -74,7 +86,7 @@ void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
         }                                                              \
     } while (0)
 
-void LoggerFacade_LogFmt(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogFmt(LoggerFacade *logger, LogLevel level,
                          const char *fmt, ...);
 
 /*

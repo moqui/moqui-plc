@@ -33,6 +33,7 @@ FUNCTION_BLOCK SignalMgmt
 	    (* Reset availability indicators (updated each cycle in Prepare+Process, for operator feedback) *)
 	    resetEnable : BOOL; (* TRUE if at least one active signal has cause gone and requires manual reset *)
 	    auxResetEnable : BOOL; (* TRUE if at least one active signal has cause gone and accepts aux reset *)
+		(* Invalid signal code or missing loggerName; kept until the next Reset *)
 		error : BOOL := FALSE;
 	END_VAR
 	VAR
@@ -48,6 +49,8 @@ FUNCTION_BLOCK SignalMgmt
 	    selectiveResetOld : BOOL;
 	    selectiveResetActivation : BOOL;
 	    requiresManualReset : BOOL;
+		(* Cumulative output of the previous cycle, so that it is logged on change only *)
+		cumulativeOutputActionOld : DWORD := SignalOutputAction.None;
 		i : UINT;
 	END_VAR
 
@@ -60,6 +63,8 @@ FUNCTION_BLOCK SignalMgmt
 	CASE operationType OF
 	    SignalMgmtOperatingMode.Reset :
 			logger(message := 'Signal management reset.', level := LogLevel.DEBUG);
+	        error := FALSE;
+	        cumulativeOutputActionOld := SignalOutputAction.None;
 	        FOR i := 1 TO SIGNAL_LIST_MAX_SIZE DO signalList[i] := FALSE; END_FOR;
 	        resetOld := FALSE; auxResetOld := FALSE; selectiveResetOld := FALSE;
 	        cumulativeOutputAction := SignalOutputAction.None;
@@ -67,7 +72,11 @@ FUNCTION_BLOCK SignalMgmt
 	        resetEnable := FALSE; auxResetEnable := FALSE;
 
 	    SignalMgmtOperatingMode.Prepare :
-			logger(message := 'Prepare: Init cumulative output bitmask for the current cycle. ', level := LogLevel.DEBUG);
+	        (* The previous cycle is complete: log its cumulative output if it changed *)
+	        IF cumulativeOutputAction <> cumulativeOutputActionOld THEN
+	            logger(message := concat('Signal cumulative output: ', DWORD_TO_STRING(cumulativeOutputAction)), level := LogLevel.Info);
+	            cumulativeOutputActionOld := cumulativeOutputAction;
+	        END_IF;
 	        (* Detection of reset edges valid for the entire cycle  *)
 	        resetActivation := reset AND NOT resetOld;
 	        resetOld := reset;
@@ -81,10 +90,9 @@ FUNCTION_BLOCK SignalMgmt
 	        resetEnable := FALSE; auxResetEnable := FALSE;
 
 	    SignalMgmtOperatingMode.Process :
-			logger(message := concat('Process signal: ', WORD_TO_STRING(code)), level := LogLevel.DEBUG);
-
 	        (* Bounds check *)
 	        IF (code < 1) OR (code > SIGNAL_LIST_MAX_SIZE) THEN
+	            IF NOT error THEN logger(message := concat('Invalid signal code: ', WORD_TO_STRING(code)), level := LogLevel.Error); END_IF;
 	            error := TRUE;
 	            RETURN;
 	        END_IF;
@@ -142,14 +150,13 @@ FUNCTION_BLOCK SignalMgmt
 	            END_IF;
 
 	            IF NOT signalList[code] THEN
-	                logger(message := concat(concat('Signal code: ', WORD_TO_STRING(code)), ' reset.'));
+	                logger(message := concat(concat('Signal code: ', WORD_TO_STRING(code)), ' reset.'), level := LogLevel.Info);
 	            END_IF;
 	        END_IF;
 
 	        (* Cumulative stop bitmask *)
 	        IF signalList[code] THEN
 	            cumulativeOutputAction := cumulativeOutputAction OR outputAction;
-				logger(message := concat('Signal cumulative output: ', DWORD_TO_STRING(cumulativeOutputAction)));
 
 	            (* Track the most severe category active in this cycle *)
 	            IF category < activeCategory THEN

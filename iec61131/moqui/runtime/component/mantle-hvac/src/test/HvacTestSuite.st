@@ -656,8 +656,8 @@ PROGRAM HvacTestSuite
 		(* pass[25]: HighPhase->TransitionToLow after setPointTimeHigh clock1s ticks.
 		 *
 		 * After setPointTimeHigh (=2) cumulated clock1s pulses, the controller resets the
-		 * high counter and issues Make-Before-Break: highFlowDamperDisableRequest=TRUE,
-		 * lowFlowDamperEnableRequest=TRUE.
+		 * high counter and makes before it breaks: lowFlowDamperEnableRequest=TRUE first,
+		 * highFlowDamperDisableRequest only after the low damper is enabled (pass[26]).
 		 *)
 		25 :
 			dev.status := MainStatus.Drying;
@@ -667,7 +667,7 @@ PROGRAM HvacTestSuite
 			main(operationType := OperatingMode.Run, enable := TRUE);
 			clks.clock1s := FALSE;
 			(* After setPointTimeHigh ticks, lowFlowDamperEnableRequest goes TRUE *)
-			IF dev.lowFlowDamperEnableRequest AND dev.highFlowDamperDisableRequest THEN
+			IF dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest THEN
 				pass[25] := TRUE;
 				cycles := 0;
 				step := 26;
@@ -677,7 +677,8 @@ PROGRAM HvacTestSuite
 		 *
 		 * The Actuator FB clears enableRequest / disableRequest VAR_IN_OUT flags when the
 		 * physical maneuver completes (after enableTime=1 clock100ms pulse).
-		 * AirDistribCtrl advances to LowPhase when both flags are cleared.
+		 * The controller disables the high damper once the low one is enabled, and advances to
+		 * LowPhase when the high damper is disabled.
 		 *)
 		26 :
 			dev.status := MainStatus.Drying;
@@ -688,7 +689,8 @@ PROGRAM HvacTestSuite
 			main(operationType := OperatingMode.Run, enable := TRUE);
 			clks.clock100ms := FALSE;
 			(* LowPhase: lowFlowDamperEnableRequest cleared (acked), highFlowDamperDisableRequest cleared *)
-			IF NOT dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest THEN
+			IF NOT dev.lowFlowDamperEnableRequest AND NOT dev.highFlowDamperDisableRequest
+					AND dev.lowFlowDamper.isEnabled AND dev.highFlowDamper.isDisabled THEN
 				pass[26] := TRUE;
 				cycles := 0;
 				step := 27;
@@ -697,8 +699,8 @@ PROGRAM HvacTestSuite
 		(* pass[27]: LowPhase->TransitionToHigh after setPointTimeLow clock1s ticks.
 		 *
 		 * Symmetric to pass[25]: after setPointTimeLow (=2) cumulated ticks the controller
-		 * resets the low counter and issues Make-Before-Break in the opposite direction:
-		 * lowFlowDamperDisableRequest=TRUE, highFlowDamperEnableRequest=TRUE.
+		 * resets the low counter and makes before it breaks in the opposite direction:
+		 * highFlowDamperEnableRequest=TRUE first, lowFlowDamperDisableRequest after it.
 		 *)
 		27 :
 			dev.status := MainStatus.Drying;
@@ -707,7 +709,7 @@ PROGRAM HvacTestSuite
 			clks.clock1s := TRUE;
 			main(operationType := OperatingMode.Run, enable := TRUE);
 			clks.clock1s := FALSE;
-			IF dev.highFlowDamperEnableRequest AND dev.lowFlowDamperDisableRequest THEN
+			IF dev.highFlowDamperEnableRequest AND NOT dev.lowFlowDamperDisableRequest THEN
 				pass[27] := TRUE;
 				dev.airDistributionEnabled := FALSE;
 				main(operationType := OperatingMode.Init, enable := TRUE);

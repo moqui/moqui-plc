@@ -14,7 +14,7 @@
  *   - Otherwise -> bufferMode + transitionMode + blendingMode
  *
  * Source entity: moqui.math.Trajectory (approximatedFunctionId = trajectoryId)
- * moqui blending enum: moqui.math.ParametricPath.compositionMethodEnumId (PpcmPlc* values)
+ * moqui blending enum: moqui.math.ParametricPath.compositionMethodEnumId (PpcmPlc values)
  *)
 TYPE Trajectory : STRUCT
     (* moqui.math.Trajectory.approximatedFunctionId *)

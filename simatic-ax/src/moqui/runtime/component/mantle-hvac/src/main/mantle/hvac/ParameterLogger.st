@@ -28,6 +28,8 @@ FUNCTION_BLOCK ParameterLogger
 	logger.loggerName := componentName;
 	logger.payloadType := LogPayloadType#Numeric;
 	logger.level := LogLevel#Info;
+	(* The snapshot is a bounded burst of 29 events once a minute: not subject to the rate limit *)
+	logger.maxEventsPerWindow := UINT#0;
 
 	(* Process setpoints and limits. *)
 	logger(source := 'HvacTempSetpoint', numericValue := TO_LREAL(dev.tempSetpoint));
@@ -41,6 +43,7 @@ FUNCTION_BLOCK ParameterLogger
 	logger(source := 'HvacDuctTempMin', numericValue := TO_LREAL(dev.ductTempMin));
 	logger(source := 'HvacDuctTempMax', numericValue := TO_LREAL(dev.ductTempMax));
 	logger(source := 'HvacDuctRhMax', numericValue := TO_LREAL(dev.ductRhMax));
+
 	(* Application timing parameters and runtime counters. *)
 	logger(source := 'HvacSetPointTimeHigh', numericValue := TO_LREAL(dev.setPointTimeHigh));
 	logger(source := 'HvacSetPointTimeLow', numericValue := TO_LREAL(dev.setPointTimeLow));
@@ -54,12 +57,14 @@ FUNCTION_BLOCK ParameterLogger
 	logger(source := 'HvacProcessActualDuration', numericValue := TO_LREAL(dev.processActualDuration));
 	logger(source := 'HvacActualRuntime', numericValue := TO_LREAL(dev.actualRuntime));
 	logger(source := 'HvacActualBreakDuration', numericValue := TO_LREAL(dev.actualBreakDuration));
+
 	(* Numeric machine references. *)
 	logger(source := 'HvacAhuFanSpeedSetpoint', numericValue := TO_LREAL(dev.ahuFanSpeedSetpoint));
 	logger(source := 'HvacAirFlowRef', numericValue := TO_LREAL(dev.airFlowRef));
+
 	(* Process measurements. *)
 	logger(source := 'HvacTempFeedback', numericValue := TO_LREAL(dev.tempFeedback));
 	logger(source := 'HvacRhFeedback', numericValue := TO_LREAL(dev.rhFeedback));
 	logger(source := 'HvacDuctTempFeedback', numericValue := TO_LREAL(dev.ductTempFeedback));
 	logger(source := 'HvacDuctRhFeedback', numericValue := TO_LREAL(dev.ductRhFeedback));
-END_FUNCTION_BLOCK
+	END_FUNCTION_BLOCK

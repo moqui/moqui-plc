@@ -27,6 +27,11 @@
  *   MC_ReadAxisError
  *   MC_ReadStatus
  *
+ * axisEnable is a level command: the axis is powered and homed while it is TRUE,
+ * and powered off when it goes FALSE. Wait for ready = TRUE before sending commands.
+ * Stop is held while cmd = Stop (PLCopen MC_Stop: the axis stays in Stopping while Execute is TRUE);
+ * change cmd to release it.
+ *
  * Typical caller pattern:
  *   conveyor.slave := gAxis1;
  *   conveyor.cmd := AxisCommands.MoveVelocity;
@@ -82,6 +87,10 @@ FUNCTION_BLOCK Axis
 VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_INPUT
+    (* Exact Device.deviceId of the axis, used as loggerName; when empty the drive id is used *)
+    axisId : STRING;
+    (* Level command: TRUE powers and homes the axis, FALSE powers it off *)
+    axisEnable : BOOL;
     (* Motion / synchronization command *)
     cmd : AxisCmd := AxisCmd.Idle;
 
@@ -151,7 +160,6 @@ VAR_INPUT
     touchProbeLast : LREAL; (* Window end position *)
 END_VAR
 VAR_IN_OUT
-    axisEnable : BOOL; (* Caller requests initialization by setting TRUE; FB clears when homing is complete *)
     slave : SM3_Basic.AXIS_REF_SM3;
 END_VAR
 VAR_OUTPUT
@@ -291,12 +299,15 @@ VAR
 END_VAR
 
 IF NOT init THEN
-	(* Logger facade init *)
-	logger.enable := TRUE; logger.loggerName := TO_STRING(slave.wDriveId);
+	(* Logger facade init: loggerName is also the name the caller gives SignalMgmt *)
+	IF axisId <> '' THEN
+		loggerName := axisId;
+	ELSE
+		loggerName := TO_STRING(slave.wDriveId);
+	END_IF;
+	logger.enable := TRUE; logger.loggerName := loggerName;
 	init := TRUE;
 END_IF;
-
-logger(message := 'Running actuator.', level := LogLevel.DEBUG);
 
 (*
  * Diagnostics Handler - executed first every PLC cycle.
@@ -343,7 +354,9 @@ IF internalStatus <> AxisInternalStatus.Error AND internalStatus <> AxisInternal
 END_IF;
 
 IF internalStatus = AxisInternalStatus.Error THEN
-	logger(message := 'Axis error.', level := LogLevel.DEBUG);
+	IF NOT axisError THEN
+		logger(message := CONCAT('Axis error. Drive error code: ', DWORD_TO_STRING(readAxisError.AxisErrorID)), level := LogLevel.Error);
+	END_IF;
     axisError := TRUE;
     ready := FALSE;
     axisNotInitialized := TRUE;
@@ -351,13 +364,18 @@ IF internalStatus = AxisInternalStatus.Error THEN
     hasPending := FALSE;
 
     IF resetActivation THEN
+		logger(message := 'Axis reset.', level := LogLevel.Info);
         resetCmdExecute := TRUE; (* Trigger MC_Reset to exit ErrorStop state *)
         internalStatus := AxisInternalStatus.WaitResetState;
     END_IF;
 
 ELSIF internalStatus = AxisInternalStatus.WaitResetState THEN
-	logger(message := 'Axis reset.', level := LogLevel.DEBUG);
-    IF resetCmd.Done THEN
+    IF resetCmd.Error THEN
+        (* MC_Reset failed: back to Error, a new reset rising edge tries again *)
+		logger(message := 'Axis reset failed.', level := LogLevel.Error);
+        resetCmdExecute := FALSE;
+        internalStatus := AxisInternalStatus.Error;
+    ELSIF resetCmd.Done THEN
         resetCmdExecute := FALSE;
 
         (* Disable all FSM-driven FB requests *)
@@ -487,7 +505,7 @@ ELSE
     (*
      * Initialization Handler.
      * NotPowered -> WaitPower -> Powered (homing) -> Ready
-     * axisEnable handshake: caller sets TRUE; FB clears it when homing is done.
+     * axisEnable is a level: the axis stays powered while it is TRUE.
      *)
     CASE internalStatus OF
         AxisInternalStatus.NotPowered :
@@ -544,9 +562,8 @@ ELSE
             axisNotInitialized := TRUE;
 
             IF home.Done THEN
-				logger(message := 'Axis homing.', level := LogLevel.DEBUG);
+				logger(message := 'Axis homed.', level := LogLevel.DEBUG);
                 homeExecute := FALSE;
-                axisEnable := FALSE; (* Handshake: notify caller that init is complete *)
                 internalStatus := AxisInternalStatus.Ready;
             END_IF;
 
@@ -554,7 +571,7 @@ ELSE
          * Command Handler - Ready dispatches to motion sub-states
          *)
         AxisInternalStatus.Ready :
-			logger(message := 'Axis ready to accept commands.', level := LogLevel.DEBUG);
+			IF NOT ready THEN logger(message := 'Axis ready to accept commands.', level := LogLevel.DEBUG); END_IF;
             axisNotInitialized := FALSE;
             ready := TRUE;
             commandExecuted := FALSE;
@@ -718,7 +735,7 @@ ELSE
              *)
             IF moveVelocity.InVelocity OR
                (moveVelocity.Busy AND
-                ABS(ABS(actualVelocity) - TO_LREAL(velocity)) <= TO_LREAL(velocity) * MoquiConf.AXIS_IN_VELOCITY_TOLERANCE) THEN
+                ABS(ABS(actualVelocity) - ABS(TO_LREAL(velocity))) <= ABS(TO_LREAL(velocity)) * MoquiConf.AXIS_IN_VELOCITY_TOLERANCE) THEN
                 moveVelocityExecute := FALSE;
                 commandExecuted := TRUE;
                 internalStatus := AxisInternalStatus.CheckVelocityState;
@@ -1494,9 +1511,16 @@ ELSE
          * MC_Stop decelerates to standstill; Execute must remain TRUE while in Stopping.
          * Setting Execute := FALSE after Done returns the axis to Standstill. *)
         AxisInternalStatus.StoppingState :
-            IF stop.Done THEN
-                stopExecute := FALSE; (* Dropping Execute releases MC_Stop and returns axis to Standstill *)
+            (*
+             * PLCopen MC_Stop: the axis stays in Stopping while Execute is TRUE. Execute is held
+             * while cmd = Stop, so a held Stop does not restart MC_Stop every cycle; a new cmd releases it.
+             *)
+            IF stop.Done AND (cmd = AxisCmd.Stop) THEN
                 commandExecuted := TRUE;
+            ELSIF stop.Done THEN
+                (* A new cmd after standstill: a motion command sent while Stopping would be refused *)
+                stopExecute := FALSE; (* Dropping Execute releases MC_Stop and returns axis to Standstill *)
+                commandExecuted := FALSE;
                 IF NOT axisEnable THEN
                     powerEnable := FALSE;
                     internalStatus := AxisInternalStatus.NotPowered;

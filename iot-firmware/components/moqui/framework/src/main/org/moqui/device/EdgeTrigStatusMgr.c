@@ -11,7 +11,8 @@ void EdgeTrigStatusMgr_Update(EdgeTrigStatusMgr *mgr) {
             }
         }
 
-        if (mgr->timeoutTimer > 0 && mgr->status == EDGE_TRIGGER_STATUS_EXECUTING) {
+        /* TimeOut (To): runs during execution, and again during the abort, so Aborting cannot wait forever */
+        if (mgr->timeoutTimer > 0 && (mgr->status == EDGE_TRIGGER_STATUS_EXECUTING || mgr->status == EDGE_TRIGGER_STATUS_ABORTING)) {
             mgr->timeoutTimer--;
         }
     }
@@ -37,8 +38,11 @@ void EdgeTrigStatusMgr_Update(EdgeTrigStatusMgr *mgr) {
             mgr->activeCycle = (mgr->timeLimit == 0) || (mgr->timeLimitTimer > 0);
 
             if (mgr->errorCondition || ((mgr->timeout > 0) && (mgr->timeoutTimer == 0))) {
+                /* The error ID is set once, when the error occurs */
+                mgr->errorId = mgr->errorCondition ? STATUS_MGR_ERROR_EXTERNAL : STATUS_MGR_ERROR_TIMEOUT;
                 mgr->status = EDGE_TRIGGER_STATUS_ERROR;
             } else if (mgr->abortRequest) {
+                mgr->timeoutTimer = mgr->timeout; /* The abort has its own timeout */
                 mgr->status = EDGE_TRIGGER_STATUS_ABORTING;
             } else if (mgr->readyCondition) {
                 mgr->status = EDGE_TRIGGER_STATUS_DONE;
@@ -49,6 +53,8 @@ void EdgeTrigStatusMgr_Update(EdgeTrigStatusMgr *mgr) {
             mgr->activeCycle = false;
 
             if (mgr->errorCondition || ((mgr->timeout > 0) && (mgr->timeoutTimer == 0))) {
+                /* The error ID is set once, when the error occurs */
+                mgr->errorId = mgr->errorCondition ? STATUS_MGR_ERROR_EXTERNAL : STATUS_MGR_ERROR_TIMEOUT;
                 mgr->status = EDGE_TRIGGER_STATUS_ERROR;
             } else if (mgr->abortComplete) {
                 mgr->status = EDGE_TRIGGER_STATUS_ABORTED;
@@ -78,12 +84,7 @@ void EdgeTrigStatusMgr_Update(EdgeTrigStatusMgr *mgr) {
             mgr->busy = false;
             mgr->activeCycle = false;
             mgr->error = true;
-
-            if (mgr->errorCondition) {
-                mgr->errorId = STATUS_MGR_ERROR_EXTERNAL;
-            } else {
-                mgr->errorId = STATUS_MGR_ERROR_TIMEOUT;
-            }
+            /* errorId was set on entry and is kept until the reset */
 
             if (mgr->resetRequest || !mgr->execute) {
                 mgr->status = EDGE_TRIGGER_STATUS_RESETTING;

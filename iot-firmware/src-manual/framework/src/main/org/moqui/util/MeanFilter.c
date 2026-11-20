@@ -119,7 +119,12 @@ void MeanFilter_Update(MeanFilter *self)
                 self->buffer[self->idx] = self->input;
                 self->sumSma = self->sumSma - xOld + self->input;
                 self->idx++;
-                if (self->idx >= n) { self->idx = 0U; }
+                if (self->idx >= n) {
+                    self->idx = 0U;
+                    /* Once per window: exact sum, against float drift */
+                    self->sumSma = 0.0f;
+                    for (i = 0U; i < n; i++) { self->sumSma += self->buffer[i]; }
+                }
                 self->output = self->sumSma / (float)n;
             } else {
                 /* no update */
@@ -147,7 +152,16 @@ void MeanFilter_Update(MeanFilter *self)
                 self->wsumRamp = self->wsumRamp - self->sumOldRamp +
                                  ((float)n * xNew);
                 self->idx++;
-                if (self->idx >= n) { self->idx = 0U; }
+                if (self->idx >= n) {
+                    self->idx = 0U;
+                    /* Once per window: exact sums, against float drift. Oldest sample (weight 1) is at idx. */
+                    self->sumSma   = 0.0f;
+                    self->wsumRamp = 0.0f;
+                    for (i = 0U; i < n; i++) {
+                        self->sumSma   += self->buffer[i];
+                        self->wsumRamp += (float)(i + 1U) * self->buffer[i];
+                    }
+                }
                 self->output = self->wsumRamp / self->denomRamp;
             } else {
                 /* no update */
@@ -208,7 +222,11 @@ void MeanFilter_Update(MeanFilter *self)
                 self->sma2Buf1[self->sma2Idx1] = self->input;
                 self->sma2Sum1 = self->sma2Sum1 - xOld + self->input;
                 self->sma2Idx1++;
-                if (self->sma2Idx1 >= n) { self->sma2Idx1 = 0U; }
+                if (self->sma2Idx1 >= n) {
+                    self->sma2Idx1 = 0U;
+                    self->sma2Sum1 = 0.0f;
+                    for (i = 0U; i < n; i++) { self->sma2Sum1 += self->sma2Buf1[i]; }
+                }
                 self->sma2Y1 = self->sma2Sum1 / (float)n;
 
                 /* SMA stage 2 */
@@ -216,7 +234,11 @@ void MeanFilter_Update(MeanFilter *self)
                 self->sma2Buf2[self->sma2Idx2] = self->sma2Y1;
                 self->sma2Sum2 = self->sma2Sum2 - xOld + self->sma2Y1;
                 self->sma2Idx2++;
-                if (self->sma2Idx2 >= n) { self->sma2Idx2 = 0U; }
+                if (self->sma2Idx2 >= n) {
+                    self->sma2Idx2 = 0U;
+                    self->sma2Sum2 = 0.0f;
+                    for (i = 0U; i < n; i++) { self->sma2Sum2 += self->sma2Buf2[i]; }
+                }
                 self->sma2Y2 = self->sma2Sum2 / (float)n;
                 self->output = self->sma2Y2;
             } else {

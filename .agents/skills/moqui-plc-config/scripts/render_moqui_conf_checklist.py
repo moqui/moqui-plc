@@ -35,6 +35,7 @@ SECTIONS = {
         "defaultLogLevel",
         "defaultLogSuppressDuration",
         "defaultLogSuppressDuplicates",
+        "defaultLogMaxEventsPerWindow",
         "LOG_SOURCE_LIST_MAX_SIZE",
         "LOG_JSON_PAYLOAD_MAX_SIZE",
         "JSON_PAYLOAD_MAX_SIZE",

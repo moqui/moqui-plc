@@ -40,7 +40,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 
 	CASE cmd OF
 		DeviceConfigCmdType.Init :
-			logger(message := 'Loading device config list.');
+			logger(message := 'Loading device config list.', level := LogLevel.Info);
 			(* Clear previous list on reload *)
 			FOR i := 0 TO MoquiConf.DEVICE_CONFIG_LIST_MAX_SIZE DO configNameList[i] := ''; END_FOR;
 			configNameListSize := 0;
@@ -83,7 +83,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 			IF error THEN
 				logger(message := concat(concat(concat('Error creating device config ', configName), ' of type '), configType), level := LogLevel.Error);
 			ELSE
-				logger(message := concat(concat(concat('Created device config ', configName), ' of type '), configType));
+				logger(message := concat(concat(concat('Created device config ', configName), ' of type '), configType), level := LogLevel.Info);
 	        END_IF;
 
 	    DeviceConfigCmdType.Save :
@@ -92,7 +92,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 	        IF error THEN
 				logger(message := concat(concat(concat('Error saving device config ', configName), ' of type '), configType), level := LogLevel.Error);
 			ELSE
-	           	logger(message := concat(concat(concat('Saved device config ', configName), ' of type '), configType));
+	           	logger(message := concat(concat(concat('Saved device config ', configName), ' of type '), configType), level := LogLevel.Info);
 			END_IF;
 
 		DeviceConfigCmdType.Load:
@@ -101,7 +101,7 @@ FUNCTION_BLOCK DeviceConfigCmds
 			IF error THEN
 				logger(message := concat(concat(concat('Error loading device config ', configName), ' of type '), configType), level := LogLevel.Error);
 			ELSE
-	        	logger(message := concat(concat(concat('Loaded device config ', configName), ' of type '), configType));
+	        	logger(message := concat(concat(concat('Loaded device config ', configName), ' of type '), configType), level := LogLevel.Info);
 	        END_IF;
 
 	    DeviceConfigCmdType.Delete:
@@ -117,11 +117,11 @@ FUNCTION_BLOCK DeviceConfigCmds
 	        IF error THEN
 				logger(message := concat(concat(concat('Error deleting device config ', configName), ' of type '), configType), level := LogLevel.Error);
 			ELSE
-				logger(message := concat(concat(concat('Deleted device config ', configName), ' of type '), configType));
+				logger(message := concat(concat(concat('Deleted device config ', configName), ' of type '), configType), level := LogLevel.Info);
 	        END_IF;
 		
 		DeviceConfigCmdType.Reset :
-			logger(message := 'Resetting device config list.');
+			logger(message := 'Resetting device config list.', level := LogLevel.Info);
 			configCmds.ResetLastError();
 			configCmds.ResetLastInfo();
 			error := FALSE;

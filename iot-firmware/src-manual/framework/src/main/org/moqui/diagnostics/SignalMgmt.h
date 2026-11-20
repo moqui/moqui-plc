@@ -35,6 +35,8 @@ typedef struct {
 
     /* VAR_OUTPUT */
     uint32_t cumulativeOutputAction;
+    /* Cumulative output of the previous cycle, so that it is logged on change only */
+    uint32_t cumulativeOutputActionOld;
     SignalCategory activeCategory;
     
     bool resetEnable;

@@ -34,6 +34,8 @@ VAR
 ${SUBSYSTEM_CONTROLLER_DECLARATIONS}
     (* HAL manager *)
     deviceManager : DeviceManager;
+    (* Previous status, so that the FSM state is logged on change only *)
+    statusOld : MainStatus := ${INITIAL_STATUS};
 END_VAR
 
 (* Logger facade init *)
@@ -56,7 +58,6 @@ ${INIT_ASSIGNMENTS}
 ${SUBSYSTEM_CONTROLLER_INIT_CALLS}
 ELSE
     (* FSM transition-condition rule engine *)
-    logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
     ruleEngine(operationType := operationType);
 END_IF;
 
@@ -66,10 +67,12 @@ dev.lastStatus := dev.status;
 ${FAULT_OVERRIDE}
 
 (* Main FSM - Output function + State-update function *)
-logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
 CASE dev.status OF
 ${MAIN_FSM_CASE_BLOCKS}
 END_CASE;
+
+(* Log the FSM state on change only: a message every scan would fill the log buffer. *)
+${MAIN_STATE_LOG}
 
 (* Subsystem FSMs execute after the supervisor output/state update and before the HAL. *)
 ${SUBSYSTEM_CONTROLLER_CALLS}
@@ -77,5 +80,4 @@ ${SUBSYSTEM_CONTROLLER_CALLS}
 ${DONE_ASSIGNMENT}
 
 (* Device orchestration (HAL) *)
-logger(message := 'Update devices.', level := LogLevel.DEBUG);
 deviceManager(operationType := operationType);

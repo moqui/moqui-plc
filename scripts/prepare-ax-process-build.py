@@ -216,12 +216,22 @@ def compact_section(text: str) -> str:
     return "\n".join(compacted).strip()
 
 
+def is_comment_line(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith(("(*", "*")) or stripped.endswith("*)")
+
+
 def extract_named_assignments(section_text: str, allowed_names: tuple[str, ...]) -> list[str]:
+    """The assignments of allowed_names, each with the comment lines directly above it."""
     lines: list[str] = []
     allowed_prefixes = tuple(f"{name} :" for name in allowed_names)
-    for line in section_text.split("\n"):
+    source_lines = section_text.split("\n")
+    for index, line in enumerate(source_lines):
         if line.strip().startswith(allowed_prefixes):
-            lines.append(line.rstrip())
+            start = index
+            while start > 0 and is_comment_line(source_lines[start - 1]):
+                start -= 1
+            lines.extend(source_line.rstrip() for source_line in source_lines[start:index + 1])
     return lines
 
 
@@ -238,6 +248,7 @@ def build_process_only_constants(constants_body: str) -> str:
             "defaultLogLevel",
             "defaultLogSuppressDuration",
             "defaultLogSuppressDuplicates",
+            "defaultLogMaxEventsPerWindow",
             "LOG_SOURCE_LIST_MAX_SIZE",
         ),
     )
@@ -253,42 +264,39 @@ def build_process_only_constants(constants_body: str) -> str:
 
 
 def build_process_only_globals(globals_body: str) -> str:
+    """The process globals of ec, each with the comment block directly above it."""
+    kept_prefixes = (
+        "clks :",
+        "enable :",
+        "init :",
+        "fault, error, commError, reset, autoReset :",
+        "allConfigLoaded :",
+        "logSourceList :",
+        "logSourceListSize :",
+        "logMinLevel :",
+        "retryCount, retryTime :",
+        "isPrimary :",
+        "heartbeat :",
+        "dev : DeviceFacade;",
+        "trjDynamicSlowdownEnable :",
+        "trjDynamicSlowdownFactor :",
+        "abortCurrentTrajectory :",
+    )
     kept_lines: list[str] = []
+    comment_block: list[str] = []
     for line in globals_body.split("\n"):
         stripped = line.strip()
         if not stripped:
             kept_lines.append(line)
-            continue
-        if stripped.startswith("(* Timing generation"):
+            comment_block = []
+        elif is_comment_line(line):
+            comment_block.append(line)
+        elif stripped.startswith(kept_prefixes):
+            kept_lines.extend(comment_block)
             kept_lines.append(line)
-            continue
-        if stripped.startswith("(*") and any(
-            marker in stripped
-            for marker in (
-                "Framework args.",
-                "All device configs loaded",
-                "Facade for managing devices and logical parameters.",
-            )
-        ):
-            kept_lines.append(line)
-            continue
-        if stripped.startswith(
-            (
-                "clks :",
-                "enable :",
-                "init :",
-                "fault, error, commError, reset, autoReset :",
-                "allConfigLoaded :",
-                "logSourceList :",
-                "logSourceListSize :",
-                "logMinLevel :",
-                "retryCount, retryTime :",
-                "isPrimary :",
-                "heartbeat :",
-                "dev : DeviceFacade;",
-            )
-        ):
-            kept_lines.append(line)
+            comment_block = []
+        else:
+            comment_block = []
     return compact_section("\n".join(kept_lines))
 
 
@@ -321,6 +329,7 @@ def write_ax_configuration(source_root: Path, target_root: Path) -> None:
     )
     configuration_text = re.sub(r"(:\s*(UINT|DINT|UDINT)\s*:=\s*)(\d+)(\s*;)", r"\1\2#\3\4", configuration_text)
     configuration_text = re.sub(r"\bLogLevel\.([A-Za-z_][A-Za-z0-9_]*)", r"LogLevel#\1", configuration_text)
+    configuration_text = re.sub(r"(:\s*(L?REAL)\s*:=\s*)(-?\d+\.\d+)(\s*;)", r"\1\2#\3\4", configuration_text)
     configuration_path.write_text(configuration_text, encoding="utf-8", newline="\n")
 
 

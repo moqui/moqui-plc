@@ -28,8 +28,9 @@ FUNCTION_BLOCK DeviceManager
 	(* Cold glycol group *)
 	(*
 	 * Pump is started first via the request/ack handshake.
-	 * Valve enable follows the group request directly (no separate handshake
-	 * needed for ProcessPid - enable := FALSE freezes the output at 0).
+	 * The valve follows the pump state, not the request: the pump clears
+	 * coldGroupEnableRequest as its acknowledgment, so the request is FALSE
+	 * exactly while the group is running (enable := FALSE freezes the output at 0).
 	 *)
 	ec.dev.coldGlycolPump(
 		operationType := operationType,
@@ -37,8 +38,10 @@ FUNCTION_BLOCK DeviceManager
 		enableRequest := ec.dev.coldGroupEnableRequest,
 		disableRequest := ec.dev.coldGroupDisableRequest);
 
+	(* Reverse acting: cooling opens the valve when the temperature is above the setpoint *)
 	ec.dev.coldGlycolValve(
-		enable := ec.dev.coldGroupEnableRequest,
+		enable := ec.dev.coldGlycolPump.isEnabled,
+		deviationInversion := TRUE,
 		feedback := ec.dev.tempFeedback,
 		setpoint := ec.dev.tempSetpoint,
 		clock := ec.clks.clock100ms);
@@ -51,7 +54,7 @@ FUNCTION_BLOCK DeviceManager
 		disableRequest := ec.dev.hotGroupDisableRequest);
 
 	ec.dev.hotGlycolValve(
-		enable := ec.dev.hotGroupEnableRequest,
+		enable := ec.dev.hotGlycolPump.isEnabled,
 		feedback := ec.dev.tempFeedback,
 		setpoint := ec.dev.tempSetpoint,
 		clock := ec.clks.clock100ms);

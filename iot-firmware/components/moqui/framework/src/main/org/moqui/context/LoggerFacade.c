@@ -109,6 +109,49 @@ static void store_event(const LogEvent *ev)
     if (s_has_last) { s_last = *ev; }
 }
 
+/*
+ * Rate limit of one facade, then store. At the end of the window the suppressed events are reported by one
+ * Warn event. Over the limit a new event is only counted; a repetition of the last event is not limited.
+ */
+static void store_limited(LoggerFacade *logger, const LogEvent *ev)
+{
+    LogEvent notice;
+
+    logger->rateLimited = false;
+    if (!logger->windowOpen ||
+        ((ev->logEventDate - logger->windowStartMs) >= (uint64_t)LOG_SUPPRESS_DURATION_MS)) {
+        if ((logger->windowSuppressed > 0U) && (s_min_level != LOG_LEVEL_OFF)) {
+            notice = *ev;
+            s_event_seq++;
+            (void)snprintf(notice.logEventId, sizeof(notice.logEventId), "%08lx", (unsigned long)s_event_seq);
+            notice.source[0]   = '\0'; /* a device event, not a parameter value */
+            notice.level       = LOG_LEVEL_WARN;
+            notice.marker      = LOG_MARKER_HEALTH;
+            notice.payloadType = LOG_PAYLOAD_TYPE_TEXT;
+            (void)snprintf(notice.payload.message, sizeof(notice.payload.message),
+                           "%lu log events suppressed: logger too verbose",
+                           (unsigned long)logger->windowSuppressed);
+            notice.repeatCount = 1U;
+            store_event(&notice);
+        }
+        logger->windowOpen       = true;
+        logger->windowStartMs    = ev->logEventDate;
+        logger->windowEventCount = 0U;
+        logger->windowSuppressed = 0U;
+    }
+    if (!logger->rateLimitDisabled &&
+        !(s_has_last && same_event(ev, &s_last) &&
+          ((ev->logEventDate - s_last.logEventDate) < (uint64_t)LOG_SUPPRESS_DURATION_MS))) {
+        if (logger->windowEventCount >= (uint16_t)LOG_MAX_EVENTS_PER_WINDOW) {
+            if (logger->windowSuppressed < UINT32_MAX) { logger->windowSuppressed++; }
+            logger->rateLimited = true;
+            return;
+        }
+        logger->windowEventCount++;
+    }
+    store_event(ev);
+}
+
 static void fill_identity(LogEvent *ev, const char *loggerName, const char *source, LogLevel level)
 {
     s_event_seq++;
@@ -142,7 +185,7 @@ void LoggerFacade_SetMinLevel(LogLevel level) { s_min_level = level; }
 
 LogLevel LoggerFacade_GetMinLevel(void) { return s_min_level; }
 
-void LoggerFacade_LogFmt(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogFmt(LoggerFacade *logger, LogLevel level,
                          const char *fmt, ...)
 {
     char    buf[256];
@@ -159,7 +202,7 @@ void LoggerFacade_LogFmt(const LoggerFacade *logger, LogLevel level,
     LoggerFacade_Log(logger, level, buf);
 }
 
-void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_Log(LoggerFacade *logger, LogLevel level,
                       const char *message)
 {
     const char *tag;
@@ -199,10 +242,10 @@ void LoggerFacade_Log(const LoggerFacade *logger, LogLevel level,
     ev.payloadType = LOG_PAYLOAD_TYPE_TEXT;
     (void)strncpy(ev.payload.message, message, sizeof(ev.payload.message) - 1U);
     ev.payload.message[sizeof(ev.payload.message) - 1U] = '\0';
-    store_event(&ev);
+    store_limited(logger, &ev);
 }
 
-void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
+void LoggerFacade_LogNumeric(LoggerFacade *logger, LogLevel level,
                              const char *source, double numericValue)
 {
     LogEvent ev;
@@ -216,7 +259,7 @@ void LoggerFacade_LogNumeric(const LoggerFacade *logger, LogLevel level,
     fill_identity(&ev, logger->loggerName, source, level);
     ev.payloadType = LOG_PAYLOAD_TYPE_NUMERIC;
     ev.payload.numericValue = numericValue;
-    store_event(&ev);
+    store_limited(logger, &ev);
 }
 
 void LoggerFacade_PeekBuffer(LogEvent *out, uint16_t maxLen, uint16_t *outCount)

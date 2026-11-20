@@ -68,7 +68,7 @@ FUNCTION_BLOCK JsonToParametersMapper
 	 *           dev.trajectory.joint[0, i] := TO_LREAL(jsonValue.elements[i].value.lrValue);
 	 *       END_FOR;
 	 *   ELSIF jsonKey = "J2" THEN ...
-	 *   (* J3→joint[2,i], J4→joint[3,i], J5→joint[4,i], J6→joint[5,i] *)
+	 *   (* J3->joint[2,i], J4->joint[3,i], J5->joint[4,i], J6->joint[5,i] *)
 	 *
 	 * In simatic-ax the target struct is Trajectory / TrajectoryPoint (see Trajectory.st).
 	 * In Codesys adapt to the application DeviceFacade trajectory buffer.

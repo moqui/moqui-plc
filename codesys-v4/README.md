@@ -38,6 +38,15 @@ python3 scripts/convert-iec61131-to-codesys4.py --build
 Without options, the script only generates the files. The settings are in the
 `CODESYS4_*` section of `scripts/moqui_plc_config.py`.
 
+On Windows, name the installation and its command line explicitly:
+
+```sh
+MOQUI_PLC_CODESYS4_DIR="C:/Program Files/CODESYS-4" MOQUI_PLC_C4_CLI="C:/Program Files/CODESYS-4/c4-cli.exe" python scripts/convert-iec61131-to-codesys4.py --install-libraries
+```
+
+`--install-libraries` reads the library entries of the archive with either
+folder separator (`\` or `/`), as CODESYS writes them on Linux or Windows.
+
 ## From the canonical tree to CODESYS 4
 
 - **Object files.**

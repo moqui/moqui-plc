@@ -594,6 +594,11 @@ plc4j_projection:
         self.assertIn("(* No fault state defined for this FSM. *)", cure_main)
         self.assertNotIn("IF dev.faultRequest THEN dev.status := MainStatus.Curing", cure_main)
         self.assertIn("dev.cureLampStatus := CureLampStatus.Active;", cure_controller)
+        # FSM states are logged on change only, never at every scan inside the CASE
+        for generated in (cure_main, cure_controller):
+            self.assertIn("<> statusOld THEN", generated)
+            self.assertNotIn("level := LogLevel.DEBUG);\n\n        (* FSM output function *)", generated)
+        self.assertIn("CureLampStatus.Active : logger(message := 'Active.', level := LogLevel.Info);", cure_controller)
         self.assertIn("uvLampBank : ActuatorGroup;", cure_facade)
         self.assertIn('jsonKey = "lampPowerReference"', cure_mapper)
         self.assertIn("dev.uvLampBankDemandSetpoint := TO_REAL(jsonValue.value.lrValue);", cure_mapper)

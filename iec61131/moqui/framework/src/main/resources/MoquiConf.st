@@ -6,7 +6,7 @@ VAR_GLOBAL CONSTANT
 	retryOnError : BOOL := TRUE;
 	(* Minimum time between retries after an error, in seconds *)
 	minRetryTime : UINT := 10;
-	(* If specified only retry this many times. When this count is reached paused will be set to true. *)
+	(* If specified only retry this many times. When this count is reached MoquiStart stays in Error until a reset from the supervision. *)
 	maxRetryCount : UINT := 5;
 
 	(* ========== Logger ========== *)
@@ -17,6 +17,12 @@ VAR_GLOBAL CONSTANT
 	(* Window in which equal consecutive events are only counted (T#0S disables suppression) *)
 	defaultLogSuppressDuration : TIME := T#10S;
 	defaultLogSuppressDuplicates : BOOL := TRUE;
+	(*
+	 * Rate limit: maximum new events stored by one logger in one defaultLogSuppressDuration window (0 disables).
+	 * Further events are only counted and reported by one Warn event at the end of the window.
+	 * A safety net against loggers called at every cycle: devices log events on edges.
+	 *)
+	defaultLogMaxEventsPerWindow : UINT := 20;
 	(* Log appender configurations *)
 	LOG_SOURCE_LIST_MAX_SIZE : UINT := 50;
 	(* JSON payload size for log appender *)

@@ -105,7 +105,10 @@ TYPE DeviceFacade : STRUCT
     coldGroupDisableRequest : BOOL;
     (* Glycol circulating pump - on/off Actuator *)
     coldGlycolPump : Actuator;
-    (* Modulating glycol valve - continuous PID control *)
+    (*
+     * Modulating glycol valve - continuous PID control.
+     * Reverse acting (deviationInversion := TRUE passed by DeviceManager).
+     *)
     coldGlycolValve : ProcessPid;
 
     (* Hot glycol group *)

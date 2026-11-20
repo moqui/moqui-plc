@@ -7,7 +7,14 @@
  *   type and value) within suppressDuration is only counted. The count is written later as one summary record,
  *   a copy of the event with repeatCount = repetitions, when a different event arrives or when the window has
  *   elapsed at any later call ("last message repeated N times"). Stored records are never modified.
+ * - Rate limit: at most maxEventsPerWindow new events are stored in one suppressDuration window. Further
+ *   events are only counted; at the first call after the window one Warn event reports how many were suppressed.
+ *   Repetitions counted by duplicate suppression do not count against the limit.
  * - The local LogRingBuffer has this block as its only producer: call it from one task only.
+ * - Inputs are retained between calls, as for every function block: pass level at every call,
+ *   otherwise the event gets the level of the previous call.
+ * - Generated logEventId: loggerName-<ms timestamp>-<source slot>-<event count>. The slot is unique per facade,
+ *   the count per event of the facade, and the timestamp separates restarts of the application.
  *)
 FUNCTION_BLOCK LoggerFacade
 	
@@ -36,6 +43,8 @@ FUNCTION_BLOCK LoggerFacade
 		suppressDuplicates : BOOL := MoquiConf.defaultLogSuppressDuplicates;
 	    (* Duplicate suppression window *)
 	    suppressDuration : TIME := MoquiConf.defaultLogSuppressDuration;
+	    (* Rate limit: new events stored per suppressDuration window (0 disables) *)
+	    maxEventsPerWindow : UINT := MoquiConf.defaultLogMaxEventsPerWindow;
 	END_VAR
 	VAR_OUTPUT
 		(* The event was stored, or counted as a repetition *)
@@ -44,6 +53,8 @@ FUNCTION_BLOCK LoggerFacade
 		error : BOOL;
 		(* The event, or a pending repetition summary, was refused because the local buffer was full *)
 		dropped : BOOL;
+		(* The event was not stored: the rate limit of the window was reached *)
+		rateLimited : BOOL;
 	END_VAR
 	VAR
 		(* Local log ring buffer *)
@@ -61,13 +72,20 @@ FUNCTION_BLOCK LoggerFacade
 	    summary : LogEvent;
 	    minLevel : INT;
 		(* Log event ID generator *)
-	    timestamp : SysTimeRtc.SYSTIME;
-	    uuid : STRING(40);
+	    uuid : STRING;
+	    eventCount : UDINT;
+	    (* Rate limit window *)
+	    windowOpen : BOOL;
+	    windowStart : DATE_AND_TIME;
+	    windowEventCount : UINT;
+	    windowSuppressed : UDINT;
+	    rateNotice : LogEvent;
 	END_VAR
 
 	done := FALSE;
 	error := FALSE;
 	dropped := FALSE;
+	rateLimited := FALSE;
 
 	(* Register once into the log appender source list; the atomic increment gives each facade its own slot *)
 	IF NOT init THEN
@@ -84,6 +102,36 @@ FUNCTION_BLOCK LoggerFacade
 
 	now := nowTimestamp();
 
+	(* Rate limit: at the end of the window report the suppressed events, then open a new window *)
+	IF NOT windowOpen OR ((now - windowStart) >= suppressDuration) THEN
+		IF (windowSuppressed > 0) AND (ec.logMinLevel <> LogLevel.Off) THEN
+			eventCount := eventCount + 1;
+			rateNotice.logEventId := CONCAT(loggerName, '-suppressed-');
+			rateNotice.logEventId := CONCAT(rateNotice.logEventId, ULINT_TO_STRING(nowMillis()));
+			rateNotice.logEventId := CONCAT(rateNotice.logEventId, '-');
+			rateNotice.logEventId := CONCAT(rateNotice.logEventId, DINT_TO_STRING(sourceSlot));
+			rateNotice.logEventId := CONCAT(rateNotice.logEventId, '-');
+			rateNotice.logEventId := CONCAT(rateNotice.logEventId, UDINT_TO_STRING(eventCount));
+			rateNotice.loggerName := loggerName;
+			rateNotice.level := LogLevel.Warn;
+			rateNotice.marker := LogMarker.Health;
+			rateNotice.logEventDate := now;
+			(* A device event, not a parameter value: empty source (DeviceLog of loggerName) *)
+			rateNotice.source := '';
+			rateNotice.payloadType := LogPayloadType.Text;
+			rateNotice.payload.message := CONCAT(UDINT_TO_STRING(windowSuppressed),
+				' log events suppressed: logger too verbose');
+			rateNotice.repeatCount := 1;
+			logBuffer(cmd := LogCmd.Push, logEntry := rateNotice);
+			logBuffer.cmd := LogCmd.Idle;
+			dropped := logBuffer.dropped;
+		END_IF;
+		windowOpen := TRUE;
+		windowStart := now;
+		windowEventCount := 0;
+		windowSuppressed := 0;
+	END_IF;
+
 	(* Write the pending repetition summary once its window has elapsed *)
 	IF (repeatPending > 0) AND ((now - lastLogEvent.logEventDate) >= suppressDuration) THEN
 		summary := lastLogEvent;
@@ -92,7 +140,7 @@ FUNCTION_BLOCK LoggerFacade
 		summary.repeatCount := repeatPending;
 		repeatPending := 0;
 		logBuffer(cmd := LogCmd.Push, logEntry := summary);
-		dropped := logBuffer.dropped;
+		dropped := dropped OR logBuffer.dropped;
 	END_IF;
 
 	(* Level threshold: All is the lowest threshold, Off disables logging *)
@@ -125,6 +173,17 @@ FUNCTION_BLOCK LoggerFacade
 		RETURN;
 	END_IF;
 
+	(*
+	 * Rate limit: over the limit the new event is only counted. Checked before the repetition summary,
+	 * so alternating events cannot write one summary per call; the summary is written when the window elapses.
+	 *)
+	IF (maxEventsPerWindow > 0) AND (windowEventCount >= maxEventsPerWindow) THEN
+		IF windowSuppressed < 16#FFFFFFFF THEN windowSuppressed := windowSuppressed + 1; END_IF;
+		rateLimited := TRUE;
+		RETURN;
+	END_IF;
+	windowEventCount := windowEventCount + 1;
+
 	(* A different event: first write the repetitions of the previous one *)
 	IF repeatPending > 0 THEN
 		summary := lastLogEvent;
@@ -138,9 +197,14 @@ FUNCTION_BLOCK LoggerFacade
 
 	(* Prepare the new log event entry *)
 	IF logEventId = '' THEN
-		SysTimeRtcHighResGet(pTimestamp := timestamp);
+		(* Two events of one cycle share the ms timestamp, and facades can share loggerName: slot and count keep the ID unique *)
+		eventCount := eventCount + 1;
 		uuid := CONCAT(loggerName, '-');
-		uuid := CONCAT(uuid, ULINT_TO_STRING(timestamp));
+		uuid := CONCAT(uuid, ULINT_TO_STRING(nowMillis()));
+		uuid := CONCAT(uuid, '-');
+		uuid := CONCAT(uuid, DINT_TO_STRING(sourceSlot));
+		uuid := CONCAT(uuid, '-');
+		uuid := CONCAT(uuid, UDINT_TO_STRING(eventCount));
 		lastLogEvent.logEventId := uuid;
 	ELSE
 		lastLogEvent.logEventId := logEventId;

@@ -720,12 +720,12 @@ PROGRAM AxisGroupTestSuite
 	     *
 	     * On entry (cycles = 1): blending params are applied and the move is dispatched.
 	     * On commandExecuted: grp.cmd := Idle triggers cmd <> oldCmd in AxisGroup FSM
-	     *   (CheckLinearAbsoluteState → Standby), which clears commandExecuted.
+	     *   (CheckLinearAbsoluteState -> Standby), which clears commandExecuted.
 	     *   step := 82 + cycles := 0 re-enters the loop for the next waypoint.
 	     * When trjIdx >= trj.pointCount: all waypoints visited, advance to GroupHalt test.
 	     *)
 	    82 :
-	        (* Abort: highest priority — clear override, halt, clear trajectory queue. *)
+	        (* Abort: highest priority - clear override, halt, clear trajectory queue. *)
 	        IF ec.abortCurrentTrajectory THEN
 	            ec.trjDynamicSlowdownEnable := FALSE;
 	            grp.overrideEnable := FALSE;
@@ -766,7 +766,7 @@ PROGRAM AxisGroupTestSuite
 	            IF trjAbortArmed AND trjIdx = 1 THEN
 	                ec.abortCurrentTrajectory := TRUE;
 	            END_IF;
-	            grp.cmd := AxisGroupCmd.Idle; (* change cmd → AxisGroup FSM exits CheckLinearAbsoluteState *)
+	            grp.cmd := AxisGroupCmd.Idle; (* change cmd -> AxisGroup FSM exits CheckLinearAbsoluteState *)
 	            step := 82; cycles := 0;
 	        END_IF;
 
@@ -819,7 +819,7 @@ PROGRAM AxisGroupTestSuite
 	        END_IF;
 
 	    (*
-	     * 84 : Abort halt — decelerates to standstill then clears trajectory state.
+	     * 84 : Abort halt - decelerates to standstill then clears trajectory state.
 	     * Entered from step 82 when abortCurrentTrajectory = TRUE.
 	     * In production Moqui clears the flag and pushes the escape trajectory; the test
 	     * simulates this inside step 85 after 10 cycles (trjAbortArmed guards the block).

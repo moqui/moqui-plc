@@ -56,6 +56,8 @@ FUNCTION_BLOCK Main
 		deviceManager : DeviceManager;
 		(* Periodic logical-parameter logger *)
 		logParameters : ParameterLogger;
+		(* Previous status, so that the FSM state is logged on change only *)
+		statusOld : MainStatus := MainStatus.Standby;
 	END_VAR
 
 	(* Logger facade init *)
@@ -99,7 +101,6 @@ FUNCTION_BLOCK Main
 		done := FALSE;
 	ELSE
 		(* FSM transition-condition rule engine *)
-		logger(message := 'Run FSM transition-condition logic.', level := LogLevel.DEBUG);
 		ruleEngine(operationType := operationType);	
 	END_IF;
 
@@ -107,8 +108,15 @@ FUNCTION_BLOCK Main
 		 * Preserve the originating phase while idling in Standby so thermostat-driven
 		 * Heating/Cooling recipes can stop/start repeatedly until isCompleted becomes TRUE.
 		 * Init still stamps Standby, which keeps fresh-start logic for a newly loaded recipe.
+		 * A temporary thermal override of Drying (Drying -> Cooling/Heating) keeps Drying as the
+		 * originating phase: MainRuleEngine returns to Drying from Cooling/Heating while
+		 * lastStatus = Drying, so it must stay Drying for the whole override, not for one scan.
 	     *)
-		IF (operationType = OperatingMode.Init) OR (ec.dev.status <> MainStatus.Standby) THEN
+		IF operationType = OperatingMode.Init THEN
+			ec.dev.lastStatus := ec.dev.status;
+		ELSIF (ec.dev.status <> MainStatus.Standby)
+				AND NOT ((ec.dev.lastStatus = MainStatus.Drying)
+					AND ((ec.dev.status = MainStatus.Cooling) OR (ec.dev.status = MainStatus.Heating))) THEN
 			ec.dev.lastStatus := ec.dev.status;
 		END_IF;
 
@@ -116,11 +124,9 @@ FUNCTION_BLOCK Main
 	IF ec.dev.faultRequest THEN ec.dev.status := MainStatus.Fault; END_IF;
 
 	(* Main FSM - Output function + State-update function *)
-	logger(message := 'Run Main FSM.', level := LogLevel.DEBUG);
 	CASE ec.dev.status OF
 	    (* Standby / Homing: all groups off, wait for the next phase request. *)
 		MainStatus.Standby :
-			logger(message := 'Standby.', level := LogLevel.DEBUG);
 			ec.dev.standbyRequest := FALSE;
 
 			(* FSM Output function - everything disabled *)
@@ -145,7 +151,6 @@ FUNCTION_BLOCK Main
 
 	    (* Ventilation: AHU + air flow control only - no temperature conditioning. *)
 		MainStatus.Ventilation :
-			logger(message := 'Ventilation.', level := LogLevel.DEBUG);
 			ec.dev.ventilationRequest := FALSE;
 
 			(* FSM output function *)
@@ -176,7 +181,6 @@ FUNCTION_BLOCK Main
 	     * transitions rather than here, keeping output function clean.
 	     *)
 		MainStatus.Cooling :
-			logger(message := 'Cooling.', level := LogLevel.DEBUG);
 			ec.dev.coolingRequest := FALSE;
 
 			(* FSM output function *)
@@ -202,7 +206,6 @@ FUNCTION_BLOCK Main
 	     * Mode C (no RH ctrl) and Mode D (with RH ctrl).
 	     *)
 		MainStatus.Heating :
-			logger(message := 'Heating.', level := LogLevel.DEBUG);
 			ec.dev.heatingRequest := FALSE;
 
 			(* FSM output function *)
@@ -230,7 +233,6 @@ FUNCTION_BLOCK Main
 	     * when the break is complete.
 	     *)
 		MainStatus.Drying :
-			logger(message := 'Drying.', level := LogLevel.DEBUG);
 			ec.dev.dryingRequest := FALSE;
 
 			(* FSM output function *)
@@ -255,7 +257,6 @@ FUNCTION_BLOCK Main
 
 	    (* Fault: all groups off; wait for signal manager to clear all alarms. *)
 		MainStatus.Fault :
-			logger(message := 'Fault.', level := LogLevel.DEBUG);
 			ec.dev.faultRequest := FALSE;
 
 			(* FSM output function *)
@@ -287,8 +288,20 @@ FUNCTION_BLOCK Main
 
 	done := ec.dev.isCompleted;
 
+	(* Log the FSM state on change only: a message every scan would fill the log buffer. *)
+	IF ec.dev.status <> statusOld THEN
+		CASE ec.dev.status OF
+			MainStatus.Standby : logger(message := 'Standby.', level := LogLevel.Info);
+			MainStatus.Ventilation : logger(message := 'Ventilation.', level := LogLevel.Info);
+			MainStatus.Cooling : logger(message := 'Cooling.', level := LogLevel.Info);
+			MainStatus.Heating : logger(message := 'Heating.', level := LogLevel.Info);
+			MainStatus.Drying : logger(message := 'Drying.', level := LogLevel.Info);
+			MainStatus.Fault : logger(message := 'Fault.', level := LogLevel.Error);
+		END_CASE;
+		statusOld := ec.dev.status;
+	END_IF;
+
 	(* Device orchestration (HAL) *)
-	logger(message := 'Update HVAC devices.', level := LogLevel.DEBUG);
 	deviceManager(operationType := operationType);
 
 	(* Log the coherent post-device-update parameter snapshot. *)

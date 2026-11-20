@@ -97,12 +97,12 @@ FUNCTION_BLOCK ActuatorGroup
 	     * actuator while exactly k are currently running (k = 0..actuatorNum-1).
 	     * startPoints[0] = threshold to start the first actuator (0 -> 1).
 		 *)
-	    startPoints : ARRAY[0..7] OF REAL;
+	    startPoints : ARRAY[0..MoquiConf.ACTUATOR_GROUP_MAX_SIZE - 1] OF REAL;
 	    (* 
 	     * stopPoints[k]: demand level below which the (k+1)-th running actuator is stopped (k = 0..actuatorNum-2).
 	     * stopPoints[0] = threshold to stop the last actuator (1 -> 0).
 	     *)
-	    stopPoints : ARRAY[0..7] OF REAL;
+	    stopPoints : ARRAY[0..MoquiConf.ACTUATOR_GROUP_MAX_SIZE - 1] OF REAL;
 	    (* Demand must stay above startPoints[k] for this long before a start. *)
 	    startDelay : TIME := T#10s;
 	    (* Demand must stay below stopPoints[k] for this long before a stop. *)
@@ -245,7 +245,8 @@ FUNCTION_BLOCK ActuatorGroup
 	    IF NOT actuatorFault[i] AND NOT actuatorInterlocked[i] THEN
 	        availableNum := availableNum + 1;
 	    END_IF;
-	    IF actuatorEnabled[i] THEN
+	    (* A faulted actuator does not count as running, even if Actuator still holds its enable output *)
+	    IF actuatorEnabled[i] AND NOT actuatorFault[i] THEN
 	        runningNum := runningNum + 1;
 	    END_IF;
 	END_FOR;
@@ -337,6 +338,13 @@ FUNCTION_BLOCK ActuatorGroup
 	             * start the next available standby without waiting for startDelay.
 	             * Only one start per cycle to avoid over-driving the process.
 	             *)
+	            (* Stop a faulted actuator that is still enabled: the replacement below takes its place *)
+	            FOR i := 1 TO actuatorNum DO
+	                IF actuatorEnabled[i] AND actuatorFault[i] AND NOT disableRequests[i] THEN
+	                    disableRequests[i] := TRUE;
+	                END_IF;
+	            END_FOR;
+
 	            IF runningNum < minRunning THEN
 	                FOR i := 1 TO actuatorNum DO
 	                    IF NOT actuatorEnabled[sortedIdx[i]]

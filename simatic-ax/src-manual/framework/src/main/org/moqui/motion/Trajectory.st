@@ -4,6 +4,16 @@
  * Intended use:
  *   1. moqui-device-gateway populates this struct from the TrajectoryPointComponent view
  *      and writes it to the PLC via MQTT/OPC UA.
+ *      For the ephemeral path, moqui-device.export#Trajectory publishes the following
+ *      JSON payload to the configured MQTT topic (e.g. moqui/robot/arm1/trajectory):
+ *        { "approximatedFunctionId": "100051", "waypointCount": 10,
+ *          "axes": { "J1": [θ0,θ1,...,θ9], "J2": [...], ..., "J6": [...] } }
+ *      Each axis array contains pointCount LREAL values in radians (sequenceNum order).
+ *      Mapping into this struct: J1→points[i].pos.x, J2→pos.y, J3→pos.z,
+ *                                J4→pos.a, J5→pos.b, J6→pos.c; pointCount := waypointCount.
+ *      A JsonToParametersMapper variant for robot trajectories would parse the nested
+ *      "axes" object and iterate each float array, since the standard scalar mapper
+ *      does not handle arrays or nested objects.
  *   2. The PLC iterates points[0..pointCount-1] in sequenceNum order, feeding each
  *      TrajectoryPoint.pos to AxisGroup.endPoint and dispatching the appropriate
  *      motion command (MoveLinearAbsolute, MoveDirectAbsolute, etc.).

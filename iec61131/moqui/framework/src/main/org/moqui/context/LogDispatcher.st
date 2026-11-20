@@ -5,12 +5,13 @@
  * - The sources are visited in turn; one batch of at most LOG_APPENDER_BATCH_SIZE records of one source is copied
  *   and published as one MQTT message (MqttLogAppender).
  * - The records are released from their buffer only when the batch has been published (QoS 1: acknowledged).
- *   A failed batch is built again and resent with the DUP flag, up to logPublishMaxAttempts times; then it is
+ *   A failed batch is resent unchanged with the DUP flag, up to logPublishMaxAttempts times; then it is
  *   released and counted in LogSource.discardedCount. While the broker is not connected nothing is taken, and the
  *   buffers keep their records until they are full.
  * - Records refused by a full buffer are reported in the next batch of that source by one record
  *   "N log events dropped" (Warn, Health, device-scoped on applicationDeviceId).
- * - When a batch does not fit the JSON capacity, batchLimit is halved and the batch built again.
+ * - When a batch does not fit the JSON capacity, batchLimit is halved and the batch built again; the full
+ *   LOG_APPENDER_BATCH_SIZE is tried again after the next published batch.
  *
  * errorId: 121 inconsistent buffer counters, 122 batch not finished within SEND_TIMEOUT; otherwise the
  * MqttLogAppender error of the last failed attempt.
@@ -43,8 +44,10 @@ PROGRAM LogDispatcher
 	    (* MQTT log appender *)
 	    logAppender : MqttLogAppender;
 	    state : USINT := STATE_SELECT;
-	    (* After the reset of the appender: build the same batch again *)
+	    (* After the reset of the appender: build the batch again with a smaller batchLimit *)
 	    retryPending : BOOL;
+	    (* After the reset of the appender: send the same batch again, unchanged, as a redelivery *)
+	    resendPending : BOOL;
 	    sendTimer : TON;
 	    (* The batch: an optional drop report, then entryCount records of the active source *)
 	    batch : ARRAY[1..LOG_APPENDER_BATCH_SIZE] OF LogEvent;
@@ -78,7 +81,10 @@ PROGRAM LogDispatcher
 	    logAppender(execute := FALSE);
 	    busy := logAppender.busy;
 	    IF logAppender.busy THEN RETURN; END_IF;
-	    IF retryPending THEN
+	    IF resendPending THEN
+	        resendPending := FALSE;
+	        state := STATE_SEND;
+	    ELSIF retryPending THEN
 	        retryPending := FALSE;
 	        state := STATE_BUILD;
 	    ELSE
@@ -121,7 +127,12 @@ PROGRAM LogDispatcher
 	    batchSize := 0;
 	    batchDropCount := sourceRef.logRef.droppedCount;
 	    IF batchDropCount <> sourceRef.reportedDropCount THEN
+	        (* Unique per source, drop count and application start *)
 	        dropReport.logEventId := CONCAT(applicationDeviceId, '-dropped-');
+	        dropReport.logEventId := CONCAT(dropReport.logEventId, ULINT_TO_STRING(nowMillis()));
+	        dropReport.logEventId := CONCAT(dropReport.logEventId, '-');
+	        dropReport.logEventId := CONCAT(dropReport.logEventId, UINT_TO_STRING(activeSource));
+	        dropReport.logEventId := CONCAT(dropReport.logEventId, '-');
 	        dropReport.logEventId := CONCAT(dropReport.logEventId, UDINT_TO_STRING(batchDropCount));
 	        dropReport.loggerName := applicationDeviceId;
 	        dropReport.source := '';
@@ -169,6 +180,8 @@ PROGRAM LogDispatcher
 	            sourceRef.publishedCount := sourceRef.publishedCount + batchSize;
 	        END_IF;
 	        done := TRUE; error := FALSE; errorId := 0;
+	        (* A smaller batchLimit was needed for one batch only: try the full size again *)
+	        batchLimit := LOG_APPENDER_BATCH_SIZE;
 	        sendTimer(IN := FALSE);
 	        state := STATE_RELEASE;
 	    ELSIF logAppender.error OR sendTimer.Q THEN
@@ -176,7 +189,7 @@ PROGRAM LogDispatcher
 	        IF sendTimer.Q THEN errorId := 122; ELSE errorId := logAppender.errorId; END_IF;
 	        sendTimer(IN := FALSE);
 	        IF logAppender.serializeError AND (batchSize > 1) THEN
-	            (* The JSON does not fit: try again with half the records *)
+	            (* The JSON does not fit: nothing was sent; try again with half the records *)
 	            batchLimit := batchSize / 2;
 	            retryPending := TRUE;
 	        ELSIF logAppender.error AND (logAppender.errorId = 200) THEN
@@ -185,7 +198,8 @@ PROGRAM LogDispatcher
 	        ELSE
 	            attempts := attempts + 1;
 	            IF attempts < logPublishMaxAttempts THEN
-	                retryPending := TRUE;
+	                (* Redelivery with the DUP flag: the payload must be the one already sent *)
+	                resendPending := TRUE;
 	            ELSE
 	                (* Give up this batch: release it and count it as discarded *)
 	                sourceRef REF= logSourceList[activeSource];

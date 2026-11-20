@@ -105,6 +105,7 @@ CODESYS_LIBRARY_SYMBOLS = {
         "AXIS_GROUP_REF_SM3",
         "MC_CIRC_PATHCHOICE",
         "MC_COORD_REF",
+        "MC_GroupDisable",
         "MC_GroupEnable",
         "MC_GroupHalt",
         "MC_GroupReadActualPosition",

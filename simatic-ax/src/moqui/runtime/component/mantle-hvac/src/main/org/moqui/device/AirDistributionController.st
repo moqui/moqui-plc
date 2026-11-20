@@ -25,6 +25,8 @@ FUNCTION_BLOCK AirDistributionController
 	    status : AirDistributionControllerStatus := AirDistributionControllerStatus#Init;
 	    cumulatedTimeHigh : UINT := UINT#0;
 	    cumulatedTimeLow : UINT := UINT#0;
+	    (* Make-before-break: the old damper is disabled only after the new one is enabled *)
+	    breakIssued : BOOL;
 	END_VAR
 
 	(* Logger facade init *)
@@ -66,11 +68,10 @@ FUNCTION_BLOCK AirDistributionController
 	            (* Evaluate switching threshold *)
 	            IF dev.setPointTimeHigh > UINT#0 AND cumulatedTimeHigh >= dev.setPointTimeHigh THEN
 	                cumulatedTimeHigh := UINT#0;
-	                (* Make-Before-Break Interlock / Asynchronous Handshake *)
-					dev.highFlowDamperEnableRequest := FALSE;
-					dev.highFlowDamperDisableRequest := TRUE;
+	                (* Make-Before-Break: first enable the low damper; the high one is disabled in TransitionToLow *)
 					dev.lowFlowDamperEnableRequest := TRUE;
 					dev.lowFlowDamperDisableRequest := FALSE;
+					breakIssued := FALSE;
 	                logger(message := 'Transition to low throw.', level := LogLevel#DEBUG);
 	                status := AirDistributionControllerStatus#TransitionToLow;
 	            END_IF;
@@ -81,7 +82,12 @@ FUNCTION_BLOCK AirDistributionController
 	             * the physical maneuver is completed. This ensures the sequencer 
 	             * advances only after the hardware has reached its target position.
 	             *)
-	            IF NOT dev.highFlowDamperDisableRequest AND NOT dev.lowFlowDamperEnableRequest THEN
+	            IF NOT breakIssued AND NOT dev.lowFlowDamperEnableRequest THEN
+	                (* Low damper enabled (make): now disable the high damper (break) *)
+					dev.highFlowDamperEnableRequest := FALSE;
+					dev.highFlowDamperDisableRequest := TRUE;
+					breakIssued := TRUE;
+	            ELSIF breakIssued AND NOT dev.highFlowDamperDisableRequest THEN
 	                logger(message := 'Enter low throw phase.', level := LogLevel#DEBUG);
 	                status := AirDistributionControllerStatus#LowPhase;
 	            END_IF;
@@ -95,18 +101,22 @@ FUNCTION_BLOCK AirDistributionController
 	            (* Evaluate switching threshold *)
 	            IF dev.setPointTimeLow > UINT#0 AND cumulatedTimeLow >= dev.setPointTimeLow THEN
 	                cumulatedTimeLow := UINT#0;
-	                (* Make-Before-Break Interlock / Asynchronous Handshake *)
+	                (* Make-Before-Break: first enable the high damper; the low one is disabled in TransitionToHigh *)
 					dev.highFlowDamperEnableRequest := TRUE;
 					dev.highFlowDamperDisableRequest := FALSE;
-					dev.lowFlowDamperEnableRequest := FALSE;
-					dev.lowFlowDamperDisableRequest := TRUE;
+					breakIssued := FALSE;
 	                logger(message := 'Transition to high throw.', level := LogLevel#DEBUG);
 	                status := AirDistributionControllerStatus#TransitionToHigh;
 	            END_IF;
             
 	        AirDistributionControllerStatus#TransitionToHigh:
 	            (* Wait for hardware positioning confirmation *)
-	            IF NOT dev.lowFlowDamperDisableRequest AND NOT dev.highFlowDamperEnableRequest THEN
+	            IF NOT breakIssued AND NOT dev.highFlowDamperEnableRequest THEN
+	                (* High damper enabled (make): now disable the low damper (break) *)
+					dev.lowFlowDamperEnableRequest := FALSE;
+					dev.lowFlowDamperDisableRequest := TRUE;
+					breakIssued := TRUE;
+	            ELSIF breakIssued AND NOT dev.lowFlowDamperDisableRequest THEN
 	                logger(message := 'Enter high throw phase.', level := LogLevel#DEBUG);
 	                status := AirDistributionControllerStatus#HighPhase;
 	            END_IF;

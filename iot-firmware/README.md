@@ -116,7 +116,15 @@ The ring and the appender follow `LogRingBuffer.st` and `LogDispatcher.st`:
 - events below `LoggerFacade_SetMinLevel` (default `LOG_MIN_LEVEL_DEFAULT`,
   DEBUG; INFO is advisable in production) are neither printed nor stored, and an
   event equal to the previous one within `LOG_SUPPRESS_DURATION_MS` is written
-  once more as a summary with `repeatCount` = repetitions.
+  once more as a summary with `repeatCount` = repetitions;
+- a facade stores at most `LOG_MAX_EVENTS_PER_WINDOW` (20) new events in one
+  `LOG_SUPPRESS_DURATION_MS` window; further events are only counted, and its
+  next call after the window stores one `Warn` record "N log events suppressed:
+  logger too verbose" (repetitions do not count). The ParameterLogger facade
+  sets `rateLimitDisabled` for its bounded 29-value snapshot. The facade owns
+  this window, so `LOGGER_LOG` takes a non-const `LoggerFacade *`.
+- blocks log events, not states (a state change, a fault edge and its end), as
+  in the canonical source.
 
 Messages already queued are lost if the connection drops before the IoT task
 publishes them; inspect `MqttClient_DroppedMessages()`,

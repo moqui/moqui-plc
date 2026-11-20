@@ -92,6 +92,8 @@ VAR
     logger : LoggerFacade;
     sShapedFunc : SShapedFunc;
     expRamp : IIRFilter;
+    (* Previous value, so that an invalid configuration is logged once *)
+    invalidConfigOld : BOOL;
 END_VAR
 
 (* controlSystemId is the exact Device.deviceId; controlSystemName is descriptive only. *)
@@ -122,9 +124,13 @@ IF (gain <= REAL#0.0)
     invalidConfig := TRUE;
     active := FALSE;
     outputActual := REAL#0.0;
-    logger(message := 'Invalid PID configuration.', level := LogLevel#Error);
+    IF NOT invalidConfigOld THEN
+        logger(message := 'Invalid PID configuration.', level := LogLevel#Error);
+    END_IF;
+    invalidConfigOld := TRUE;
     RETURN;
 END_IF;
+invalidConfigOld := FALSE;
 
 IF NOT enable THEN
     active := FALSE;
